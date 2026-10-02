@@ -219,11 +219,6 @@ export function registerIpc(): void {
       enqueueDownload(args.accountId, args.container, args.names)
   )
   ipcMain.handle(
-    'transfers:configure',
-    (_event: IpcMainInvokeEvent, opts: TransferConfigure): TransfersSnapshot =>
-      configureTransfers(opts)
-  )
-  ipcMain.handle(
     'transfers:cancel',
     (_event: IpcMainInvokeEvent, id: string): TransfersSnapshot => cancelTransfer(id)
   )
