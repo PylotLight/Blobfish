@@ -5,6 +5,7 @@ import type {
   AccountCreateInput,
   AccountSummary,
   AccountUpdateInput,
+  ActivityEntry,
   ContainerActionArgs,
   CreateFolderArgs,
   DeleteBlobsArgs,
@@ -15,7 +16,9 @@ import type {
   RenameBlobArgs,
   StorageContainer,
   SysInfo,
-  UploadArgs,
+  TransferConfigure,
+  TransfersSnapshot,
+  UploadEnqueueArgs,
   VibrancyName
 } from '../shared/types'
 import {
@@ -26,18 +29,27 @@ import {
   setPinned,
   updateAccount
 } from './accounts'
+import { clearActivities, listActivities } from './activity'
 import {
   azuriteConnectionString,
   createContainer,
   createFolder,
   deleteContainer,
   deleteNames,
-  downloadNames,
   listBlobs,
   listContainers,
-  renameBlob,
-  uploadPickedFiles
+  renameBlob
 } from './azure'
+import {
+  cancelAll,
+  cancelTransfer,
+  clearFinished,
+  configureTransfers,
+  enqueueDownload,
+  enqueueUpload,
+  retryTransfer,
+  snapshot as transfersSnapshot
+} from './transfers'
 
 const isMac = process.platform === 'darwin'
 
@@ -189,14 +201,44 @@ export function registerIpc(): void {
     (_event: IpcMainInvokeEvent, args: RenameBlobArgs): Promise<string> =>
       renameBlob(args.accountId, args.container, args.source, args.destLeaf)
   )
+  // ----- Transfers: queued file movement (progress streams over `transfers:changed`) -----
+  ipcMain.handle('transfers:list', (): TransfersSnapshot => transfersSnapshot())
   ipcMain.handle(
-    'storage:upload',
-    (_event: IpcMainInvokeEvent, args: UploadArgs): Promise<string[]> =>
-      uploadPickedFiles(args.accountId, args.container, args.prefix)
+    'transfers:configure',
+    (_event: IpcMainInvokeEvent, opts: TransferConfigure): TransfersSnapshot =>
+      configureTransfers(opts)
   )
   ipcMain.handle(
-    'storage:download',
-    (_event: IpcMainInvokeEvent, args: DownloadArgs): Promise<string> =>
-      downloadNames(args.accountId, args.container, args.names)
+    'transfers:upload',
+    (_event: IpcMainInvokeEvent, args: UploadEnqueueArgs): Promise<string[]> =>
+      enqueueUpload(args.accountId, args.container, args.prefix)
+  )
+  ipcMain.handle(
+    'transfers:download',
+    (_event: IpcMainInvokeEvent, args: DownloadArgs): Promise<string[]> =>
+      enqueueDownload(args.accountId, args.container, args.names)
+  )
+  ipcMain.handle(
+    'transfers:configure',
+    (_event: IpcMainInvokeEvent, opts: TransferConfigure): TransfersSnapshot =>
+      configureTransfers(opts)
+  )
+  ipcMain.handle(
+    'transfers:cancel',
+    (_event: IpcMainInvokeEvent, id: string): TransfersSnapshot => cancelTransfer(id)
+  )
+  ipcMain.handle('transfers:cancel-all', (): TransfersSnapshot => cancelAll())
+  ipcMain.handle(
+    'transfers:retry',
+    (_event: IpcMainInvokeEvent, id: string): TransfersSnapshot => retryTransfer(id)
+  )
+  ipcMain.handle('transfers:clear-finished', (): TransfersSnapshot => clearFinished())
+
+  // ----- Activity log (ASE-style: transfers + ops in one place) -----
+  ipcMain.handle('activity:list', (): ActivityEntry[] => listActivities())
+  ipcMain.handle(
+    'activity:clear',
+    (_event: IpcMainInvokeEvent, mode: 'completed' | 'successful'): ActivityEntry[] =>
+      clearActivities(mode)
   )
 }

@@ -1,8 +1,9 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type {
   AccountCreateInput,
   AccountSummary,
   AccountUpdateInput,
+  ActivityEntry,
   ContainerActionArgs,
   CreateFolderArgs,
   DeleteBlobsArgs,
@@ -13,7 +14,9 @@ import type {
   RenameBlobArgs,
   StorageContainer,
   SysInfo,
-  UploadArgs,
+  TransferConfigure,
+  TransfersSnapshot,
+  UploadEnqueueArgs,
   VibrancyName
 } from '../shared/types'
 
@@ -85,10 +88,38 @@ const api = {
     deleteBlobs: (args: DeleteBlobsArgs): Promise<number> =>
       ipcRenderer.invoke('storage:delete-blobs', args),
     renameBlob: (args: RenameBlobArgs): Promise<string> =>
-      ipcRenderer.invoke('storage:rename-blob', args),
-    upload: (args: UploadArgs): Promise<string[]> => ipcRenderer.invoke('storage:upload', args),
-    download: (args: DownloadArgs): Promise<string> =>
-      ipcRenderer.invoke('storage:download', args)
+      ipcRenderer.invoke('storage:rename-blob', args)
+  },
+  transfers: {
+    list: (): Promise<TransfersSnapshot> => ipcRenderer.invoke('transfers:list'),
+    configure: (opts: TransferConfigure): Promise<TransfersSnapshot> =>
+      ipcRenderer.invoke('transfers:configure', opts),
+    upload: (args: UploadEnqueueArgs): Promise<string[]> =>
+      ipcRenderer.invoke('transfers:upload', args),
+    download: (args: DownloadArgs): Promise<string[]> =>
+      ipcRenderer.invoke('transfers:download', args),
+    cancel: (id: string): Promise<TransfersSnapshot> =>
+      ipcRenderer.invoke('transfers:cancel', id),
+    cancelAll: (): Promise<TransfersSnapshot> => ipcRenderer.invoke('transfers:cancel-all'),
+    retry: (id: string): Promise<TransfersSnapshot> =>
+      ipcRenderer.invoke('transfers:retry', id),
+    clearFinished: (): Promise<TransfersSnapshot> =>
+      ipcRenderer.invoke('transfers:clear-finished'),
+    onUpdate: (cb: (snap: TransfersSnapshot) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, snap: TransfersSnapshot): void => cb(snap)
+      ipcRenderer.on('transfers:changed', handler)
+      return () => ipcRenderer.removeListener('transfers:changed', handler)
+    }
+  },
+  activity: {
+    list: (): Promise<ActivityEntry[]> => ipcRenderer.invoke('activity:list'),
+    clear: (mode: 'completed' | 'successful'): Promise<ActivityEntry[]> =>
+      ipcRenderer.invoke('activity:clear', mode),
+    onUpdate: (cb: (entries: ActivityEntry[]) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, entries: ActivityEntry[]): void => cb(entries)
+      ipcRenderer.on('activity:changed', handler)
+      return () => ipcRenderer.removeListener('activity:changed', handler)
+    }
   },
   app: {
     hide: (): Promise<boolean> => ipcRenderer.invoke('app:hide'),

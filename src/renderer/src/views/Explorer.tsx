@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type {
   AccountSummary,
   ListBlobsResult,
@@ -7,17 +7,10 @@ import type {
 } from '../../../shared/types'
 import type { SelectionTarget } from '../App'
 import { ConfirmDialog, PromptDialog } from './Dialogs'
+import { formatBytes } from '../../../shared/format'
 
 type SortKey = 'name' | 'size' | 'modified'
 type SortDir = 1 | -1
-
-function formatBytes(n?: number): string {
-  if (n === undefined) return '—'
-  if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`
-  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`
-}
 
 function sasWarning(expiry?: string | null): string | null {
   if (!expiry) return null
@@ -137,6 +130,22 @@ export default function Explorer(props: {
     // Account-row clicks pass container: null → stay where we are.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.target?.tick])
+
+  // Refresh the listing when one of our queued transfers finishes.
+  const seenDone = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const off = window.api.transfers.onUpdate((snap) => {
+      let ours = false
+      for (const t of snap.transfers) {
+        if (t.status !== 'completed' || seenDone.current.has(t.id)) continue
+        seenDone.current.add(t.id)
+        if (t.accountId === accountId && t.container === container) ours = true
+      }
+      if (ours) reloadBlobs()
+    })
+    return off
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId, container])
 
   // Blob listing.
   useEffect(() => {
@@ -378,14 +387,9 @@ export default function Explorer(props: {
   function onUpload(): void {
     if (!accountId || !container) return
     setBusy('upload')
-    window.api.storage
+    setError(null)
+    window.api.transfers
       .upload({ accountId, container, prefix: blobs?.prefix || undefined })
-      .then((files) => {
-        if (files.length > 0) {
-          flash(`Uploaded ${files.length} file${files.length === 1 ? '' : 's'}`)
-          reloadBlobs()
-        }
-      })
       .catch(fail)
       .finally(() => setBusy(null))
   }
@@ -393,11 +397,9 @@ export default function Explorer(props: {
   function onDownload(): void {
     if (!accountId || !container || selection.size === 0) return
     setBusy('download')
-    window.api.storage
+    setError(null)
+    window.api.transfers
       .download({ accountId, container, names: [...selection] })
-      .then((dir) => {
-        if (dir) flash(`Downloaded to ${dir}`)
-      })
       .catch(fail)
       .finally(() => setBusy(null))
   }

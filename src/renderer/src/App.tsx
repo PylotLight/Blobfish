@@ -3,6 +3,7 @@ import { APP_NAME, APP_TAGLINE } from '../../shared/config'
 import type { AccountSummary, StorageContainer, SysInfo } from '../../shared/types'
 import Explorer from './views/Explorer'
 import ConnectWizard from './views/ConnectWizard'
+import TransfersPanel from './views/TransfersPanel'
 import { ConfirmDialog, PromptDialog } from './views/Dialogs'
 import { DEFAULT_PREFS, loadPrefs, savePrefs, SettingsDialog, type Prefs } from './views/Settings'
 
@@ -57,6 +58,9 @@ export default function App(): React.JSX.Element {
     if (platform === 'darwin') {
       window.api.glass.set(prefs.vibrancy ? 'fullscreen-ui' : null).catch(console.error)
     }
+    window.api.transfers
+      .configure({ uploadConcurrency: prefs.uploadConcurrency, maxParallel: prefs.maxParallel })
+      .catch(console.error)
   }, [prefs, platform])
 
   function updatePrefs(next: Prefs): void {
@@ -308,6 +312,7 @@ export default function App(): React.JSX.Element {
             onContainersChanged={invalidateContainers}
           />
         </main>
+        <TransfersPanel onOpenSettings={() => setShowSettings(true)} />
       </div>
 
       {showWizard && (

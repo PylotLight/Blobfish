@@ -7,16 +7,28 @@ export interface Prefs {
   density: DensityName
   motion: MotionName
   vibrancy: boolean
+  /** Parallel block connections per upload (1–16). */
+  uploadConcurrency: number
+  /** Simultaneous transfers (1–4). */
+  maxParallel: number
 }
 
 export const DEFAULT_PREFS: Prefs = {
   theme: 'midnight',
   density: 'comfortable',
   motion: 'full',
-  vibrancy: true
+  vibrancy: true,
+  uploadConcurrency: 8,
+  maxParallel: 2
 }
 
 const KEY = 'blobfish.settings.v1'
+
+function clampInt(v: unknown, min: number, max: number, fallback: number): number {
+  return typeof v === 'number' && Number.isFinite(v)
+    ? Math.min(max, Math.max(min, Math.floor(v)))
+    : fallback
+}
 
 export function loadPrefs(): Prefs {
   try {
@@ -27,7 +39,9 @@ export function loadPrefs(): Prefs {
       theme: parsed.theme === 'abyss' || parsed.theme === 'slate' ? parsed.theme : 'midnight',
       density: parsed.density === 'compact' ? 'compact' : 'comfortable',
       motion: parsed.motion === 'reduced' ? 'reduced' : 'full',
-      vibrancy: parsed.vibrancy !== false
+      vibrancy: parsed.vibrancy !== false,
+      uploadConcurrency: clampInt(parsed.uploadConcurrency, 1, 16, DEFAULT_PREFS.uploadConcurrency),
+      maxParallel: clampInt(parsed.maxParallel, 1, 4, DEFAULT_PREFS.maxParallel)
     }
   } catch {
     return DEFAULT_PREFS
@@ -114,6 +128,36 @@ export function SettingsDialog(props: {
             </button>
           ))}
         </div>
+
+        <h4>Transfers</h4>
+        <label className="field">
+          <span>
+            Upload connections per file: <code>{prefs.uploadConcurrency}</code>
+          </span>
+          <input
+            type="range"
+            min={1}
+            max={16}
+            value={prefs.uploadConcurrency}
+            onChange={(e) => set({ uploadConcurrency: Number(e.target.value) })}
+          />
+        </label>
+        <p className="muted small">
+          More connections saturate fast links; fewer are kinder to small networks and Azurite.
+          Downloads stream on a single connection each.
+        </p>
+        <label className="field">
+          <span>
+            Simultaneous transfers: <code>{prefs.maxParallel}</code>
+          </span>
+          <input
+            type="range"
+            min={1}
+            max={4}
+            value={prefs.maxParallel}
+            onChange={(e) => set({ maxParallel: Number(e.target.value) })}
+          />
+        </label>
 
         <h4>Window</h4>
         <label className="field row between">

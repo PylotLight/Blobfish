@@ -141,7 +141,7 @@ export interface RenameBlobArgs {
   destLeaf: string
 }
 
-export interface UploadArgs {
+export interface UploadEnqueueArgs {
   accountId: string
   container: string
   prefix?: string
@@ -151,4 +151,63 @@ export interface DownloadArgs {
   accountId: string
   container: string
   names: string[]
+}
+
+/* ---------- Transfers + activity ---------- */
+
+export type TransferDirection = 'upload' | 'download'
+export type TransferStatus = 'queued' | 'active' | 'completed' | 'failed' | 'cancelled'
+
+export interface TransferInfo {
+  id: string
+  direction: TransferDirection
+  accountId: string
+  accountName: string
+  container: string
+  /** Blob path (upload destination / download source). */
+  name: string
+  totalBytes: number
+  doneBytes: number
+  status: TransferStatus
+  /** Exponential moving average, bytes/sec. */
+  speedBps?: number
+  etaSec?: number
+  error?: string
+  /** Parallel connections this transfer may use. */
+  concurrency: number
+  startedAt?: number
+  finishedAt?: number
+}
+
+export interface TransfersSnapshot {
+  transfers: TransferInfo[]
+  active: number
+  queued: number
+  aggregateBps: number
+  uploadConcurrency: number
+  maxParallel: number
+}
+
+export interface TransferConfigure {
+  uploadConcurrency?: number
+  maxParallel?: number
+}
+
+export interface UploadEnqueueArgs {
+  accountId: string
+  container: string
+  prefix?: string
+}
+
+export type ActivityStatus = 'success' | 'failed'
+export type ActivityKind = 'transfer' | 'container' | 'folder' | 'blob' | 'connection'
+
+export interface ActivityEntry {
+  id: string
+  at: number
+  kind: ActivityKind
+  text: string
+  detail?: string
+  status: ActivityStatus
+  durationMs?: number
 }

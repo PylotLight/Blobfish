@@ -1,22 +1,20 @@
 import { BlobServiceClient } from '@azure/storage-blob'
 import { DataLakeServiceClient } from '@azure/storage-file-datalake'
-import { dialog } from 'electron'
-import { mkdir } from 'node:fs/promises'
-import { basename, join } from 'node:path'
+import { basename } from 'node:path'
 import { decryptSecret } from './accounts'
-import { getMainWindow } from './window'
+import { logActivity } from './activity'
 import type { ListBlobsResult, StorageBlobItem, StorageContainer } from '../shared/types'
 
-function isDfsEndpoint(endpoint: string): boolean {
+export function isDfsEndpoint(endpoint: string): boolean {
   return endpoint.includes('.dfs.')
 }
 
-function isConnectionStringSecret(secret: string): boolean {
+export function isConnectionStringSecret(secret: string): boolean {
   const s = secret.trim()
   return s.includes('AccountName=') || s === 'UseDevelopmentStorage=true'
 }
 
-function blobServiceFromSecret(_profileEndpoint: string, secret: string): BlobServiceClient {
+export function blobServiceFromSecret(_profileEndpoint: string, secret: string): BlobServiceClient {
   if (isConnectionStringSecret(secret)) {
     return BlobServiceClient.fromConnectionString(secret.trim())
   }
@@ -24,7 +22,7 @@ function blobServiceFromSecret(_profileEndpoint: string, secret: string): BlobSe
   return new BlobServiceClient(secret.trim())
 }
 
-function dataLakeServiceFromSecret(secret: string): DataLakeServiceClient {
+export function dataLakeServiceFromSecret(secret: string): DataLakeServiceClient {
   if (isConnectionStringSecret(secret)) {
     return DataLakeServiceClient.fromConnectionString(secret.trim())
   }
@@ -32,7 +30,7 @@ function dataLakeServiceFromSecret(secret: string): DataLakeServiceClient {
 }
 
 /** Friendly wrapper so renderer errors are readable, not SDK soup. */
-function friendlyError(err: unknown, fallback: string): Error {
+export function friendlyError(err: unknown, fallback: string): Error {
   if (err instanceof Error) {
     const msg = err.message
     if (/403|AuthorizationFailure|not authorized/i.test(msg)) {
@@ -200,6 +198,7 @@ export async function createContainer(accountId: string, name: string): Promise<
   if (!/^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$/.test(clean)) {
     throw new Error('Container names are 3–63 lowercase letters, numbers and dashes.')
   }
+  const started = Date.now()
   const { profile, secret } = decryptSecret(accountId)
   try {
     if (isDfsEndpoint(profile.endpoint)) {
@@ -207,12 +206,21 @@ export async function createContainer(accountId: string, name: string): Promise<
     } else {
       await blobServiceFromSecret(profile.endpoint, secret).getContainerClient(clean).create()
     }
+    logActivity({
+      kind: 'container',
+      text: `Created container '${clean}' in '${profile.name}'`,
+      status: 'success',
+      durationMs: Date.now() - started
+    })
   } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to create container'
+    logActivity({ kind: 'container', text: `Create container '${clean}' failed`, detail: message, status: 'failed' })
     throw friendlyError(err, `Failed to create container "${clean}"`)
   }
 }
 
 export async function deleteContainer(accountId: string, name: string): Promise<void> {
+  const started = Date.now()
   const { profile, secret } = decryptSecret(accountId)
   try {
     if (isDfsEndpoint(profile.endpoint)) {
@@ -220,7 +228,15 @@ export async function deleteContainer(accountId: string, name: string): Promise<
     } else {
       await blobServiceFromSecret(profile.endpoint, secret).getContainerClient(name).delete()
     }
+    logActivity({
+      kind: 'container',
+      text: `Deleted container '${name}' from '${profile.name}'`,
+      status: 'success',
+      durationMs: Date.now() - started
+    })
   } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to delete container'
+    logActivity({ kind: 'container', text: `Delete container '${name}' failed`, detail: message, status: 'failed' })
     throw friendlyError(err, `Failed to delete container "${name}"`)
   }
 }
@@ -236,6 +252,7 @@ export async function createFolder(
     throw new Error('Folder name cannot be empty or contain slashes.')
   }
   const full = joinKey(prefix, leaf)
+  const started = Date.now()
   const { profile, secret } = decryptSecret(accountId)
   try {
     if (isDfsEndpoint(profile.endpoint)) {
@@ -246,28 +263,42 @@ export async function createFolder(
       // Zero-byte `folder/` marker — renders as a folder in hierarchy listings.
       await client.getBlockBlobClient(`${full}/`).uploadData(Buffer.alloc(0))
     }
+    logActivity({
+      kind: 'folder',
+      text: `Created folder '${full}' in '${container}'`,
+      status: 'success',
+      durationMs: Date.now() - started
+    })
   } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to create folder'
+    logActivity({ kind: 'folder', text: `Create folder '${leaf}' failed`, detail: message, status: 'failed' })
     throw friendlyError(err, `Failed to create folder "${leaf}"`)
   }
 }
 
-/** Expand folder prefixes (trailing `/`) into the flat blob names beneath them. */
-async function expandNames(
+/** Expand folder prefixes (trailing `/`) into the flat files beneath them, with sizes. */
+export async function expandFiles(
   profileEndpoint: string,
   secret: string,
   container: string,
   names: string[]
-): Promise<string[]> {
+): Promise<Array<{ name: string; size?: number }>> {
   const folders = names.filter((n) => n.endsWith('/'))
-  if (folders.length === 0) return names
-  const files = names.filter((n) => !n.endsWith('/'))
+  const files: Array<{ name: string; size?: number }> = names
+    .filter((n) => !n.endsWith('/'))
+    .map((name) => ({ name }))
+  if (folders.length === 0) return files
   const out = [...files]
+  const seen = new Set(out.map((f) => f.name))
   if (isDfsEndpoint(profileEndpoint)) {
     const fs = dataLakeServiceFromSecret(secret).getFileSystemClient(container)
     for (const f of folders) {
       const trimmed = f.replace(/\/$/, '')
       for await (const p of fs.listPaths({ path: trimmed, recursive: true })) {
-        if (!p.isDirectory && p.name) out.push(p.name)
+        if (!p.isDirectory && p.name && !seen.has(p.name)) {
+          seen.add(p.name)
+          out.push({ name: p.name, size: p.contentLength })
+        }
       }
     }
   } else {
@@ -275,13 +306,14 @@ async function expandNames(
     const client = svc.getContainerClient(container)
     for (const f of folders) {
       for await (const b of client.listBlobsFlat({ prefix: f })) {
-        // Skip the zero-byte folder marker itself — deleting it is harmless either way,
-        // but the prefix delete below covers contents; keep the marker for last.
-        out.push(b.name)
+        if (!seen.has(b.name)) {
+          seen.add(b.name)
+          out.push({ name: b.name, size: b.properties?.contentLength })
+        }
       }
     }
   }
-  return [...new Set(out)]
+  return out
 }
 
 export async function deleteNames(
@@ -290,31 +322,42 @@ export async function deleteNames(
   names: string[]
 ): Promise<number> {
   if (names.length === 0) return 0
+  const started = Date.now()
   const { profile, secret } = decryptSecret(accountId)
   try {
+    let count: number
     if (isDfsEndpoint(profile.endpoint)) {
       const fs = dataLakeServiceFromSecret(secret).getFileSystemClient(container)
       // Directories first (recursive), then files.
       for (const n of names.filter((x) => x.endsWith('/'))) {
         await fs.getDirectoryClient(n.replace(/\/$/, '')).delete(true)
       }
-      let count = 0
-      for (const n of await expandNames(profile.endpoint, secret, container, names)) {
-        await fs.getFileClient(n).delete()
+      count = 0
+      for (const f of await expandFiles(profile.endpoint, secret, container, names)) {
+        await fs.getFileClient(f.name).delete()
         count += 1
       }
-      return count
+    } else {
+      const svc = blobServiceFromSecret(profile.endpoint, secret)
+      const client = svc.getContainerClient(container)
+      const flat = (await expandFiles(profile.endpoint, secret, container, names)).map((f) => f.name)
+      await Promise.all(flat.map((n) => client.deleteBlob(n)))
+      // Remove any folder markers left behind.
+      await Promise.all(
+        names.filter((n) => n.endsWith('/')).map((n) => client.deleteBlob(n).catch(() => {}))
+      )
+      count = flat.length
     }
-    const svc = blobServiceFromSecret(profile.endpoint, secret)
-    const client = svc.getContainerClient(container)
-    const flat = await expandNames(profile.endpoint, secret, container, names)
-    await Promise.all(flat.map((n) => client.deleteBlob(n)))
-    // Remove any folder markers left behind.
-    await Promise.all(
-      names.filter((n) => n.endsWith('/')).map((n) => client.deleteBlob(n).catch(() => {}))
-    )
-    return flat.length
+    logActivity({
+      kind: 'blob',
+      text: `Deleted ${count} item${count === 1 ? '' : 's'} from '${container}'`,
+      status: 'success',
+      durationMs: Date.now() - started
+    })
+    return count
   } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to delete'
+    logActivity({ kind: 'blob', text: `Delete from '${container}' failed`, detail: message, status: 'failed' })
     throw friendlyError(err, 'Failed to delete')
   }
 }
@@ -332,6 +375,7 @@ export async function renameBlob(
   const slash = source.lastIndexOf('/')
   const dest = slash === -1 ? leaf : `${source.slice(0, slash + 1)}${leaf}`
   if (dest === source) return source
+  const started = Date.now()
   const { profile, secret } = decryptSecret(accountId)
   if (isDfsEndpoint(profile.endpoint)) {
     throw new Error('Rename is not supported for ADLS Gen2 attachments yet.')
@@ -347,102 +391,17 @@ export async function renameBlob(
     }
     await destBlob.syncCopyFromURL(srcUrl)
     await srcBlob.delete()
+    logActivity({
+      kind: 'blob',
+      text: `Renamed '${source}' → '${dest}'`,
+      status: 'success',
+      durationMs: Date.now() - started
+    })
     return dest
   } catch (err) {
+    const message = err instanceof Error ? err.message : 'Rename failed'
+    logActivity({ kind: 'blob', text: `Rename '${basename(source)}' failed`, detail: message, status: 'failed' })
     throw friendlyError(err, `Failed to rename "${basename(source)}"`)
-  }
-}
-
-export async function uploadPickedFiles(
-  accountId: string,
-  container: string,
-  prefix?: string
-): Promise<string[]> {
-  const win = getMainWindow()
-  const picked = await dialog.showOpenDialog(win!, {
-    title: 'Upload to Blobfish',
-    properties: ['openFile', 'multiSelections']
-  })
-  if (picked.canceled || picked.filePaths.length === 0) return []
-  const base = (prefix ?? '').replace(/^\/+|\/+$/g, '')
-  const { profile, secret } = decryptSecret(accountId)
-  const uploaded: string[] = []
-  try {
-    if (isDfsEndpoint(profile.endpoint)) {
-      const fs = dataLakeServiceFromSecret(secret).getFileSystemClient(container)
-      for (const fp of picked.filePaths) {
-        const dest = base ? `${base}/${basename(fp)}` : basename(fp)
-        await fs.getFileClient(dest).uploadFile(fp)
-        uploaded.push(dest)
-      }
-    } else {
-      const svc = blobServiceFromSecret(profile.endpoint, secret)
-      const client = svc.getContainerClient(container)
-      // Small parallelism keeps the UI snappy without hammering the service.
-      const queue = [...picked.filePaths]
-      const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
-        while (queue.length > 0) {
-          const fp = queue.shift()!
-          const dest = base ? `${base}/${basename(fp)}` : basename(fp)
-          await client.getBlockBlobClient(dest).uploadFile(fp)
-          uploaded.push(dest)
-        }
-      })
-      await Promise.all(workers)
-    }
-    return uploaded.sort()
-  } catch (err) {
-    throw friendlyError(
-      err,
-      uploaded.length > 0 ? `Uploaded ${uploaded.length} file(s), then failed` : 'Upload failed'
-    )
-  }
-}
-
-export async function downloadNames(
-  accountId: string,
-  container: string,
-  names: string[]
-): Promise<string> {
-  if (names.length === 0) throw new Error('Nothing selected to download.')
-  const win = getMainWindow()
-  const picked = await dialog.showOpenDialog(win!, {
-    title: 'Download destination',
-    properties: ['openDirectory', 'createDirectory']
-  })
-  if (picked.canceled || picked.filePaths.length === 0) return ''
-  const destDir = picked.filePaths[0]!
-  const { profile, secret } = decryptSecret(accountId)
-  try {
-    if (isDfsEndpoint(profile.endpoint)) {
-      const fs = dataLakeServiceFromSecret(secret).getFileSystemClient(container)
-      const flat = await expandNames(profile.endpoint, secret, container, names)
-      const targets = flat.length > 0 ? flat : names.filter((n) => !n.endsWith('/'))
-      for (const n of targets) {
-        const local = join(destDir, basename(n))
-        await fs.getFileClient(n).readToFile(local)
-      }
-    } else {
-      const svc = blobServiceFromSecret(profile.endpoint, secret)
-      const client = svc.getContainerClient(container)
-      const flat = await expandNames(profile.endpoint, secret, container, names)
-      const targets = flat.length > 0 ? flat : names.filter((n) => !n.endsWith('/'))
-      // Preserve folder structure relative to the common root for multi-picks.
-      const queue = [...targets]
-      const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
-        while (queue.length > 0) {
-          const n = queue.shift()!
-          const rel = n.includes('/') ? n.slice(n.indexOf('/') + 1) : basename(n)
-          const local = join(destDir, rel || basename(n))
-          await mkdir(join(local, '..'), { recursive: true }).catch(() => {})
-          await client.getBlobClient(n).downloadToFile(local)
-        }
-      })
-      await Promise.all(workers)
-    }
-    return destDir
-  } catch (err) {
-    throw friendlyError(err, 'Download failed')
   }
 }
 
