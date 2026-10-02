@@ -3,11 +3,17 @@ import type {
   AccountCreateInput,
   AccountSummary,
   AccountUpdateInput,
+  ContainerActionArgs,
+  CreateFolderArgs,
+  DeleteBlobsArgs,
+  DownloadArgs,
   GlassState,
   ListBlobsArgs,
   ListBlobsResult,
+  RenameBlobArgs,
   StorageContainer,
   SysInfo,
+  UploadArgs,
   VibrancyName
 } from '../shared/types'
 
@@ -60,13 +66,29 @@ const api = {
       ipcRenderer.invoke('accounts:add', input),
     remove: (id: string): Promise<boolean> => ipcRenderer.invoke('accounts:remove', id),
     update: (id: string, patch: AccountUpdateInput): Promise<AccountSummary> =>
-      ipcRenderer.invoke('accounts:update', id, patch)
+      ipcRenderer.invoke('accounts:update', id, patch),
+    pin: (id: string, pinned: boolean): Promise<AccountSummary> =>
+      ipcRenderer.invoke('accounts:pin', id, pinned),
+    azuriteTemplate: (): Promise<string> => ipcRenderer.invoke('accounts:azurite-template')
   },
   storage: {
     listContainers: (accountId: string): Promise<StorageContainer[]> =>
       ipcRenderer.invoke('storage:list-containers', accountId),
     listBlobs: (args: ListBlobsArgs): Promise<ListBlobsResult> =>
-      ipcRenderer.invoke('storage:list-blobs', args)
+      ipcRenderer.invoke('storage:list-blobs', args),
+    createContainer: (args: ContainerActionArgs): Promise<void> =>
+      ipcRenderer.invoke('storage:create-container', args),
+    deleteContainer: (args: ContainerActionArgs): Promise<void> =>
+      ipcRenderer.invoke('storage:delete-container', args),
+    createFolder: (args: CreateFolderArgs): Promise<void> =>
+      ipcRenderer.invoke('storage:create-folder', args),
+    deleteBlobs: (args: DeleteBlobsArgs): Promise<number> =>
+      ipcRenderer.invoke('storage:delete-blobs', args),
+    renameBlob: (args: RenameBlobArgs): Promise<string> =>
+      ipcRenderer.invoke('storage:rename-blob', args),
+    upload: (args: UploadArgs): Promise<string[]> => ipcRenderer.invoke('storage:upload', args),
+    download: (args: DownloadArgs): Promise<string> =>
+      ipcRenderer.invoke('storage:download', args)
   },
   app: {
     hide: (): Promise<boolean> => ipcRenderer.invoke('app:hide'),

@@ -5,11 +5,17 @@ import type {
   AccountCreateInput,
   AccountSummary,
   AccountUpdateInput,
+  ContainerActionArgs,
+  CreateFolderArgs,
+  DeleteBlobsArgs,
+  DownloadArgs,
   GlassState,
   ListBlobsArgs,
   ListBlobsResult,
+  RenameBlobArgs,
   StorageContainer,
   SysInfo,
+  UploadArgs,
   VibrancyName
 } from '../shared/types'
 import {
@@ -17,9 +23,21 @@ import {
   encryptionAvailable,
   listAccounts,
   removeAccount,
+  setPinned,
   updateAccount
 } from './accounts'
-import { listBlobs, listContainers } from './azure'
+import {
+  azuriteConnectionString,
+  createContainer,
+  createFolder,
+  deleteContainer,
+  deleteNames,
+  downloadNames,
+  listBlobs,
+  listContainers,
+  renameBlob,
+  uploadPickedFiles
+} from './azure'
 
 const isMac = process.platform === 'darwin'
 
@@ -131,6 +149,12 @@ export function registerIpc(): void {
       updateAccount(id, patch)
   )
   ipcMain.handle(
+    'accounts:pin',
+    (_event: IpcMainInvokeEvent, id: string, pinned: boolean): AccountSummary =>
+      setPinned(id, pinned)
+  )
+  ipcMain.handle('accounts:azurite-template', (): string => azuriteConnectionString())
+  ipcMain.handle(
     'storage:list-containers',
     (_event: IpcMainInvokeEvent, accountId: string): Promise<StorageContainer[]> =>
       listContainers(accountId)
@@ -139,5 +163,40 @@ export function registerIpc(): void {
     'storage:list-blobs',
     (_event: IpcMainInvokeEvent, args: ListBlobsArgs): Promise<ListBlobsResult> =>
       listBlobs(args.accountId, args.container, args.prefix, args.pageSize)
+  )
+  ipcMain.handle(
+    'storage:create-container',
+    (_event: IpcMainInvokeEvent, args: ContainerActionArgs): Promise<void> =>
+      createContainer(args.accountId, args.container)
+  )
+  ipcMain.handle(
+    'storage:delete-container',
+    (_event: IpcMainInvokeEvent, args: ContainerActionArgs): Promise<void> =>
+      deleteContainer(args.accountId, args.container)
+  )
+  ipcMain.handle(
+    'storage:create-folder',
+    (_event: IpcMainInvokeEvent, args: CreateFolderArgs): Promise<void> =>
+      createFolder(args.accountId, args.container, args.prefix, args.folderName)
+  )
+  ipcMain.handle(
+    'storage:delete-blobs',
+    (_event: IpcMainInvokeEvent, args: DeleteBlobsArgs): Promise<number> =>
+      deleteNames(args.accountId, args.container, args.names)
+  )
+  ipcMain.handle(
+    'storage:rename-blob',
+    (_event: IpcMainInvokeEvent, args: RenameBlobArgs): Promise<string> =>
+      renameBlob(args.accountId, args.container, args.source, args.destLeaf)
+  )
+  ipcMain.handle(
+    'storage:upload',
+    (_event: IpcMainInvokeEvent, args: UploadArgs): Promise<string[]> =>
+      uploadPickedFiles(args.accountId, args.container, args.prefix)
+  )
+  ipcMain.handle(
+    'storage:download',
+    (_event: IpcMainInvokeEvent, args: DownloadArgs): Promise<string> =>
+      downloadNames(args.accountId, args.container, args.names)
   )
 }

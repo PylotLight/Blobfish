@@ -1,32 +1,30 @@
 import { useCallback, useEffect, useState } from 'react'
 import { APP_NAME, APP_TAGLINE } from '../../shared/config'
-import type { AccountSummary, GlassState, SysInfo } from '../../shared/types'
-import Kitchen from './views/Kitchen'
-import TrayDemo from './views/TrayDemo'
-import Glass from './views/Glass'
-import Agent from './views/Agent'
-import Explorer, { AddAccountDialog } from './views/Explorer'
+import type { AccountSummary, StorageContainer } from '../../shared/types'
+import Explorer from './views/Explorer'
+import ConnectWizard from './views/ConnectWizard'
 
-type Tab = 'explorer' | 'kitchen' | 'tray' | 'glass' | 'agent'
-
-const TABS: Array<{ id: Tab; label: string }> = [
-  { id: 'explorer', label: 'Explorer' },
-  { id: 'kitchen', label: 'Kitchen sink' },
-  { id: 'tray', label: 'Tray' },
-  { id: 'glass', label: 'Glass' },
-  { id: 'agent', label: 'Agent mode' }
-]
+export interface SelectionTarget {
+  accountId: string
+  container: string | null
+  tick: number
+}
 
 export default function App(): React.JSX.Element {
-  const [tab, setTab] = useState<Tab>('explorer')
-  const [sys, setSys] = useState<SysInfo | null>(null)
-  const [glass, setGlass] = useState<GlassState | null>(null)
-  const [query, setQuery] = useState('')
-
   const [accounts, setAccounts] = useState<AccountSummary[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [showAdd, setShowAdd] = useState(false)
+  const [target, setTarget] = useState<SelectionTarget | null>(null)
+  const [showWizard, setShowWizard] = useState(false)
   const [encAvailable, setEncAvailable] = useState<boolean | null>(null)
+  const [query, setQuery] = useState('')
+
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [containersCache, setContainersCache] = useState<Record<string, StorageContainer[]>>({})
+  const [loadingContainers, setLoadingContainers] = useState<Record<string, boolean>>({})
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [quickOpen, setQuickOpen] = useState(true)
+  const [allOpen, setAllOpen] = useState(true)
 
   const refreshAccounts = useCallback(() => {
     window.api.accounts
@@ -42,140 +40,274 @@ export default function App(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
-    window.api.sys.info().then(setSys).catch(console.error)
-    window.api.glass.get().then(setGlass).catch(console.error)
     refreshAccounts()
     window.api.accounts.encryption().then(setEncAvailable).catch(() => setEncAvailable(false))
   }, [refreshAccounts])
 
+  const ensureContainers = useCallback((accountId: string) => {
+    setContainersCache((prev) => {
+      if (prev[accountId]) return prev
+      void window.api.storage
+        .listContainers(accountId)
+        .then((cs) => setContainersCache((p) => ({ ...p, [accountId]: cs })))
+        .catch(() => setContainersCache((p) => ({ ...p, [accountId]: [] })))
+        .finally(() =>
+          setLoadingContainers((p) => ({ ...p, [accountId]: false }))
+        )
+      setLoadingContainers((p) => ({ ...p, [accountId]: true }))
+      return prev
+    })
+  }, [])
+
+  function toggleExpand(accountId: string): void {
+    setExpanded((prev) => {
+      const next = !prev[accountId]
+      if (next) ensureContainers(accountId)
+      return { ...prev, [accountId]: next }
+    })
+  }
+
+  function selectAccount(accountId: string, container: string | null = null): void {
+    setSelectedId(accountId)
+    setTarget((t) => ({ accountId, container, tick: (t?.tick ?? 0) + 1 }))
+  }
+
+  function invalidateContainers(accountId: string): void {
+    setContainersCache((prev) => {
+      const next = { ...prev }
+      delete next[accountId]
+      return next
+    })
+    if (expanded[accountId]) ensureContainers(accountId)
+  }
+
+  async function commitRename(id: string): Promise<void> {
+    const value = renameValue.trim()
+    setRenamingId(null)
+    if (value === '') return
+    try {
+      await window.api.accounts.update(id, { name: value })
+      refreshAccounts()
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   const selected = accounts.find((a) => a.id === selectedId) ?? null
-  const vibrancyOn = glass !== null && glass.vibrancy !== null
+  const pinned = accounts.filter((a) => a.pinned)
+  const unpinned = accounts.filter((a) => !a.pinned)
+
+  function accountRow(a: AccountSummary): React.JSX.Element {
+    const isActive = a.id === selectedId
+    const isOpen = expanded[a.id] ?? false
+    const cached = containersCache[a.id]
+    const loading = loadingContainers[a.id] ?? false
+    return (
+      <li key={a.id} className="tree-account">
+        <div className={`tree-row${isActive ? ' active' : ''}`}>
+          <button
+            className={`twisty${isOpen ? ' open' : ''}`}
+            onClick={() => toggleExpand(a.id)}
+            aria-label={isOpen ? 'Collapse' : 'Expand'}
+          >
+            ›
+          </button>
+          <button
+            className="tree-main"
+            onClick={() => {
+              selectAccount(a.id)
+              if (!isOpen) toggleExpand(a.id)
+            }}
+            title={`${a.endpoint}${a.containerName ? ` / ${a.containerName}` : ''}`}
+          >
+            <span className={`kind-ico ${a.kind}`} aria-hidden />
+            <span className="tree-text">
+              {renamingId === a.id ? (
+                <input
+                  className="rename-input"
+                  value={renameValue}
+                  autoFocus
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onBlur={() => void commitRename(a.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void commitRename(a.id)
+                    if (e.key === 'Escape') setRenamingId(null)
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <span className="account-name">{a.name}</span>
+              )}
+              <span className="account-sub">
+                {a.containerName ?? a.accountName ?? hostOf(a.endpoint)}
+              </span>
+            </span>
+          </button>
+          <span className="tree-actions">
+            <button
+              className={`mini-btn${a.pinned ? ' on' : ''}`}
+              title={a.pinned ? 'Unpin from Quick Access' : 'Pin to Quick Access'}
+              onClick={() =>
+                window.api.accounts
+                  .pin(a.id, !a.pinned)
+                  .then(() => refreshAccounts())
+                  .catch(console.error)
+              }
+            >
+              {a.pinned ? '★' : '☆'}
+            </button>
+            <button
+              className="mini-btn"
+              title="Rename"
+              onClick={() => {
+                setRenamingId(a.id)
+                setRenameValue(a.name)
+              }}
+            >
+              ✎
+            </button>
+            <button
+              className="mini-btn danger-x"
+              title="Detach (deletes stored secret)"
+              onClick={() => {
+                if (!window.confirm(`Detach "${a.name}"? The stored secret is deleted.`)) return
+                window.api.accounts
+                  .remove(a.id)
+                  .then(() => {
+                    setContainersCache((p) => {
+                      const n = { ...p }
+                      delete n[a.id]
+                      return n
+                    })
+                    refreshAccounts()
+                  })
+                  .catch(console.error)
+              }}
+            >
+              ✕
+            </button>
+          </span>
+        </div>
+        {isOpen && (
+          <ul className="tree-containers">
+            {loading && <li className="tree-loading">Loading…</li>}
+            {!loading && cached?.length === 0 && <li className="tree-loading">No containers.</li>}
+            {cached?.map((c) => (
+              <li key={c.name}>
+                <button
+                  className={`tree-leaf${target?.accountId === a.id && target.container === c.name ? ' active' : ''}`}
+                  onClick={() => selectAccount(a.id, c.name)}
+                >
+                  <span className="kind-ico container" aria-hidden />
+                  {c.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </li>
+    )
+  }
 
   return (
-    <div className="shell" data-platform={sys?.platform ?? 'unknown'}>
+    <div className="shell">
       <aside className="sidebar">
         <div className="traffic-spacer" aria-hidden />
         <div className="brand">
           <h1>{APP_NAME}</h1>
           <p>{APP_TAGLINE}</p>
         </div>
-        <nav className="nav" role="tablist" aria-label="Sections">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              role="tab"
-              aria-selected={tab === t.id}
-              className={tab === t.id ? 'active' : ''}
-              onClick={() => setTab(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
 
-        <div className="accounts-block">
-          <div className="accounts-head">
-            <span>Storage</span>
-            <button className="btn ghost small" onClick={() => setShowAdd(true)}>
-              + Attach
+        <button className="btn mint attach-cta" onClick={() => setShowWizard(true)}>
+          + New connection
+        </button>
+        {encAvailable === false && (
+          <p className="error-text small">Keychain encryption unavailable — attach disabled.</p>
+        )}
+
+        <div className="tree-scroll">
+          {pinned.length > 0 && (
+            <section className="tree-section">
+              <button className="section-toggle" onClick={() => setQuickOpen((v) => !v)}>
+                <span className={`twisty${quickOpen ? ' open' : ''}`}>›</span>
+                <span className="star">★</span> Quick Access
+              </button>
+              {quickOpen && <ul className="tree">{pinned.map(accountRow)}</ul>}
+            </section>
+          )}
+
+          <section className="tree-section">
+            <button className="section-toggle" onClick={() => setAllOpen((v) => !v)}>
+              <span className={`twisty${allOpen ? ' open' : ''}`}>›</span>
+              Storage accounts
+              <span className="count">{accounts.length}</span>
             </button>
-          </div>
-          {encAvailable === false && (
-            <p className="error-text small">Keychain encryption unavailable — attach disabled.</p>
-          )}
-          {accounts.length === 0 ? (
-            <p className="muted small">No storage attached.</p>
-          ) : (
-            <ul className="accounts-list">
-              {accounts.map((a) => (
-                <li key={a.id}>
-                  <button
-                    className={`account-row${a.id === selectedId ? ' active' : ''}`}
-                    onClick={() => {
-                      setSelectedId(a.id)
-                      setTab('explorer')
-                    }}
-                    title={`${a.endpoint}${a.containerName ? ` / ${a.containerName}` : ''}`}
-                  >
-                    <span className={`kind-dot ${a.kind}`} aria-hidden />
-                    <span className="account-text">
-                      <span className="account-name">{a.name}</span>
-                      <span className="account-sub">
-                        {a.containerName ?? a.accountName ?? new URL(a.endpoint).host}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+            {allOpen && (
+              accounts.length === 0 ? (
+                <p className="muted small empty-note">
+                  Nothing attached yet. Connect with a connection string, SAS URL, or account key.
+                </p>
+              ) : (
+                <ul className="tree">{(pinned.length > 0 ? unpinned : accounts).map(accountRow)}</ul>
+              )
+            )}
+          </section>
         </div>
 
         <div className="side-foot">
-          <span className={`status-pill${vibrancyOn ? ' on' : ''}`}>
-            vibrancy {glass === null ? '…' : vibrancyOn ? 'on' : 'off'}
-          </span>
           <span className="status-sub">
-            {sys ? `${sys.platform} · e${window.api.versions.electron()}` : '…'}
+            {accounts.length} connection{accounts.length === 1 ? '' : 's'} · secrets in OS keychain
           </span>
         </div>
       </aside>
 
       <div className="content">
         <header className="topbar">
-          <button
-            className="btn ghost"
-            title="Hide the whole app (macOS: Cmd+H behavior)"
-            onClick={() => void window.api.app.hide()}
-          >
-            Hide
-          </button>
           <input
             className="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={tab === 'explorer' ? 'Filter blobs…' : 'Search the day…'}
-            aria-label="Search"
+            placeholder={selected ? `Filter in ${selected.name}…` : 'Filter…'}
+            aria-label="Filter blobs"
           />
-          <span className="weather pill">
-            {sys ? `${sys.hostname} · ${sys.cpus} cores` : '…'}
-          </span>
+          {selected && (
+            <span className="weather pill">
+              {selected.containerName ?? selected.accountName ?? hostOf(selected.endpoint)}
+            </span>
+          )}
         </header>
 
         <main className="view">
-          {tab === 'explorer' && (
-            <Explorer
-              accounts={accounts}
-              selected={selected}
-              onSelect={setSelectedId}
-              onChanged={refreshAccounts}
-              globalQuery={query}
-            />
-          )}
-          {tab === 'kitchen' && <Kitchen />}
-          {tab === 'tray' && <TrayDemo platform={sys?.platform} />}
-          {tab === 'glass' && (
-            <Glass
-              platform={sys?.platform}
-              query={query}
-              glass={glass}
-              onGlassChange={setGlass}
-            />
-          )}
-          {tab === 'agent' && <Agent />}
+          <Explorer
+            key={selected?.id ?? 'none'}
+            account={selected}
+            target={target?.accountId === selected?.id ? target : null}
+            globalQuery={query}
+            onChanged={refreshAccounts}
+            onContainersChanged={invalidateContainers}
+          />
         </main>
       </div>
 
-      {showAdd && (
-        <AddAccountDialog
-          onClose={() => setShowAdd(false)}
+      {showWizard && (
+        <ConnectWizard
+          onClose={() => setShowWizard(false)}
           onAdded={(a) => {
             refreshAccounts()
-            setSelectedId(a.id)
-            setTab('explorer')
+            selectAccount(a.id, a.containerName ?? null)
+            setExpanded((p) => ({ ...p, [a.id]: true }))
+            ensureContainers(a.id)
           }}
         />
       )}
     </div>
   )
+}
+
+function hostOf(endpoint: string): string {
+  try {
+    return new URL(endpoint).host
+  } catch {
+    return endpoint
+  }
 }

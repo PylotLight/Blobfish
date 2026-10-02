@@ -62,6 +62,8 @@ export interface AccountSummary {
   createdAt: number
   /** ISO expiry parsed from the SAS `se=` param, when present. */
   sasExpiry?: string | null
+  /** Pinned attachments appear under Quick Access in the sidebar. */
+  pinned?: boolean
 }
 
 export interface AccountCreateInput {
@@ -108,4 +110,45 @@ export interface ListBlobsResult {
   /** Effective prefix actually listed (base prefix + navigation). */
   prefix: string
   items: StorageBlobItem[]
+}
+
+/* ---------- CRUD ---------- */
+
+export interface ContainerActionArgs {
+  accountId: string
+  container: string
+}
+
+export interface DeleteBlobsArgs {
+  accountId: string
+  container: string
+  /** Blob names (or folder prefixes ending in `/`) to delete. */
+  names: string[]
+}
+
+export interface CreateFolderArgs {
+  accountId: string
+  container: string
+  /** Current prefix listings are scoped under. */
+  prefix?: string
+  folderName: string
+}
+
+export interface RenameBlobArgs {
+  accountId: string
+  container: string
+  source: string
+  destLeaf: string
+}
+
+export interface UploadArgs {
+  accountId: string
+  container: string
+  prefix?: string
+}
+
+export interface DownloadArgs {
+  accountId: string
+  container: string
+  names: string[]
 }

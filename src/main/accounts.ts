@@ -14,7 +14,8 @@ import {
   isConnectionString,
   joinPrefix,
   parseConnectionString,
-  parseSasUrl
+  parseSasUrl,
+  suggestDisplayName
 } from '../shared/parse'
 
 export { isConnectionString, parseConnectionString, parseSasUrl }
@@ -88,8 +89,6 @@ export function decryptSecret(id: string): { profile: AccountSummary; secret: st
 
 export function addAccount(input: AccountCreateInput): AccountSummary {
   ensureEncryption()
-  const name = input.name.trim()
-  if (name === '') throw new Error('Display name is required.')
   const kind: StorageKind = input.kind
   const secret = input.secret.trim()
   if (secret === '') throw new Error('Connection string or SAS URL is required.')
@@ -132,7 +131,8 @@ export function addAccount(input: AccountCreateInput): AccountSummary {
 
   const stored: StoredAccount = {
     id: randomUUID(),
-    name,
+    // Empty name → derive from the secret (AccountName=…, SAS host/container).
+    name: input.name.trim() || suggestDisplayName(secret, containerName, prefix) || 'Storage',
     kind,
     endpoint,
     containerName,
@@ -141,6 +141,7 @@ export function addAccount(input: AccountCreateInput): AccountSummary {
     accountName,
     createdAt: Date.now(),
     sasExpiry: sasExpiry ?? null,
+    pinned: false,
     encryptedSecret: safeStorage.encryptString(secret).toString('base64')
   }
   const data = readFile()
@@ -172,6 +173,15 @@ export function updateAccount(id: string, patch: AccountUpdateInput): AccountSum
   }
   writeFile(data)
   return stripSecret(current)
+}
+
+export function setPinned(id: string, pinned: boolean): AccountSummary {
+  const data = readFile()
+  const idx = data.accounts.findIndex((a) => a.id === id)
+  if (idx === -1) throw new Error('Storage account not found.')
+  data.accounts[idx]!.pinned = pinned
+  writeFile(data)
+  return stripSecret(data.accounts[idx]!)
 }
 
 export function encryptionAvailable(): boolean {

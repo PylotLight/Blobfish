@@ -85,3 +85,36 @@ export function joinPrefix(base?: string, extra?: string): string | undefined {
   if (b && e) return `${b}/${e}`
   return b ?? e
 }
+
+/**
+ * Suggest a display name from a connection secret, e.g.
+ * `AccountName=myacct` → `myacct`, container SAS → `myacct / mycontainer`.
+ * Used to pre-fill the wizard name field and as a main-side fallback.
+ */
+export function suggestDisplayName(
+  secret: string,
+  containerOverride?: string,
+  prefixOverride?: string
+): string {
+  const s = secret.trim()
+  if (isConnectionString(s)) {
+    try {
+      const parsed = parseConnectionString(s)
+      const acct = parsed.accountName ?? 'azurite'
+      const c = containerOverride?.trim() || prefixOverride?.trim()
+      return c ? `${acct} / ${c}` : acct
+    } catch {
+      return 'Storage account'
+    }
+  }
+  try {
+    const parsed = parseSasUrl(s)
+    const acct = parsed.accountName ?? 'storage'
+    const c = containerOverride?.trim() || parsed.containerName
+    if (!c) return acct
+    const p = prefixOverride?.trim() || parsed.prefix
+    return p ? `${acct} / ${c} / ${p}` : `${acct} / ${c}`
+  } catch {
+    return ''
+  }
+}

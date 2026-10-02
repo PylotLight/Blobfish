@@ -1,27 +1,34 @@
 import { BlobServiceClient } from '@azure/storage-blob'
 import { DataLakeServiceClient } from '@azure/storage-file-datalake'
+import { dialog } from 'electron'
+import { mkdir } from 'node:fs/promises'
+import { basename, join } from 'node:path'
 import { decryptSecret } from './accounts'
+import { getMainWindow } from './window'
 import type { ListBlobsResult, StorageBlobItem, StorageContainer } from '../shared/types'
 
 function isDfsEndpoint(endpoint: string): boolean {
   return endpoint.includes('.dfs.')
 }
 
-function blobServiceFromSecret(profileEndpoint: string, secret: string): BlobServiceClient {
+function isConnectionStringSecret(secret: string): boolean {
   const s = secret.trim()
-  if (s.includes('AccountName=') || s === 'UseDevelopmentStorage=true') {
-    return BlobServiceClient.fromConnectionString(s)
+  return s.includes('AccountName=') || s === 'UseDevelopmentStorage=true'
+}
+
+function blobServiceFromSecret(_profileEndpoint: string, secret: string): BlobServiceClient {
+  if (isConnectionStringSecret(secret)) {
+    return BlobServiceClient.fromConnectionString(secret.trim())
   }
   // Full SAS URL (service or container scoped).
-  return new BlobServiceClient(s)
+  return new BlobServiceClient(secret.trim())
 }
 
 function dataLakeServiceFromSecret(secret: string): DataLakeServiceClient {
-  const s = secret.trim()
-  if (s.includes('AccountName=') || s === 'UseDevelopmentStorage=true') {
-    return DataLakeServiceClient.fromConnectionString(s)
+  if (isConnectionStringSecret(secret)) {
+    return DataLakeServiceClient.fromConnectionString(secret.trim())
   }
-  return new DataLakeServiceClient(s)
+  return new DataLakeServiceClient(secret.trim())
 }
 
 /** Friendly wrapper so renderer errors are readable, not SDK soup. */
@@ -29,10 +36,13 @@ function friendlyError(err: unknown, fallback: string): Error {
   if (err instanceof Error) {
     const msg = err.message
     if (/403|AuthorizationFailure|not authorized/i.test(msg)) {
-      return new Error('Access denied (403). The SAS may lack permissions or has expired.')
+      return new Error('Access denied (403). This key/SAS lacks permission for that action, or it has expired.')
     }
-    if (/404|ContainerNotFound|FilesystemNotFound/i.test(msg)) {
-      return new Error('Container not found (404). Check the container name.')
+    if (/404|ContainerNotFound|FilesystemNotFound|BlobNotFound|PathNotFound/i.test(msg)) {
+      return new Error('Not found (404). The container, folder or blob may have been removed.')
+    }
+    if (/409|ContainerAlreadyExists|FilesystemAlreadyExists|BlobAlreadyExists/i.test(msg)) {
+      return new Error('Already exists (409). Pick a different name.')
     }
     if (/ENOTFOUND|EAI_AGAIN|Failed to fetch|fetch failed|network/i.test(msg)) {
       return new Error('Network error: cannot reach the storage endpoint.')
@@ -43,6 +53,12 @@ function friendlyError(err: unknown, fallback: string): Error {
     return new Error(`${fallback}: ${msg}`)
   }
   return new Error(fallback)
+}
+
+function joinKey(prefix: string | undefined, leaf: string): string {
+  const p = (prefix ?? '').replace(/^\/+|\/+$/g, '')
+  const l = leaf.replace(/^\/+|\/+$/g, '')
+  return p ? `${p}/${l}` : l
 }
 
 export async function listContainers(accountId: string): Promise<StorageContainer[]> {
@@ -152,6 +168,13 @@ export async function listBlobs(
         const leaf = effective === '' ? full : full.slice(effective.length + 1) || full
         items.push({ name: full, leaf, isPrefix: true })
       } else {
+        // Zero-byte `folder/` marker blobs (created by New Folder) surface as folders.
+        if (entry.name.endsWith('/') && (entry.properties?.contentLength ?? 0) === 0) {
+          const full = entry.name.replace(/\/$/, '')
+          const leaf = effective === '' ? full : full.slice(effective.length + 1) || full
+          items.push({ name: full, leaf, isPrefix: true })
+          continue
+        }
         items.push({
           name: entry.name,
           leaf: entry.name.slice((listingPrefix ?? '').length) || entry.name,
@@ -168,4 +191,266 @@ export async function listBlobs(
   } catch (err) {
     throw friendlyError(err, `Failed to list blobs in "${container}"`)
   }
+}
+
+/* ---------------- CRUD ---------------- */
+
+export async function createContainer(accountId: string, name: string): Promise<void> {
+  const clean = name.trim().toLowerCase()
+  if (!/^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$/.test(clean)) {
+    throw new Error('Container names are 3–63 lowercase letters, numbers and dashes.')
+  }
+  const { profile, secret } = decryptSecret(accountId)
+  try {
+    if (isDfsEndpoint(profile.endpoint)) {
+      await dataLakeServiceFromSecret(secret).getFileSystemClient(clean).create()
+    } else {
+      await blobServiceFromSecret(profile.endpoint, secret).getContainerClient(clean).create()
+    }
+  } catch (err) {
+    throw friendlyError(err, `Failed to create container "${clean}"`)
+  }
+}
+
+export async function deleteContainer(accountId: string, name: string): Promise<void> {
+  const { profile, secret } = decryptSecret(accountId)
+  try {
+    if (isDfsEndpoint(profile.endpoint)) {
+      await dataLakeServiceFromSecret(secret).getFileSystemClient(name).delete()
+    } else {
+      await blobServiceFromSecret(profile.endpoint, secret).getContainerClient(name).delete()
+    }
+  } catch (err) {
+    throw friendlyError(err, `Failed to delete container "${name}"`)
+  }
+}
+
+export async function createFolder(
+  accountId: string,
+  container: string,
+  prefix: string | undefined,
+  folderName: string
+): Promise<void> {
+  const leaf = folderName.trim().replace(/^\/+|\/+$/g, '')
+  if (leaf === '' || leaf.includes('/')) {
+    throw new Error('Folder name cannot be empty or contain slashes.')
+  }
+  const full = joinKey(prefix, leaf)
+  const { profile, secret } = decryptSecret(accountId)
+  try {
+    if (isDfsEndpoint(profile.endpoint)) {
+      const fs = dataLakeServiceFromSecret(secret).getFileSystemClient(container)
+      await fs.getDirectoryClient(full).create()
+    } else {
+      const client = blobServiceFromSecret(profile.endpoint, secret).getContainerClient(container)
+      // Zero-byte `folder/` marker — renders as a folder in hierarchy listings.
+      await client.getBlockBlobClient(`${full}/`).uploadData(Buffer.alloc(0))
+    }
+  } catch (err) {
+    throw friendlyError(err, `Failed to create folder "${leaf}"`)
+  }
+}
+
+/** Expand folder prefixes (trailing `/`) into the flat blob names beneath them. */
+async function expandNames(
+  profileEndpoint: string,
+  secret: string,
+  container: string,
+  names: string[]
+): Promise<string[]> {
+  const folders = names.filter((n) => n.endsWith('/'))
+  if (folders.length === 0) return names
+  const files = names.filter((n) => !n.endsWith('/'))
+  const out = [...files]
+  if (isDfsEndpoint(profileEndpoint)) {
+    const fs = dataLakeServiceFromSecret(secret).getFileSystemClient(container)
+    for (const f of folders) {
+      const trimmed = f.replace(/\/$/, '')
+      for await (const p of fs.listPaths({ path: trimmed, recursive: true })) {
+        if (!p.isDirectory && p.name) out.push(p.name)
+      }
+    }
+  } else {
+    const svc = blobServiceFromSecret(profileEndpoint, secret)
+    const client = svc.getContainerClient(container)
+    for (const f of folders) {
+      for await (const b of client.listBlobsFlat({ prefix: f })) {
+        // Skip the zero-byte folder marker itself — deleting it is harmless either way,
+        // but the prefix delete below covers contents; keep the marker for last.
+        out.push(b.name)
+      }
+    }
+  }
+  return [...new Set(out)]
+}
+
+export async function deleteNames(
+  accountId: string,
+  container: string,
+  names: string[]
+): Promise<number> {
+  if (names.length === 0) return 0
+  const { profile, secret } = decryptSecret(accountId)
+  try {
+    if (isDfsEndpoint(profile.endpoint)) {
+      const fs = dataLakeServiceFromSecret(secret).getFileSystemClient(container)
+      // Directories first (recursive), then files.
+      for (const n of names.filter((x) => x.endsWith('/'))) {
+        await fs.getDirectoryClient(n.replace(/\/$/, '')).delete(true)
+      }
+      let count = 0
+      for (const n of await expandNames(profile.endpoint, secret, container, names)) {
+        await fs.getFileClient(n).delete()
+        count += 1
+      }
+      return count
+    }
+    const svc = blobServiceFromSecret(profile.endpoint, secret)
+    const client = svc.getContainerClient(container)
+    const flat = await expandNames(profile.endpoint, secret, container, names)
+    await Promise.all(flat.map((n) => client.deleteBlob(n)))
+    // Remove any folder markers left behind.
+    await Promise.all(
+      names.filter((n) => n.endsWith('/')).map((n) => client.deleteBlob(n).catch(() => {}))
+    )
+    return flat.length
+  } catch (err) {
+    throw friendlyError(err, 'Failed to delete')
+  }
+}
+
+export async function renameBlob(
+  accountId: string,
+  container: string,
+  source: string,
+  destLeaf: string
+): Promise<string> {
+  const leaf = destLeaf.trim()
+  if (leaf === '' || leaf.includes('/')) {
+    throw new Error('New file name cannot be empty or contain slashes.')
+  }
+  const slash = source.lastIndexOf('/')
+  const dest = slash === -1 ? leaf : `${source.slice(0, slash + 1)}${leaf}`
+  if (dest === source) return source
+  const { profile, secret } = decryptSecret(accountId)
+  if (isDfsEndpoint(profile.endpoint)) {
+    throw new Error('Rename is not supported for ADLS Gen2 attachments yet.')
+  }
+  try {
+    const svc = blobServiceFromSecret(profile.endpoint, secret)
+    const client = svc.getContainerClient(container)
+    const srcBlob = client.getBlobClient(source)
+    const destBlob = client.getBlockBlobClient(dest)
+    let srcUrl = srcBlob.url
+    if (!isConnectionStringSecret(secret) && secret.includes('?')) {
+      srcUrl = `${srcUrl}?${secret.slice(secret.indexOf('?') + 1)}`
+    }
+    await destBlob.syncCopyFromURL(srcUrl)
+    await srcBlob.delete()
+    return dest
+  } catch (err) {
+    throw friendlyError(err, `Failed to rename "${basename(source)}"`)
+  }
+}
+
+export async function uploadPickedFiles(
+  accountId: string,
+  container: string,
+  prefix?: string
+): Promise<string[]> {
+  const win = getMainWindow()
+  const picked = await dialog.showOpenDialog(win!, {
+    title: 'Upload to Blobfish',
+    properties: ['openFile', 'multiSelections']
+  })
+  if (picked.canceled || picked.filePaths.length === 0) return []
+  const base = (prefix ?? '').replace(/^\/+|\/+$/g, '')
+  const { profile, secret } = decryptSecret(accountId)
+  const uploaded: string[] = []
+  try {
+    if (isDfsEndpoint(profile.endpoint)) {
+      const fs = dataLakeServiceFromSecret(secret).getFileSystemClient(container)
+      for (const fp of picked.filePaths) {
+        const dest = base ? `${base}/${basename(fp)}` : basename(fp)
+        await fs.getFileClient(dest).uploadFile(fp)
+        uploaded.push(dest)
+      }
+    } else {
+      const svc = blobServiceFromSecret(profile.endpoint, secret)
+      const client = svc.getContainerClient(container)
+      // Small parallelism keeps the UI snappy without hammering the service.
+      const queue = [...picked.filePaths]
+      const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
+        while (queue.length > 0) {
+          const fp = queue.shift()!
+          const dest = base ? `${base}/${basename(fp)}` : basename(fp)
+          await client.getBlockBlobClient(dest).uploadFile(fp)
+          uploaded.push(dest)
+        }
+      })
+      await Promise.all(workers)
+    }
+    return uploaded.sort()
+  } catch (err) {
+    throw friendlyError(
+      err,
+      uploaded.length > 0 ? `Uploaded ${uploaded.length} file(s), then failed` : 'Upload failed'
+    )
+  }
+}
+
+export async function downloadNames(
+  accountId: string,
+  container: string,
+  names: string[]
+): Promise<string> {
+  if (names.length === 0) throw new Error('Nothing selected to download.')
+  const win = getMainWindow()
+  const picked = await dialog.showOpenDialog(win!, {
+    title: 'Download destination',
+    properties: ['openDirectory', 'createDirectory']
+  })
+  if (picked.canceled || picked.filePaths.length === 0) return ''
+  const destDir = picked.filePaths[0]!
+  const { profile, secret } = decryptSecret(accountId)
+  try {
+    if (isDfsEndpoint(profile.endpoint)) {
+      const fs = dataLakeServiceFromSecret(secret).getFileSystemClient(container)
+      const flat = await expandNames(profile.endpoint, secret, container, names)
+      const targets = flat.length > 0 ? flat : names.filter((n) => !n.endsWith('/'))
+      for (const n of targets) {
+        const local = join(destDir, basename(n))
+        await fs.getFileClient(n).readToFile(local)
+      }
+    } else {
+      const svc = blobServiceFromSecret(profile.endpoint, secret)
+      const client = svc.getContainerClient(container)
+      const flat = await expandNames(profile.endpoint, secret, container, names)
+      const targets = flat.length > 0 ? flat : names.filter((n) => !n.endsWith('/'))
+      // Preserve folder structure relative to the common root for multi-picks.
+      const queue = [...targets]
+      const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
+        while (queue.length > 0) {
+          const n = queue.shift()!
+          const rel = n.includes('/') ? n.slice(n.indexOf('/') + 1) : basename(n)
+          const local = join(destDir, rel || basename(n))
+          await mkdir(join(local, '..'), { recursive: true }).catch(() => {})
+          await client.getBlobClient(n).downloadToFile(local)
+        }
+      })
+      await Promise.all(workers)
+    }
+    return destDir
+  } catch (err) {
+    throw friendlyError(err, 'Download failed')
+  }
+}
+
+/** Well-known Azurite defaults, offered as a one-click shortcut in the wizard. */
+export function azuriteConnectionString(): string {
+  return (
+    'DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;' +
+    'AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;' +
+    'BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;'
+  )
 }

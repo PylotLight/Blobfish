@@ -1,42 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import type {
-  AccountCreateInput,
   AccountSummary,
   ListBlobsResult,
   StorageBlobItem,
-  StorageContainer,
-  StorageKind
+  StorageContainer
 } from '../../../shared/types'
+import type { SelectionTarget } from '../App'
 
-const KIND_META: Record<StorageKind, { title: string; desc: string }> = {
-  account: {
-    title: 'Storage account or service',
-    desc: 'Attach to one or more services in a Storage account.'
-  },
-  'blob-container': {
-    title: 'Blob container or directory',
-    desc: 'Attach to an individual Blob container or directory.'
-  },
-  'adls-container': {
-    title: 'ADLS Gen2 container or directory',
-    desc: 'Attach to an individual ADLS Gen2 container or directory.'
-  }
-}
-
-function kindLabel(kind: StorageKind): string {
-  return KIND_META[kind].title
-}
-
-function sasWarning(expiry?: string | null): string | null {
-  if (!expiry) return null
-  const ms = Date.parse(expiry)
-  if (Number.isNaN(ms)) return null
-  const now = Date.now()
-  if (ms <= now) return `SAS expired ${new Date(ms).toLocaleDateString()}`
-  const days = Math.ceil((ms - now) / 86_400_000)
-  if (days <= 14) return `SAS expires in ${days}d (${new Date(ms).toLocaleDateString()})`
-  return null
-}
+type SortKey = 'name' | 'size' | 'modified'
+type SortDir = 1 | -1
 
 function formatBytes(n?: number): string {
   if (n === undefined) return '—'
@@ -46,418 +18,539 @@ function formatBytes(n?: number): string {
   return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`
 }
 
-/* ---------------- Add-account dialog ---------------- */
-
-export function AddAccountDialog(props: {
-  onClose: () => void
-  onAdded: (a: AccountSummary) => void
-}): React.JSX.Element {
-  const [name, setName] = useState('')
-  const [kind, setKind] = useState<StorageKind>('account')
-  const [secret, setSecret] = useState('')
-  const [containerName, setContainerName] = useState('')
-  const [prefix, setPrefix] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const needsContainerField = kind !== 'account'
-  const secretLooksLikeConnStr =
-    secret.includes('AccountName=') || secret.includes('DefaultEndpointsProtocol=')
-
-  async function submit(): Promise<void> {
-    setBusy(true)
-    setError(null)
-    try {
-      const input: AccountCreateInput = {
-        name: name.trim(),
-        kind,
-        secret: secret.trim(),
-        containerName: containerName.trim() || undefined,
-        prefix: prefix.trim() || undefined
-      }
-      const added = await window.api.accounts.add(input)
-      props.onAdded(added)
-      props.onClose()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const canSubmit = name.trim() !== '' && secret.trim() !== '' && !busy
-
-  return (
-    <div className="modal-backdrop" onClick={props.onClose}>
-      <div
-        className="modal glass strong connect-modal"
-        role="dialog"
-        aria-label="Attach storage"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3>Attach storage</h3>
-        <p className="muted">Secrets are encrypted with the OS keychain — never stored in plaintext.</p>
-
-        <div className="kind-list" role="radiogroup" aria-label="Attach type">
-          {(Object.keys(KIND_META) as StorageKind[]).map((k) => (
-            <button
-              key={k}
-              role="radio"
-              aria-checked={kind === k}
-              className={`kind-row${kind === k ? ' selected' : ''}`}
-              onClick={() => setKind(k)}
-            >
-              <span className={`kind-icon ${k}`} aria-hidden />
-              <span className="kind-text">
-                <span className="kind-title">{KIND_META[k].title}</span>
-                <span className="kind-desc">{KIND_META[k].desc}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <label className="field">
-          <span>Display name</span>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. prod blobs"
-          />
-        </label>
-
-        <label className="field">
-          <span>Connection string or SAS URL</span>
-          <textarea
-            className="secret-input"
-            value={secret}
-            onChange={(e) => setSecret(e.target.value)}
-            placeholder={
-              kind === 'account'
-                ? 'DefaultEndpointsProtocol=https;AccountName=…;AccountKey=…  — or —  https://myacct.blob.core.windows.net/?sv=…&sig=…'
-                : 'https://myacct.blob.core.windows.net/mycontainer?sv=…&sig=…'
-            }
-            rows={3}
-          />
-        </label>
-
-        {(needsContainerField || secretLooksLikeConnStr) && (
-          <label className="field">
-            <span>Container name{needsContainerField ? ' (required for connection strings)' : ''}</span>
-            <input
-              value={containerName}
-              onChange={(e) => setContainerName(e.target.value)}
-              placeholder="mycontainer"
-            />
-          </label>
-        )}
-
-        {needsContainerField && (
-          <label className="field">
-            <span>Directory prefix (optional)</span>
-            <input
-              value={prefix}
-              onChange={(e) => setPrefix(e.target.value)}
-              placeholder="uploads/2026"
-            />
-          </label>
-        )}
-
-        {error && <p className="error-text">{error}</p>}
-
-        <div className="row end">
-          <button className="btn ghost" onClick={props.onClose} disabled={busy}>
-            Cancel
-          </button>
-          <button className="btn mint" onClick={() => void submit()} disabled={!canSubmit}>
-            {busy ? 'Attaching…' : 'Attach'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
+function sasWarning(expiry?: string | null): string | null {
+  if (!expiry) return null
+  const ms = Date.parse(expiry)
+  if (Number.isNaN(ms)) return null
+  if (ms <= Date.now()) return `SAS expired ${new Date(ms).toLocaleDateString()}`
+  const days = Math.ceil((ms - Date.now()) / 86_400_000)
+  return days <= 14 ? `SAS expires in ${days}d` : null
 }
 
-/* ---------------- Explorer (containers → blobs) ---------------- */
+function keyOf(item: StorageBlobItem): string {
+  return item.isPrefix ? `${item.name}/` : item.name
+}
 
 export default function Explorer(props: {
-  accounts: AccountSummary[]
-  selected: AccountSummary | null
-  onSelect: (id: string) => void
-  onChanged: () => void
+  account: AccountSummary | null
+  target: SelectionTarget | null
   globalQuery: string
+  onChanged: () => void
+  onContainersChanged: (accountId: string) => void
 }): React.JSX.Element {
-  const { accounts, selected } = props
+  const { account } = props
   const [containers, setContainers] = useState<StorageContainer[]>([])
   const [container, setContainer] = useState<string | null>(null)
   const [blobs, setBlobs] = useState<ListBlobsResult | null>(null)
   const [navPrefix, setNavPrefix] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [selection, setSelection] = useState<Set<string>>(new Set())
+  const [loadingList, setLoadingList] = useState(false)
+  const [loadingContainers, setLoadingContainers] = useState(false)
+  const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [localFilter, setLocalFilter] = useState('')
+  const [notice, setNotice] = useState<string | null>(null)
+  const [sortKey, setSortKey] = useState<SortKey>('name')
+  const [sortDir, setSortDir] = useState<SortDir>(1)
 
-  // Load containers when the selected account changes.
+  const accountId = account?.id
+
+  function flash(message: string): void {
+    setNotice(message)
+    window.setTimeout(() => setNotice((n) => (n === message ? null : n)), 3200)
+  }
+
+  function fail(err: unknown): void {
+    setError(err instanceof Error ? err.message : String(err))
+  }
+
+  const loadContainers = (id: string, highlight?: string | null) => {
+    setLoadingContainers(true)
+    window.api.storage
+      .listContainers(id)
+      .then((cs) => {
+        setContainers(cs)
+        setContainer((prev) => {
+          if (highlight && cs.some((c) => c.name === highlight)) return highlight
+          if (prev && cs.some((c) => c.name === prev)) return prev
+          return cs.length === 1 ? (cs[0]?.name ?? null) : null
+        })
+        if (cs.length === 0) setError('No containers found.')
+      })
+      .catch(fail)
+      .finally(() => setLoadingContainers(false))
+  }
+
+  // Initial load per account.
   useEffect(() => {
     setContainers([])
     setContainer(null)
     setBlobs(null)
     setNavPrefix('')
+    setSelection(new Set())
     setError(null)
-    if (!selected) return
-    let cancelled = false
-    setLoading(true)
-    window.api.storage
-      .listContainers(selected.id)
-      .then((cs) => {
-        if (cancelled) return
-        setContainers(cs)
-        // Scoped attachment or single container: dive straight in.
-        const initial =
-          selected.containerName ?? (cs.length === 1 ? cs[0]?.name ?? null : null)
-        setContainer(initial)
-        if (cs.length === 0) setError('No containers found.')
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [selected])
+    if (!accountId) return
+    loadContainers(accountId, account?.containerName ?? props.target?.container ?? undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId])
 
-  // Load blobs when container / prefix changes.
+  // Sidebar container picks.
   useEffect(() => {
-    if (!selected || !container) return
+    if (props.target?.container) {
+      setContainer(props.target.container)
+      setNavPrefix('')
+      setSelection(new Set())
+    } else if (props.target && props.target.container === null) {
+      // Account row clicked — keep current container choice.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.target?.tick])
+
+  // Blob listing.
+  useEffect(() => {
+    if (!accountId || !container) return
     let cancelled = false
-    setLoading(true)
+    setLoadingList(true)
     setError(null)
     window.api.storage
-      .listBlobs({ accountId: selected.id, container, prefix: navPrefix || undefined })
+      .listBlobs({ accountId, container, prefix: navPrefix || undefined })
       .then((res) => {
-        if (!cancelled) setBlobs(res)
+        if (!cancelled) {
+          setBlobs(res)
+          setSelection(new Set())
+        }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err))
+          fail(err)
           setBlobs(null)
         }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) setLoadingList(false)
       })
     return () => {
       cancelled = true
     }
-  }, [selected, container, navPrefix])
+  }, [accountId, container, navPrefix])
 
-  const query = (props.globalQuery || localFilter).toLowerCase()
-  const visible: StorageBlobItem[] = useMemo(() => {
-    if (!blobs) return []
-    if (query.trim() === '') return blobs.items
-    return blobs.items.filter((i) => i.leaf.toLowerCase().includes(query))
-  }, [blobs, query])
+  function reloadBlobs(): void {
+    if (!accountId || !container) return
+    setLoadingList(true)
+    window.api.storage
+      .listBlobs({ accountId, container, prefix: navPrefix || undefined })
+      .then((res) => {
+        setBlobs(res)
+        setSelection(new Set())
+      })
+      .catch(fail)
+      .finally(() => setLoadingList(false))
+  }
+
+  const scoped = Boolean(account?.containerName)
+  const warn = sasWarning(account?.sasExpiry)
+
+  const visible = useMemo(() => {
+    const items = blobs?.items ?? []
+    const q = props.globalQuery.trim().toLowerCase()
+    const filtered = q === '' ? items : items.filter((i) => i.leaf.toLowerCase().includes(q))
+    const sorted = [...filtered]
+    sorted.sort((a, b) => {
+      if (a.isPrefix !== b.isPrefix) return a.isPrefix ? -1 : 1
+      let cmp = 0
+      if (sortKey === 'name') cmp = a.leaf.localeCompare(b.leaf)
+      else if (sortKey === 'size') cmp = (a.size ?? -1) - (b.size ?? -1)
+      else cmp = (a.lastModified ?? '').localeCompare(b.lastModified ?? '')
+      return cmp * sortDir
+    })
+    return sorted
+  }, [blobs, props.globalQuery, sortKey, sortDir])
 
   const crumbs = useMemo(() => {
     const eff = blobs?.prefix ?? navPrefix
-    if (!eff) return []
-    return eff.split('/').filter(Boolean)
+    return eff === '' ? [] : eff.split('/').filter(Boolean)
   }, [blobs, navPrefix])
 
-  if (!selected) {
+  function toggleSort(key: SortKey): void {
+    if (key === sortKey) setSortDir((d) => (d === 1 ? -1 : 1))
+    else {
+      setSortKey(key)
+      setSortDir(1)
+    }
+  }
+
+  function toggleOne(key: string): void {
+    setSelection((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  /* ---------- CRUD actions ---------- */
+
+  async function run(label: string, fn: () => Promise<string | void>): Promise<void> {
+    if (!accountId) return
+    setBusy(label)
+    setError(null)
+    try {
+      const msg = await fn()
+      if (msg) flash(msg)
+      reloadBlobs()
+    } catch (err) {
+      fail(err)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  function onNewContainer(): void {
+    if (!accountId) return
+    const name = window.prompt('New container name (lowercase, 3–63 chars):', '')
+    if (!name?.trim()) return
+    setBusy('container')
+    window.api.storage
+      .createContainer({ accountId, container: name.trim() })
+      .then(() => {
+        flash(`Container "${name.trim()}" created`)
+        loadContainers(accountId, name.trim())
+        props.onContainersChanged(accountId)
+      })
+      .catch(fail)
+      .finally(() => setBusy(null))
+  }
+
+  function onDeleteContainer(): void {
+    if (!accountId || !container) return
+    if (!window.confirm(`Delete container "${container}" and everything in it?`)) return
+    setBusy('container')
+    window.api.storage
+      .deleteContainer({ accountId, container })
+      .then(() => {
+        flash(`Container "${container}" deleted`)
+        setContainer(null)
+        setBlobs(null)
+        loadContainers(accountId)
+        props.onContainersChanged(accountId)
+      })
+      .catch(fail)
+      .finally(() => setBusy(null))
+  }
+
+  function onNewFolder(): void {
+    if (!accountId || !container) return
+    const name = window.prompt('New folder name:', '')
+    if (!name?.trim()) return
+    void run('folder', async () => {
+      await window.api.storage.createFolder({
+        accountId,
+        container,
+        prefix: blobs?.prefix || undefined,
+        folderName: name.trim()
+      })
+      return `Folder "${name.trim()}" created`
+    })
+  }
+
+  function onUpload(): void {
+    if (!accountId || !container) return
+    setBusy('upload')
+    window.api.storage
+      .upload({ accountId, container, prefix: blobs?.prefix || undefined })
+      .then((files) => {
+        if (files.length > 0) {
+          flash(`Uploaded ${files.length} file${files.length === 1 ? '' : 's'}`)
+          reloadBlobs()
+        }
+      })
+      .catch(fail)
+      .finally(() => setBusy(null))
+  }
+
+  function onDownload(): void {
+    if (!accountId || !container || selection.size === 0) return
+    setBusy('download')
+    window.api.storage
+      .download({ accountId, container, names: [...selection] })
+      .then((dir) => {
+        if (dir) flash(`Downloaded to ${dir}`)
+      })
+      .catch(fail)
+      .finally(() => setBusy(null))
+  }
+
+  function onDelete(): void {
+    if (!accountId || !container || selection.size === 0) return
+    const n = selection.size
+    if (!window.confirm(`Delete ${n} item${n === 1 ? '' : 's'}?`)) return
+    void run('delete', async () => {
+      const count = await window.api.storage.deleteBlobs({
+        accountId,
+        container,
+        names: [...selection]
+      })
+      return `Deleted ${count} item${count === 1 ? '' : 's'}`
+    })
+  }
+
+  function onRename(): void {
+    if (!accountId || !container) return
+    const picked = [...selection].filter((k) => !k.endsWith('/'))
+    if (picked.length !== 1) return
+    const src = picked[0]!
+    const currentLeaf = src.includes('/') ? src.slice(src.lastIndexOf('/') + 1) : src
+    const next = window.prompt('Rename file to:', currentLeaf)
+    if (!next?.trim() || next.trim() === currentLeaf) return
+    void run('rename', async () => {
+      await window.api.storage.renameBlob({
+        accountId,
+        container,
+        source: src,
+        destLeaf: next.trim()
+      })
+      return `Renamed to "${next.trim()}"`
+    })
+  }
+
+  /* ---------- render ---------- */
+
+  if (!account) {
     return (
-      <section className="card span2">
-        <h2>Storage explorer</h2>
-        <p className="muted">
-          {accounts.length === 0
-            ? 'No storage attached yet. Click “Attach storage” in the sidebar to add a connection string or SAS URL.'
-            : 'Select a storage account in the sidebar to browse its containers.'}
-        </p>
+      <section className="card empty-hero fade-in">
+        <h2>Blobfish</h2>
+        <p className="muted">Attach a storage account to browse containers and blobs.</p>
+        <p className="muted small">Connection strings and SAS URLs stay encrypted in your OS keychain.</p>
       </section>
     )
   }
 
-  const warn = sasWarning(selected.sasExpiry)
+  const selectedFiles = [...selection].filter((k) => !k.endsWith('/'))
+  const canRename = selectedFiles.length === 1 && selection.size === 1
 
   return (
-    <div className="explorer">
-      <div className="card">
-        <div className="row between">
-          <h2>
-            {selected.name} <span className="muted">· {kindLabel(selected.kind)}</span>
-          </h2>
+    <div className="explorer fade-in" key={`${account.id}`}>
+      <div className="card explorer-head">
+        <div className="row between head-top">
+          <div className="head-id">
+            <h2>{account.name}</h2>
+            <span className="muted small">
+              <code>{account.endpoint}</code>
+              {account.containerName && (
+                <>
+                  {' / '}<code>{account.containerName}</code>
+                </>
+              )}
+            </span>
+          </div>
           {warn && <span className="pill warn">{warn}</span>}
         </div>
-        <p className="muted endpoint-line">
-          <code>{selected.endpoint}</code>
-          {selected.containerName && (
-            <>
-              {' / '}
-              <code>{selected.containerName}</code>
-            </>
-          )}
-          {selected.prefix && (
-            <>
-              {' / '}
-              <code>{selected.prefix}</code>
-            </>
-          )}
-        </p>
 
-        <div className="row wrap">
-          <button className="btn ghost" onClick={() => props.onChanged()}>
-            Refresh
-          </button>
-          <button
-            className="btn ghost"
-            onClick={() => {
-              if (!selected) return
-              const next = window.prompt('Rename attachment', selected.name)
-              if (next && next.trim() !== '') {
-                void window.api.accounts
-                  .update(selected.id, { name: next.trim() })
-                  .then(() => props.onChanged())
-                  .catch((err: unknown) =>
-                    setError(err instanceof Error ? err.message : String(err))
-                  )
-              }
-            }}
-          >
-            Rename
-          </button>
-          <button
-            className="btn danger"
-            onClick={() => {
-              if (!selected) return
-              if (!window.confirm(`Detach "${selected.name}"? The stored secret is deleted.`)) return
-              void window.api.accounts
-                .remove(selected.id)
-                .then(() => props.onChanged())
-                .catch((err: unknown) =>
-                  setError(err instanceof Error ? err.message : String(err))
-                )
-            }}
-          >
-            Detach
-          </button>
-        </div>
-
-        <h3 className="section-label">Containers</h3>
-        {containers.length === 0 && !loading && !error && (
-          <p className="muted">No containers.</p>
-        )}
-        <div className="container-chips">
-          {containers.map((c) => (
-            <button
-              key={c.name}
-              className={`chip${container === c.name ? ' active' : ''}`}
-              onClick={() => {
-                setContainer(c.name)
+        <div className="toolbar">
+          <label className="container-pick">
+            <span>Container</span>
+            <select
+              value={container ?? ''}
+              disabled={loadingContainers || containers.length === 0}
+              onChange={(e) => {
+                setContainer(e.target.value || null)
                 setNavPrefix('')
               }}
             >
-              {c.name}
+              {containers.length === 0 && <option value="">—</option>}
+              {containers.map((c) => (
+                <option key={c.name} value={c.name}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {!scoped && (
+            <div className="row tight">
+              <button className="btn ghost small" disabled={busy !== null} onClick={onNewContainer}>
+                New container
+              </button>
+              <button
+                className="btn ghost small"
+                disabled={!container || busy !== null}
+                onClick={onDeleteContainer}
+              >
+                Delete container
+              </button>
+            </div>
+          )}
+          <div className="toolbar-sep" />
+          <div className="row tight">
+            <button className="btn ghost small" disabled={!container || busy !== null} onClick={onNewFolder}>
+              New folder
             </button>
-          ))}
-        </div>
-        {selected.kind !== 'account' && containers.length <= 1 && (
-          <p className="muted small">Scoped attachment — only this container is visible.</p>
-        )}
-      </div>
-
-      <div className="card">
-        <div className="row between">
-          <h2>
-            Blobs{container ? (
-              <>
-                {' in '}<code>{container}</code>
-              </>
-            ) : (
-              ''
-            )}
-          </h2>
-          <input
-            className="narrow-filter"
-            value={localFilter}
-            onChange={(e) => setLocalFilter(e.target.value)}
-            placeholder="Filter…"
-            aria-label="Filter blobs"
-          />
-        </div>
-
-        {crumbs.length > 0 && (
-          <div className="crumbs">
             <button
-              className="crumb"
-              onClick={() => setNavPrefix('')}
+              className="btn mint small"
+              disabled={!container || busy !== null}
+              onClick={onUpload}
             >
-              root
+              {busy === 'upload' ? 'Uploading…' : 'Upload'}
+            </button>
+            <button
+              className="btn ghost small"
+              disabled={selection.size === 0 || busy !== null}
+              onClick={onDownload}
+            >
+              Download{selection.size > 0 ? ` (${selection.size})` : ''}
+            </button>
+            <button
+              className="btn ghost small"
+              disabled={!canRename || busy !== null}
+              onClick={onRename}
+            >
+              Rename
+            </button>
+            <button
+              className="btn danger small"
+              disabled={selection.size === 0 || busy !== null}
+              onClick={onDelete}
+            >
+              Delete{selection.size > 0 ? ` (${selection.size})` : ''}
+            </button>
+            <button className="btn ghost small" disabled={busy !== null} onClick={reloadBlobs}>
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {container && (
+          <nav className="crumbs path" aria-label="Path">
+            <button className="crumb root" onClick={() => setNavPrefix('')}>
+              {container}
             </button>
             {crumbs.map((seg, i) => (
-              <span key={i}>
-                {' / '}
-                <button
-                  className="crumb"
-                  onClick={() => setNavPrefix(crumbs.slice(0, i + 1).join('/'))}
-                >
+              <span key={i} className="crumb-seg">
+                <span className="sep">/</span>
+                <button className="crumb" onClick={() => setNavPrefix(crumbs.slice(0, i + 1).join('/'))}>
                   {seg}
                 </button>
               </span>
             ))}
+          </nav>
+        )}
+      </div>
+
+      <div className="card explorer-body">
+        {error && (
+          <p className="error-text" role="alert">
+            {error}
+          </p>
+        )}
+        {loadingList ? (
+          <ul className="skeleton">
+            {Array.from({ length: 8 }, (_, i) => (
+              <li key={i} style={{ animationDelay: `${i * 40}ms` }} />
+            ))}
+          </ul>
+        ) : !container ? (
+          <p className="muted empty-note">
+            {containers.length > 1 ? 'Pick a container above to browse.' : 'Loading containers…'}
+          </p>
+        ) : visible.length === 0 ? (
+          <div className="empty-note">
+            <p className="muted">This folder is empty.</p>
+            <div className="row">
+              <button className="btn mint small" onClick={onUpload}>
+                Upload files
+              </button>
+              <button className="btn ghost small" onClick={onNewFolder}>
+                New folder
+              </button>
+            </div>
           </div>
-        )}
-
-        {loading && <p className="muted">Loading…</p>}
-        {error && <p className="error-text">{error}</p>}
-        {!loading && !error && container && visible.length === 0 && (
-          <p className="muted">Empty{blobs?.prefix ? ` under "${blobs.prefix}"` : ''}.</p>
-        )}
-        {!container && !loading && <p className="muted">Pick a container above.</p>}
-
-        {visible.length > 0 && (
+        ) : (
           <table className="blob-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Size</th>
-                <th>Modified</th>
+                <th className="check-col">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all"
+                    checked={selection.size > 0 && selection.size === visible.length}
+                    onChange={() =>
+                      setSelection((prev) =>
+                        prev.size === visible.length ? new Set() : new Set(visible.map(keyOf))
+                      )
+                    }
+                  />
+                </th>
+                <Th label="Name" k="name" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <Th label="Size" k="size" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <Th label="Modified" k="modified" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />
               </tr>
             </thead>
             <tbody>
-              {visible.map((item) => (
-                <tr key={item.name}>
-                  <td>
-                    {item.isPrefix ? (
-                      <button
-                        className="linklike"
-                        onClick={() =>
-                          setNavPrefix(blobs ? joinNav(blobs.prefix, item.leaf) : item.name)
-                        }
-                        title={`Open ${item.name}/`}
-                      >
-                        📁 {item.leaf}
-                      </button>
-                    ) : (
-                      <span title={item.name}>
-                        {item.contentType?.startsWith('image/') ? '🖼️' : '📄'} {item.leaf}
-                      </span>
-                    )}
-                  </td>
-                  <td className="num">{item.isPrefix ? '—' : formatBytes(item.size)}</td>
-                  <td className="muted">
-                    {item.lastModified ? new Date(item.lastModified).toLocaleString() : '—'}
-                  </td>
-                </tr>
-              ))}
+              {visible.map((item, i) => {
+                const key = keyOf(item)
+                return (
+                  <tr
+                    key={key}
+                    className={`row-in${selection.has(key) ? ' selected' : ''}`}
+                    style={{ animationDelay: `${Math.min(i, 14) * 18}ms` }}
+                  >
+                    <td className="check-col">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${item.leaf}`}
+                        checked={selection.has(key)}
+                        onChange={() => toggleOne(key)}
+                      />
+                    </td>
+                    <td className="name-col">
+                      {item.isPrefix ? (
+                        <button
+                          className="linklike folder"
+                          onClick={() =>
+                            setNavPrefix(
+                              blobs && blobs.prefix ? `${blobs.prefix}/${item.leaf}` : item.name
+                            )
+                          }
+                        >
+                          <span className="file-ico folder" aria-hidden />
+                          {item.leaf}
+                        </button>
+                      ) : (
+                        <span className="file-row" title={item.name}>
+                          <span className="file-ico file" aria-hidden />
+                          {item.leaf}
+                        </span>
+                      )}
+                    </td>
+                    <td className="num">{item.isPrefix ? '—' : formatBytes(item.size)}</td>
+                    <td className="muted">
+                      {item.lastModified ? new Date(item.lastModified).toLocaleString() : '—'}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}
       </div>
+
+      {notice && <div className="toast glass strong toast-in">{notice}</div>}
     </div>
   )
 }
 
-function joinNav(base: string, leaf: string): string {
-  return [base, leaf].filter(Boolean).join('/').replace(/^\/+|\/+$/g, '')
+function Th(props: {
+  label: string
+  k: 'name' | 'size' | 'modified'
+  sortKey: string
+  dir: 1 | -1
+  onSort: (k: 'name' | 'size' | 'modified') => void
+}): React.JSX.Element {
+  const active = props.sortKey === props.k
+  return (
+    <th>
+      <button className={`th-btn${active ? ' active' : ''}`} onClick={() => props.onSort(props.k)}>
+        {props.label}
+        <span className="sort-arrow">{active ? (props.dir === 1 ? ' ↑' : ' ↓') : ''}</span>
+      </button>
+    </th>
+  )
 }
