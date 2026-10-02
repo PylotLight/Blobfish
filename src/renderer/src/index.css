@@ -82,15 +82,15 @@ code {
 
 .brand h1 {
   margin: 0;
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.01em;
 }
 
 .brand p {
-  margin: 6px 0 0;
+  margin: 2px 0 0;
   color: var(--muted);
-  font-size: 13.5px;
+  font-size: 12.5px;
 }
 
 .nav {
@@ -1050,7 +1050,7 @@ textarea.secret-input {
 
 .attach-cta {
   width: 100%;
-  margin-top: 18px;
+  margin-top: 14px;
   -webkit-app-region: no-drag;
 }
 
@@ -1395,7 +1395,7 @@ textarea.secret-input {
 }
 
 .row-in {
-  animation: fadeSlideIn 0.2s ease both;
+  animation: fadeSlideIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
   transition: background 0.12s ease;
 }
 
@@ -1468,8 +1468,33 @@ textarea.secret-input {
 .skeleton li {
   height: 34px;
   border-radius: 10px;
-  background: var(--panel-strong);
-  animation: shimmer 0.9s ease-in-out infinite alternate;
+  background: linear-gradient(90deg, var(--panel) 25%, var(--panel-strong) 50%, var(--panel) 75%);
+  background-size: 200% 100%;
+  animation: shimmerSlide 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmerSlide {
+  from {
+    background-position: 200% 0;
+    opacity: 0.7;
+  }
+  to {
+    background-position: -200% 0;
+    opacity: 1;
+  }
+}
+
+.table-in {
+  animation: tableIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes tableIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Wizard */
@@ -1684,6 +1709,175 @@ li.done .wiz-num {
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 1px 8px;
+}
+
+.group-row .group-add {
+  margin-left: 2px;
+  opacity: 0;
+}
+
+.group-row:hover .group-add {
+  opacity: 1;
+}
+
+.settings-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--muted);
+  padding: 9px 12px;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: color 0.13s ease, background 0.13s ease;
+}
+
+.settings-btn:hover {
+  color: var(--text);
+  background: var(--panel);
+}
+
+/* ---------- Dialogs (confirm / prompt) ---------- */
+
+.dialog {
+  width: 440px;
+  max-width: calc(100vw - 48px);
+}
+
+.dialog-items {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  max-height: 180px;
+  overflow-y: auto;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  word-break: break-all;
+}
+
+/* ---------- Settings ---------- */
+
+.settings-modal {
+  width: 480px;
+  max-width: calc(100vw - 48px);
+}
+
+.settings-modal h4 {
+  margin: 18px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.seg-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.seg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 9px 14px;
+  color: var(--text);
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: border-color 0.13s ease, background 0.13s ease;
+}
+
+.seg.selected {
+  border-color: rgba(126, 226, 168, 0.5);
+  background: var(--mint-dim);
+}
+
+.swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.swatch.midnight {
+  background: linear-gradient(135deg, #232b36, #10141a);
+  border: 1px solid var(--border);
+}
+
+.swatch.abyss {
+  background: #000;
+  border: 1px solid #2a3b32;
+}
+
+.swatch.slate {
+  background: linear-gradient(135deg, #4a4458, #2c2836);
+  border: 1px solid #5a5470;
+}
+
+/* ---------- Themes ---------- */
+
+.shell[data-theme='abyss'] {
+  --accent: #8ab4ff;
+  --mint: #7ee2a8;
+  background: linear-gradient(165deg, rgba(6, 9, 13, 0.72), rgba(0, 0, 0, 0.85));
+}
+
+.shell[data-theme='slate'] {
+  --accent: #b79cff;
+  --mint: #8fe3c0;
+  background: linear-gradient(165deg, rgba(44, 40, 54, 0.5), rgba(16, 14, 22, 0.62));
+}
+
+/* ---------- Density ---------- */
+
+.shell[data-density='compact'] .card {
+  padding: 14px 16px;
+}
+
+.shell[data-density='compact'] .blob-table td {
+  padding: 5px 10px;
+  font-size: 13px;
+}
+
+.shell[data-density='compact'] .tree-row {
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+.shell[data-density='compact'] .tree-leaf {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.shell[data-density='compact'] .action {
+  min-width: 62px;
+  padding: 5px 8px;
+}
+
+.shell[data-density='compact'] .sidebar {
+  width: 272px;
+}
+
+/* ---------- Reduced motion ---------- */
+
+.shell[data-motion='reduced'] *,
+.shell[data-motion='reduced'] *::before,
+.shell[data-motion='reduced'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
 }
 
 .kind-ico.service {

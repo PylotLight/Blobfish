@@ -6,6 +6,7 @@ import type {
   StorageContainer
 } from '../../../shared/types'
 import type { SelectionTarget } from '../App'
+import { ConfirmDialog, PromptDialog } from './Dialogs'
 
 type SortKey = 'name' | 'size' | 'modified'
 type SortDir = 1 | -1
@@ -54,6 +55,29 @@ export default function Explorer(props: {
   const [notice, setNotice] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>(1)
+
+  interface ConfirmState {
+    title: string
+    body?: string
+    items?: string[]
+    requireText?: string
+    confirmLabel: string
+    run: () => Promise<void>
+  }
+
+  interface PromptState {
+    title: string
+    label: string
+    initial?: string
+    placeholder?: string
+    hint?: string
+    confirmLabel: string
+    validate?: (v: string) => string | null
+    submit: (v: string) => Promise<void>
+  }
+
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null)
+  const [prompt, setPrompt] = useState<PromptState | null>(null)
 
   const accountId = account?.id
 
@@ -271,52 +295,83 @@ export default function Explorer(props: {
 
   function onNewContainer(): void {
     if (!accountId) return
-    const name = window.prompt('New container name (lowercase, 3–63 chars):', '')
-    if (!name?.trim()) return
-    setBusy('container')
-    window.api.storage
-      .createContainer({ accountId, container: name.trim() })
-      .then(() => {
-        flash(`Container "${name.trim()}" created`)
-        loadContainers(accountId, name.trim())
-        props.onContainersChanged(accountId)
-      })
-      .catch(fail)
-      .finally(() => setBusy(null))
+    setPrompt({
+      title: 'New container',
+      label: 'Container name',
+      placeholder: 'mycontainer',
+      hint: 'Lowercase letters, numbers and dashes · 3–63 chars.',
+      confirmLabel: 'Create',
+      validate: (v) =>
+        /^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$/.test(v)
+          ? null
+          : 'Use 3–63 lowercase letters, numbers and dashes.',
+      submit: async (v) => {
+        setBusy('container')
+        try {
+          await window.api.storage.createContainer({ accountId, container: v })
+          flash(`Container "${v}" created`)
+          loadContainers(accountId, v)
+          props.onContainersChanged(accountId)
+        } catch (err) {
+          fail(err)
+          throw err
+        } finally {
+          setBusy(null)
+        }
+      }
+    })
   }
 
   function onDeleteContainer(name: string): void {
     if (!accountId) return
-    if (!window.confirm(`Delete container "${name}" and everything in it?`)) return
-    setBusy('container')
-    window.api.storage
-      .deleteContainer({ accountId, container: name })
-      .then(() => {
-        flash(`Container "${name}" deleted`)
-        if (container === name) {
-          setContainer(null)
-          setBlobs(null)
-          resetNav()
+    setConfirm({
+      title: `Delete container "${name}"?`,
+      body: 'Everything inside is permanently deleted. This cannot be undone.',
+      requireText: name,
+      confirmLabel: 'Delete',
+      run: async () => {
+        setBusy('container')
+        try {
+          await window.api.storage.deleteContainer({ accountId, container: name })
+          flash(`Container "${name}" deleted`)
+          if (container === name) {
+            setContainer(null)
+            setBlobs(null)
+            resetNav()
+          }
+          loadContainers(accountId)
+          props.onContainersChanged(accountId)
+        } catch (err) {
+          fail(err)
+          throw err
+        } finally {
+          setBusy(null)
         }
-        loadContainers(accountId)
-        props.onContainersChanged(accountId)
-      })
-      .catch(fail)
-      .finally(() => setBusy(null))
+      }
+    })
   }
 
   function onNewFolder(): void {
     if (!accountId || !container) return
-    const name = window.prompt('New folder name:', '')
-    if (!name?.trim()) return
-    void run('folder', async () => {
-      await window.api.storage.createFolder({
-        accountId,
-        container,
-        prefix: blobs?.prefix || undefined,
-        folderName: name.trim()
-      })
-      return `Folder "${name.trim()}" created`
+    setPrompt({
+      title: 'New folder',
+      label: 'Folder name',
+      placeholder: 'reports',
+      hint: 'A single folder level — slashes are not allowed.',
+      confirmLabel: 'Create',
+      validate: (v) =>
+        v === '' || v.includes('/') ? 'Use a single folder name without slashes.' : null,
+      submit: async (v) => {
+        await run('folder', async () => {
+          await window.api.storage.createFolder({
+            accountId,
+            container,
+            prefix: blobs?.prefix || undefined,
+            folderName: v
+          })
+          return `Folder "${v}" created`
+        })
+      }
     })
   }
 
@@ -350,14 +405,21 @@ export default function Explorer(props: {
   function onDelete(): void {
     if (!accountId || !container || selection.size === 0) return
     const n = selection.size
-    if (!window.confirm(`Delete ${n} item${n === 1 ? '' : 's'}?`)) return
-    void run('delete', async () => {
-      const count = await window.api.storage.deleteBlobs({
-        accountId,
-        container,
-        names: [...selection]
-      })
-      return `Deleted ${count} item${count === 1 ? '' : 's'}`
+    setConfirm({
+      title: `Delete ${n} item${n === 1 ? '' : 's'}?`,
+      body: 'Blobs are permanently deleted. Folders delete everything beneath them.',
+      items: [...selection],
+      confirmLabel: 'Delete',
+      run: async () => {
+        await run('delete', async () => {
+          const count = await window.api.storage.deleteBlobs({
+            accountId,
+            container,
+            names: [...selection]
+          })
+          return `Deleted ${count} item${count === 1 ? '' : 's'}`
+        })
+      }
     })
   }
 
@@ -367,16 +429,25 @@ export default function Explorer(props: {
     if (picked.length !== 1) return
     const src = picked[0]!
     const currentLeaf = src.includes('/') ? src.slice(src.lastIndexOf('/') + 1) : src
-    const next = window.prompt('Rename file to:', currentLeaf)
-    if (!next?.trim() || next.trim() === currentLeaf) return
-    void run('rename', async () => {
-      await window.api.storage.renameBlob({
-        accountId,
-        container,
-        source: src,
-        destLeaf: next.trim()
-      })
-      return `Renamed to "${next.trim()}"`
+    setPrompt({
+      title: 'Rename file',
+      label: 'New file name',
+      initial: currentLeaf,
+      confirmLabel: 'Rename',
+      validate: (v) =>
+        v === '' || v.includes('/') ? 'Use a file name without slashes.' : null,
+      submit: async (v) => {
+        if (v === currentLeaf) return
+        await run('rename', async () => {
+          await window.api.storage.renameBlob({
+            accountId,
+            container,
+            source: src,
+            destLeaf: v
+          })
+          return `Renamed to "${v}"`
+        })
+      }
     })
   }
 
@@ -492,7 +563,7 @@ export default function Explorer(props: {
               )}
             </div>
           ) : (
-            <table className="blob-table dir-table">
+            <table className="blob-table dir-table table-in">
               <thead>
                 <tr>
                   <Th label="Name" k="name" sortKey={sortKey} dir={sortDir} onSort={toggleSort} wide />
@@ -505,7 +576,7 @@ export default function Explorer(props: {
                   <tr
                     key={c.name}
                     className="row-in clickable"
-                    style={{ animationDelay: `${Math.min(i, 14) * 18}ms` }}
+                    style={{ animationDelay: `${Math.min(i, 10) * 12}ms` }}
                     onClick={() => props.onOpenContainer(c.name)}
                   >
                     <td className="name-col">
@@ -534,7 +605,31 @@ export default function Explorer(props: {
             </table>
           )}
         </div>
-        {notice && <div className="toast glass strong toast-in">{notice}</div>}
+        {confirm && (
+        <ConfirmDialog
+          title={confirm.title}
+          body={confirm.body}
+          items={confirm.items}
+          requireText={confirm.requireText}
+          confirmLabel={confirm.confirmLabel}
+          onCancel={() => setConfirm(null)}
+          onConfirm={confirm.run}
+        />
+      )}
+      {prompt && (
+        <PromptDialog
+          title={prompt.title}
+          label={prompt.label}
+          initial={prompt.initial}
+          placeholder={prompt.placeholder}
+          hint={prompt.hint}
+          confirmLabel={prompt.confirmLabel}
+          validate={prompt.validate}
+          onCancel={() => setPrompt(null)}
+          onSubmit={prompt.submit}
+        />
+      )}
+      {notice && <div className="toast glass strong toast-in">{notice}</div>}
       </div>
     )
   }
@@ -587,7 +682,7 @@ export default function Explorer(props: {
             </div>
           </div>
         ) : (
-          <table className="blob-table">
+          <table className="blob-table table-in">
             <thead>
               <tr>
                 <th className="check-col">
@@ -610,7 +705,7 @@ export default function Explorer(props: {
                   <tr
                     key={key}
                     className={`row-in${selection.has(key) ? ' selected' : ''}`}
-                    style={{ animationDelay: `${Math.min(i, 14) * 18}ms` }}
+                    style={{ animationDelay: `${Math.min(i, 10) * 12}ms` }}
                   >
                     <td className="check-col">
                       <input
@@ -648,6 +743,30 @@ export default function Explorer(props: {
         )}
       </div>
 
+      {confirm && (
+        <ConfirmDialog
+          title={confirm.title}
+          body={confirm.body}
+          items={confirm.items}
+          requireText={confirm.requireText}
+          confirmLabel={confirm.confirmLabel}
+          onCancel={() => setConfirm(null)}
+          onConfirm={confirm.run}
+        />
+      )}
+      {prompt && (
+        <PromptDialog
+          title={prompt.title}
+          label={prompt.label}
+          initial={prompt.initial}
+          placeholder={prompt.placeholder}
+          hint={prompt.hint}
+          confirmLabel={prompt.confirmLabel}
+          validate={prompt.validate}
+          onCancel={() => setPrompt(null)}
+          onSubmit={prompt.submit}
+        />
+      )}
       {notice && <div className="toast glass strong toast-in">{notice}</div>}
     </div>
   )

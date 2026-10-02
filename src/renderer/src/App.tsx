@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { APP_NAME, APP_TAGLINE } from '../../shared/config'
-import type { AccountSummary, StorageContainer } from '../../shared/types'
+import type { AccountSummary, StorageContainer, SysInfo } from '../../shared/types'
 import Explorer from './views/Explorer'
 import ConnectWizard from './views/ConnectWizard'
+import { ConfirmDialog, PromptDialog } from './views/Dialogs'
+import { DEFAULT_PREFS, loadPrefs, savePrefs, SettingsDialog, type Prefs } from './views/Settings'
 
 export interface SelectionTarget {
   accountId: string
@@ -15,6 +17,9 @@ export default function App(): React.JSX.Element {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [target, setTarget] = useState<SelectionTarget | null>(null)
   const [showWizard, setShowWizard] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs())
+  const [platform, setPlatform] = useState<SysInfo['platform'] | null>(null)
   const [encAvailable, setEncAvailable] = useState<boolean | null>(null)
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
@@ -22,6 +27,8 @@ export default function App(): React.JSX.Element {
   const [loadingContainers, setLoadingContainers] = useState<Record<string, boolean>>({})
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [detachFor, setDetachFor] = useState<AccountSummary | null>(null)
+  const [createFor, setCreateFor] = useState<string | null>(null)
   const [quickOpen, setQuickOpen] = useState(true)
   const [allOpen, setAllOpen] = useState(true)
 
@@ -40,8 +47,22 @@ export default function App(): React.JSX.Element {
 
   useEffect(() => {
     refreshAccounts()
+    window.api.sys.info().then((s) => setPlatform(s.platform)).catch(console.error)
     window.api.accounts.encryption().then(setEncAvailable).catch(() => setEncAvailable(false))
   }, [refreshAccounts])
+
+  // Persist prefs + apply native vibrancy (macOS only; harmless elsewhere).
+  useEffect(() => {
+    savePrefs(prefs)
+    if (platform === 'darwin') {
+      window.api.glass.set(prefs.vibrancy ? 'fullscreen-ui' : null).catch(console.error)
+    }
+  }, [prefs, platform])
+
+  function updatePrefs(next: Prefs): void {
+    // Reset to defaults keeps one obvious escape hatch if a theme misbehaves.
+    setPrefs({ ...DEFAULT_PREFS, ...next })
+  }
 
   const ensureContainers = useCallback((accountId: string) => {
     setContainersCache((prev) => {
@@ -185,20 +206,7 @@ export default function App(): React.JSX.Element {
             <button
               className="mini-btn danger-x"
               title="Detach (deletes stored secret)"
-              onClick={() => {
-                if (!window.confirm(`Detach "${a.name}"? The stored secret is deleted.`)) return
-                window.api.accounts
-                  .remove(a.id)
-                  .then(() => {
-                    setContainersCache((p) => {
-                      const n = { ...p }
-                      delete n[a.id]
-                      return n
-                    })
-                    refreshAccounts()
-                  })
-                  .catch(console.error)
-              }}
+              onClick={() => setDetachFor(a)}
             >
               ✕
             </button>
@@ -206,10 +214,17 @@ export default function App(): React.JSX.Element {
         </div>
         {isOpen && a.kind === 'account' && (
           <ul className="tree-containers">
-            <li className="group-row" aria-hidden>
-              <span className="kind-ico service" />
+            <li className="group-row">
+              <span className="kind-ico service" aria-hidden />
               Blob Containers
               {cached && <span className="count">{cached.length}</span>}
+              <button
+                className="mini-btn group-add"
+                title="New container in this account"
+                onClick={() => setCreateFor(a.id)}
+              >
+                +
+              </button>
             </li>
             {leaves}
           </ul>
@@ -220,7 +235,13 @@ export default function App(): React.JSX.Element {
   }
 
   return (
-    <div className="shell">
+    <div
+      className="shell"
+      data-platform={platform ?? 'unknown'}
+      data-theme={prefs.theme}
+      data-density={prefs.density}
+      data-motion={prefs.motion}
+    >
       <aside className="sidebar">
         <div className="traffic-spacer" aria-hidden />
         <div className="brand">
@@ -265,6 +286,9 @@ export default function App(): React.JSX.Element {
         </div>
 
         <div className="side-foot">
+          <button className="settings-btn" onClick={() => setShowSettings(true)}>
+            <span aria-hidden>⚙</span> Settings
+          </button>
           <span className="status-sub">
             {accounts.length} connection{accounts.length === 1 ? '' : 's'} · secrets in OS keychain
           </span>
@@ -294,6 +318,56 @@ export default function App(): React.JSX.Element {
             selectAccount(a.id, a.containerName ?? null)
             setExpanded((p) => ({ ...p, [a.id]: true }))
             ensureContainers(a.id)
+          }}
+        />
+      )}
+
+      {showSettings && (
+        <SettingsDialog
+          prefs={prefs}
+          vibrancySupported={platform === 'darwin'}
+          onChange={updatePrefs}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {detachFor && (
+        <ConfirmDialog
+          title={`Detach "${detachFor.name}"?`}
+          body="The encrypted secret is deleted from this machine. You can re-attach any time with the same connection string or SAS."
+          confirmLabel="Detach"
+          onCancel={() => setDetachFor(null)}
+          onConfirm={async () => {
+            const id = detachFor.id
+            await window.api.accounts.remove(id)
+            setContainersCache((p) => {
+              const next = { ...p }
+              delete next[id]
+              return next
+            })
+            refreshAccounts()
+          }}
+        />
+      )}
+
+      {createFor && (
+        <PromptDialog
+          title="New container"
+          label="Container name"
+          placeholder="mycontainer"
+          hint="Lowercase letters, numbers and dashes · 3–63 chars."
+          confirmLabel="Create"
+          validate={(v) =>
+            /^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$/.test(v)
+              ? null
+              : 'Use 3–63 lowercase letters, numbers and dashes.'
+          }
+          onCancel={() => setCreateFor(null)}
+          onSubmit={async (v) => {
+            const id = createFor
+            await window.api.storage.createContainer({ accountId: id, container: v })
+            setExpanded((p) => ({ ...p, [id]: true }))
+            invalidateContainers(id)
           }}
         />
       )}
