@@ -1,7 +1,7 @@
 {
-  "name": "bun-electron-app",
+  "name": "blobfish",
   "version": "0.1.0",
-  "description": "Bun + Electron + React + Vite + TypeScript starter template",
+  "description": "Fast native Azure Blob Storage explorer (Bun + Electron)",
   "private": true,
   "type": "module",
   "main": "./out/main/index.js",

@@ -3,16 +3,16 @@
 // clone this template for a real app.
 
 /** Display name shown in the UI, tray, and notifications. */
-export const APP_NAME = 'Starter'
+export const APP_NAME = 'Blobfish'
 
 /** One-liner shown under the brand in the sidebar. */
-export const APP_TAGLINE = 'pure bun · electron · glass'
+export const APP_TAGLINE = 'azure blob explorer · pure bun'
 
 /**
  * Reverse-DNS id used for setAppUserModelId (Windows notifications/tasks).
  * Change to your own id, e.g. 'com.yourname.yourapp'.
  */
-export const APP_ID = 'com.example.starter'
+export const APP_ID = 'com.pylotlight.blobfish'
 
 /** Default BrowserWindow geometry. */
 export const WINDOW = {
