@@ -4,7 +4,7 @@ import { APP_ID } from '../shared/config'
 import { registerIpc } from './ipc'
 import { createAppMenu } from './menu'
 import { createAppTray, destroyTray } from './tray'
-import { createWindow, hideWindow, showWindow } from './window'
+import { createWindow, hideWindow, resolveAppIcon, showWindow } from './window'
 
 // Single instance: a second launch focuses the existing window instead of forking.
 if (!app.requestSingleInstanceLock()) {
@@ -13,6 +13,19 @@ if (!app.requestSingleInstanceLock()) {
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId(APP_ID)
+
+  // Dev on macOS runs outside an app bundle (Electron's dock icon), so pin
+  // our icon explicitly. Release builds get it from the bundled .icns.
+  if (process.platform === 'darwin' && !app.isPackaged) {
+    const icon = resolveAppIcon()
+    if (icon) {
+      try {
+        app.dock?.setIcon(icon)
+      } catch {
+        // ignore — dock icon is cosmetic
+      }
+    }
+  }
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)

@@ -23,6 +23,14 @@ function resolvePreload(): string {
   return `${base}.mjs`
 }
 
+/** App icon (`build/icon.png`). Resolves in every layout:
+ * - `bun run dev` / `bun run start`: out/main → repo root
+ * - packaged: app.asar/out/main → app.asar (shipped via `files`) */
+export function resolveAppIcon(): string | undefined {
+  const p = join(__dirname, '../../build/icon.png')
+  return existsSync(p) ? p : undefined
+}
+
 export function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: WINDOW.width,
@@ -31,6 +39,8 @@ export function createWindow(): BrowserWindow {
     minHeight: WINDOW.minHeight,
     show: false,
     autoHideMenuBar: true,
+    // Window/taskbar icon on Linux/Windows (macOS uses the bundle icon).
+    icon: resolveAppIcon(),
     // macOS glass: native vibrancy + transparent window + inset traffic lights.
     // The renderer MUST stay translucent (see index.css) or the blur is covered up.
     titleBarStyle: isMac ? 'hiddenInset' : 'default',

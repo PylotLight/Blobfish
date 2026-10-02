@@ -14,7 +14,32 @@
     "clean": "rm -rf out",
     "typecheck": "tsc --noEmit",
     "assets": "bun scripts/make-tray-icon.ts",
+    "dist": "electron-builder",
+    "dist:dir": "electron-builder --dir",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux",
     "postinstall": "install-electron"
+  },
+  "build": {
+    "appId": "com.pylotlight.blobfish",
+    "productName": "Blobfish",
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "category": "Development"
+    }
   },
   "devDependencies": {
     "@electron-toolkit/utils": "^4.0.0",
@@ -24,6 +49,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "electron": "^44.5.1",
+    "electron-builder": "^26.0.0",
     "electron-vite": "^5.0.0",
     "typescript": "~5.9.2",
     "vite": "^8.3.2"
