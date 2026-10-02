@@ -16,7 +16,6 @@ export default function App(): React.JSX.Element {
   const [target, setTarget] = useState<SelectionTarget | null>(null)
   const [showWizard, setShowWizard] = useState(false)
   const [encAvailable, setEncAvailable] = useState<boolean | null>(null)
-  const [query, setQuery] = useState('')
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [containersCache, setContainersCache] = useState<Record<string, StorageContainer[]>>({})
@@ -102,6 +101,23 @@ export default function App(): React.JSX.Element {
     const isOpen = expanded[a.id] ?? false
     const cached = containersCache[a.id]
     const loading = loadingContainers[a.id] ?? false
+    const leaves = (
+      <>
+        {loading && <li className="tree-loading">Loading…</li>}
+        {!loading && cached?.length === 0 && <li className="tree-loading">No containers.</li>}
+        {cached?.map((c) => (
+          <li key={c.name}>
+            <button
+              className={`tree-leaf${target?.accountId === a.id && target.container === c.name ? ' active' : ''}`}
+              onClick={() => selectAccount(a.id, c.name)}
+            >
+              <span className="kind-ico container" aria-hidden />
+              {c.name}
+            </button>
+          </li>
+        ))}
+      </>
+    )
     return (
       <li key={a.id} className="tree-account">
         <div className={`tree-row${isActive ? ' active' : ''}`}>
@@ -188,23 +204,17 @@ export default function App(): React.JSX.Element {
             </button>
           </span>
         </div>
-        {isOpen && (
+        {isOpen && a.kind === 'account' && (
           <ul className="tree-containers">
-            {loading && <li className="tree-loading">Loading…</li>}
-            {!loading && cached?.length === 0 && <li className="tree-loading">No containers.</li>}
-            {cached?.map((c) => (
-              <li key={c.name}>
-                <button
-                  className={`tree-leaf${target?.accountId === a.id && target.container === c.name ? ' active' : ''}`}
-                  onClick={() => selectAccount(a.id, c.name)}
-                >
-                  <span className="kind-ico container" aria-hidden />
-                  {c.name}
-                </button>
-              </li>
-            ))}
+            <li className="group-row" aria-hidden>
+              <span className="kind-ico service" />
+              Blob Containers
+              {cached && <span className="count">{cached.length}</span>}
+            </li>
+            {leaves}
           </ul>
         )}
+        {isOpen && a.kind !== 'account' && <ul className="tree-containers">{leaves}</ul>}
       </li>
     )
   }
@@ -261,28 +271,15 @@ export default function App(): React.JSX.Element {
         </div>
       </aside>
 
-      <div className="content">
-        <header className="topbar">
-          <input
-            className="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={selected ? `Filter in ${selected.name}…` : 'Filter…'}
-            aria-label="Filter blobs"
-          />
-          {selected && (
-            <span className="weather pill">
-              {selected.containerName ?? selected.accountName ?? hostOf(selected.endpoint)}
-            </span>
-          )}
-        </header>
-
+      <div className="content no-topbar">
         <main className="view">
           <Explorer
             key={selected?.id ?? 'none'}
             account={selected}
             target={target?.accountId === selected?.id ? target : null}
-            globalQuery={query}
+            onOpenContainer={(c) => {
+              if (selected) selectAccount(selected.id, c)
+            }}
             onChanged={refreshAccounts}
             onContainersChanged={invalidateContainers}
           />

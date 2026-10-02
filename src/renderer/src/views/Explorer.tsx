@@ -34,7 +34,7 @@ function keyOf(item: StorageBlobItem): string {
 export default function Explorer(props: {
   account: AccountSummary | null
   target: SelectionTarget | null
-  globalQuery: string
+  onOpenContainer: (container: string) => void
   onChanged: () => void
   onContainersChanged: (accountId: string) => void
 }): React.JSX.Element {
@@ -43,7 +43,10 @@ export default function Explorer(props: {
   const [container, setContainer] = useState<string | null>(null)
   const [blobs, setBlobs] = useState<ListBlobsResult | null>(null)
   const [navPrefix, setNavPrefix] = useState('')
+  const [backHist, setBackHist] = useState<string[]>([])
+  const [fwdHist, setFwdHist] = useState<string[]>([])
   const [selection, setSelection] = useState<Set<string>>(new Set())
+  const [filter, setFilter] = useState('')
   const [loadingList, setLoadingList] = useState(false)
   const [loadingContainers, setLoadingContainers] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
@@ -63,6 +66,13 @@ export default function Explorer(props: {
     setError(err instanceof Error ? err.message : String(err))
   }
 
+  function resetNav(): void {
+    setNavPrefix('')
+    setBackHist([])
+    setFwdHist([])
+    setSelection(new Set())
+  }
+
   const loadContainers = (id: string, highlight?: string | null) => {
     setLoadingContainers(true)
     window.api.storage
@@ -72,7 +82,8 @@ export default function Explorer(props: {
         setContainer((prev) => {
           if (highlight && cs.some((c) => c.name === highlight)) return highlight
           if (prev && cs.some((c) => c.name === prev)) return prev
-          return cs.length === 1 ? (cs[0]?.name ?? null) : null
+          if (cs.length === 1) return cs[0]?.name ?? null
+          return null
         })
         if (cs.length === 0) setError('No containers found.')
       })
@@ -85,23 +96,21 @@ export default function Explorer(props: {
     setContainers([])
     setContainer(null)
     setBlobs(null)
-    setNavPrefix('')
-    setSelection(new Set())
+    setFilter('')
     setError(null)
+    resetNav()
     if (!accountId) return
     loadContainers(accountId, account?.containerName ?? props.target?.container ?? undefined)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId])
 
-  // Sidebar container picks.
+  // Sidebar picks (account or container rows, or post-wizard selection).
   useEffect(() => {
     if (props.target?.container) {
       setContainer(props.target.container)
-      setNavPrefix('')
-      setSelection(new Set())
-    } else if (props.target && props.target.container === null) {
-      // Account row clicked — keep current container choice.
+      resetNav()
     }
+    // Account-row clicks pass container: null → stay where we are.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.target?.tick])
 
@@ -146,12 +155,52 @@ export default function Explorer(props: {
       .finally(() => setLoadingList(false))
   }
 
+  /* ---------- prefix history ---------- */
+
+  function go(next: string): void {
+    setBackHist((h) => [...h, navPrefix])
+    setFwdHist([])
+    setNavPrefix(next)
+    setSelection(new Set())
+  }
+
+  function goBack(): void {
+    if (backHist.length === 0) return
+    const prev = backHist[backHist.length - 1]!
+    setBackHist((h) => h.slice(0, -1))
+    setFwdHist((h) => [navPrefix, ...h])
+    setNavPrefix(prev)
+    setSelection(new Set())
+  }
+
+  function goForward(): void {
+    if (fwdHist.length === 0) return
+    const [next, ...rest] = fwdHist
+    setFwdHist(rest)
+    setBackHist((h) => [...h, navPrefix])
+    setNavPrefix(next!)
+    setSelection(new Set())
+  }
+
+  function goUp(): void {
+    const segs = navPrefix.split('/').filter(Boolean)
+    if (segs.length === 0) {
+      // At container root → up means back to the container directory.
+      setContainer(null)
+      resetNav()
+      return
+    }
+    go(segs.slice(0, -1).join('/'))
+  }
+
+  /* ---------- derived ---------- */
+
   const scoped = Boolean(account?.containerName)
   const warn = sasWarning(account?.sasExpiry)
 
-  const visible = useMemo(() => {
+  const visibleBlobs = useMemo(() => {
     const items = blobs?.items ?? []
-    const q = props.globalQuery.trim().toLowerCase()
+    const q = filter.trim().toLowerCase()
     const filtered = q === '' ? items : items.filter((i) => i.leaf.toLowerCase().includes(q))
     const sorted = [...filtered]
     sorted.sort((a, b) => {
@@ -163,12 +212,25 @@ export default function Explorer(props: {
       return cmp * sortDir
     })
     return sorted
-  }, [blobs, props.globalQuery, sortKey, sortDir])
+  }, [blobs, filter, sortKey, sortDir])
 
-  const crumbs = useMemo(() => {
-    const eff = blobs?.prefix ?? navPrefix
-    return eff === '' ? [] : eff.split('/').filter(Boolean)
-  }, [blobs, navPrefix])
+  const visibleContainers = useMemo(() => {
+    const q = filter.trim().toLowerCase()
+    const filtered =
+      q === '' ? containers : containers.filter((c) => c.name.toLowerCase().includes(q))
+    const sorted = [...filtered]
+    sorted.sort((a, b) =>
+      sortKey === 'modified'
+        ? (a.lastModified ?? '').localeCompare(b.lastModified ?? '') * sortDir
+        : a.name.localeCompare(b.name) * sortDir
+    )
+    return sorted
+  }, [containers, filter, sortKey, sortDir])
+
+  const crumbs = useMemo(
+    () => (navPrefix === '' ? [] : navPrefix.split('/').filter(Boolean)),
+    [navPrefix]
+  )
 
   function toggleSort(key: SortKey): void {
     if (key === sortKey) setSortDir((d) => (d === 1 ? -1 : 1))
@@ -187,10 +249,13 @@ export default function Explorer(props: {
     })
   }
 
-  /* ---------- CRUD actions ---------- */
+  function toggleAll(keys: string[]): void {
+    setSelection((prev) => (prev.size === keys.length && keys.length > 0 ? new Set() : new Set(keys)))
+  }
+
+  /* ---------- CRUD ---------- */
 
   async function run(label: string, fn: () => Promise<string | void>): Promise<void> {
-    if (!accountId) return
     setBusy(label)
     setError(null)
     try {
@@ -220,16 +285,19 @@ export default function Explorer(props: {
       .finally(() => setBusy(null))
   }
 
-  function onDeleteContainer(): void {
-    if (!accountId || !container) return
-    if (!window.confirm(`Delete container "${container}" and everything in it?`)) return
+  function onDeleteContainer(name: string): void {
+    if (!accountId) return
+    if (!window.confirm(`Delete container "${name}" and everything in it?`)) return
     setBusy('container')
     window.api.storage
-      .deleteContainer({ accountId, container })
+      .deleteContainer({ accountId, container: name })
       .then(() => {
-        flash(`Container "${container}" deleted`)
-        setContainer(null)
-        setBlobs(null)
+        flash(`Container "${name}" deleted`)
+        if (container === name) {
+          setContainer(null)
+          setBlobs(null)
+          resetNav()
+        }
         loadContainers(accountId)
         props.onContainersChanged(accountId)
       })
@@ -327,132 +395,188 @@ export default function Explorer(props: {
   const selectedFiles = [...selection].filter((k) => !k.endsWith('/'))
   const canRename = selectedFiles.length === 1 && selection.size === 1
 
+  const actionBar = (
+    <div className="actionbar" role="toolbar" aria-label="Blob actions">
+      <Action icon="↑" label="Upload" primary onClick={onUpload} disabled={!container || busy !== null} working={busy === 'upload'} workingLabel="Uploading…" />
+      <Action icon="↓" label={`Download${selection.size > 0 ? ` (${selection.size})` : ''}`} onClick={onDownload} disabled={selection.size === 0 || busy !== null} />
+      <Action icon="+" label="New folder" onClick={onNewFolder} disabled={!container || busy !== null} />
+      <Action icon="☑" label="Select all" onClick={() => toggleAll(visibleBlobs.map(keyOf))} disabled={visibleBlobs.length === 0} />
+      <span className="action-sep" aria-hidden />
+      <Action icon="✎" label="Rename" onClick={onRename} disabled={!canRename || busy !== null} />
+      <Action icon="✕" label={`Delete${selection.size > 0 ? ` (${selection.size})` : ''}`} danger onClick={onDelete} disabled={selection.size === 0 || busy !== null} />
+      <span className="action-sep" aria-hidden />
+      <Action icon="↻" label="Refresh" onClick={reloadBlobs} disabled={!container || busy !== null} />
+    </div>
+  )
+
+  const navRow = (
+    <div className="navrow">
+      <div className="nav-btns">
+        <button className="nav-btn" onClick={goBack} disabled={backHist.length === 0} title="Back" aria-label="Back">←</button>
+        <button className="nav-btn" onClick={goForward} disabled={fwdHist.length === 0} title="Forward" aria-label="Forward">→</button>
+        <button className="nav-btn" onClick={goUp} disabled={!container} title="Up" aria-label="Up">↑</button>
+      </div>
+      <nav className="address" aria-label="Path">
+        <button className="crumb addr-acct" onClick={() => { setContainer(null); resetNav() }} title={account.name}>
+          {account.containerName ?? account.accountName ?? account.name}
+        </button>
+        {container && (
+          <>
+            <span className="sep">/</span>
+            <button className="crumb root" onClick={() => go('')}>
+              {container}
+            </button>
+          </>
+        )}
+        {crumbs.map((seg, i) => (
+          <span key={i} className="crumb-seg">
+            <span className="sep">/</span>
+            <button className="crumb" onClick={() => go(crumbs.slice(0, i + 1).join('/'))}>
+              {seg}
+            </button>
+          </span>
+        ))}
+      </nav>
+      <label className="addr-filter">
+        <span aria-hidden>⌕</span>
+        <input
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Filter…"
+          aria-label="Filter current view"
+        />
+      </label>
+    </div>
+  )
+
+  // ----- account level: container directory -----
+  if (!container) {
+    return (
+      <div className="explorer fade-in">
+        <div className="card explorer-head">
+          <div className="row between head-top">
+            <div className="head-id">
+              <span className="eyebrow">Storage account</span>
+              <h2>{account.name}</h2>
+              <span className="muted small">
+                <code>{account.endpoint}</code>
+              </span>
+            </div>
+            <div className="row tight">
+              {warn && <span className="pill warn">{warn}</span>}
+              {!scoped && (
+                <button className="btn mint small" disabled={busy !== null} onClick={onNewContainer}>
+                  New container
+                </button>
+              )}
+            </div>
+          </div>
+          {navRow}
+        </div>
+
+        <div className="card explorer-body">
+          {error && <p className="error-text" role="alert">{error}</p>}
+          {loadingContainers ? (
+            <ul className="skeleton">
+              {Array.from({ length: 8 }, (_, i) => (
+                <li key={i} style={{ animationDelay: `${i * 40}ms` }} />
+              ))}
+            </ul>
+          ) : visibleContainers.length === 0 ? (
+            <div className="empty-note">
+              <p className="muted">No containers{filter ? ` matching "${filter}"` : ''}.</p>
+              {!scoped && (
+                <button className="btn mint small" onClick={onNewContainer}>
+                  New container
+                </button>
+              )}
+            </div>
+          ) : (
+            <table className="blob-table dir-table">
+              <thead>
+                <tr>
+                  <Th label="Name" k="name" sortKey={sortKey} dir={sortDir} onSort={toggleSort} wide />
+                  <Th label="Last Modified" k="modified" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                  {!scoped && <th><span className="sr">Actions</span></th>}
+                </tr>
+              </thead>
+              <tbody>
+                {visibleContainers.map((c, i) => (
+                  <tr
+                    key={c.name}
+                    className="row-in clickable"
+                    style={{ animationDelay: `${Math.min(i, 14) * 18}ms` }}
+                    onClick={() => props.onOpenContainer(c.name)}
+                  >
+                    <td className="name-col">
+                      <span className="file-row">
+                        <span className="file-ico container-lg" aria-hidden />
+                        {c.name}
+                      </span>
+                    </td>
+                    <td className="muted">
+                      {c.lastModified ? new Date(c.lastModified).toLocaleString() : '—'}
+                    </td>
+                    {!scoped && (
+                      <td className="row-act" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          className="mini-btn danger-x"
+                          title={`Delete container "${c.name}"`}
+                          onClick={() => onDeleteContainer(c.name)}
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        {notice && <div className="toast glass strong toast-in">{notice}</div>}
+      </div>
+    )
+  }
+
+  // ----- container level: blob browser -----
   return (
-    <div className="explorer fade-in" key={`${account.id}`}>
+    <div className="explorer fade-in">
       <div className="card explorer-head">
         <div className="row between head-top">
           <div className="head-id">
-            <h2>{account.name}</h2>
-            <span className="muted small">
-              <code>{account.endpoint}</code>
-              {account.containerName && (
-                <>
-                  {' / '}<code>{account.containerName}</code>
-                </>
-              )}
-            </span>
+            <span className="eyebrow">Blob container</span>
+            <h2>{container}</h2>
           </div>
-          {warn && <span className="pill warn">{warn}</span>}
-        </div>
-
-        <div className="toolbar">
-          <label className="container-pick">
-            <span>Container</span>
-            <select
-              value={container ?? ''}
-              disabled={loadingContainers || containers.length === 0}
-              onChange={(e) => {
-                setContainer(e.target.value || null)
-                setNavPrefix('')
-              }}
-            >
-              {containers.length === 0 && <option value="">—</option>}
-              {containers.map((c) => (
-                <option key={c.name} value={c.name}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          {!scoped && (
-            <div className="row tight">
-              <button className="btn ghost small" disabled={busy !== null} onClick={onNewContainer}>
-                New container
-              </button>
+          <div className="row tight">
+            {warn && <span className="pill warn">{warn}</span>}
+            {!scoped && (
               <button
                 className="btn ghost small"
-                disabled={!container || busy !== null}
-                onClick={onDeleteContainer}
+                disabled={busy !== null}
+                onClick={() => onDeleteContainer(container)}
+                title="Delete this container and everything in it"
               >
                 Delete container
               </button>
-            </div>
-          )}
-          <div className="toolbar-sep" />
-          <div className="row tight">
-            <button className="btn ghost small" disabled={!container || busy !== null} onClick={onNewFolder}>
-              New folder
-            </button>
-            <button
-              className="btn mint small"
-              disabled={!container || busy !== null}
-              onClick={onUpload}
-            >
-              {busy === 'upload' ? 'Uploading…' : 'Upload'}
-            </button>
-            <button
-              className="btn ghost small"
-              disabled={selection.size === 0 || busy !== null}
-              onClick={onDownload}
-            >
-              Download{selection.size > 0 ? ` (${selection.size})` : ''}
-            </button>
-            <button
-              className="btn ghost small"
-              disabled={!canRename || busy !== null}
-              onClick={onRename}
-            >
-              Rename
-            </button>
-            <button
-              className="btn danger small"
-              disabled={selection.size === 0 || busy !== null}
-              onClick={onDelete}
-            >
-              Delete{selection.size > 0 ? ` (${selection.size})` : ''}
-            </button>
-            <button className="btn ghost small" disabled={busy !== null} onClick={reloadBlobs}>
-              Refresh
-            </button>
+            )}
           </div>
         </div>
-
-        {container && (
-          <nav className="crumbs path" aria-label="Path">
-            <button className="crumb root" onClick={() => setNavPrefix('')}>
-              {container}
-            </button>
-            {crumbs.map((seg, i) => (
-              <span key={i} className="crumb-seg">
-                <span className="sep">/</span>
-                <button className="crumb" onClick={() => setNavPrefix(crumbs.slice(0, i + 1).join('/'))}>
-                  {seg}
-                </button>
-              </span>
-            ))}
-          </nav>
-        )}
+        {actionBar}
+        {navRow}
       </div>
 
       <div className="card explorer-body">
-        {error && (
-          <p className="error-text" role="alert">
-            {error}
-          </p>
-        )}
+        {error && <p className="error-text" role="alert">{error}</p>}
         {loadingList ? (
           <ul className="skeleton">
             {Array.from({ length: 8 }, (_, i) => (
               <li key={i} style={{ animationDelay: `${i * 40}ms` }} />
             ))}
           </ul>
-        ) : !container ? (
-          <p className="muted empty-note">
-            {containers.length > 1 ? 'Pick a container above to browse.' : 'Loading containers…'}
-          </p>
-        ) : visible.length === 0 ? (
+        ) : visibleBlobs.length === 0 ? (
           <div className="empty-note">
-            <p className="muted">This folder is empty.</p>
+            <p className="muted">This folder is empty{filter ? ` (nothing matches "${filter}")` : ''}.</p>
             <div className="row">
               <button className="btn mint small" onClick={onUpload}>
                 Upload files
@@ -470,21 +594,17 @@ export default function Explorer(props: {
                   <input
                     type="checkbox"
                     aria-label="Select all"
-                    checked={selection.size > 0 && selection.size === visible.length}
-                    onChange={() =>
-                      setSelection((prev) =>
-                        prev.size === visible.length ? new Set() : new Set(visible.map(keyOf))
-                      )
-                    }
+                    checked={selection.size > 0 && selection.size === visibleBlobs.length}
+                    onChange={() => toggleAll(visibleBlobs.map(keyOf))}
                   />
                 </th>
-                <Th label="Name" k="name" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <Th label="Name" k="name" sortKey={sortKey} dir={sortDir} onSort={toggleSort} wide />
                 <Th label="Size" k="size" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />
-                <Th label="Modified" k="modified" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <Th label="Last Modified" k="modified" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />
               </tr>
             </thead>
             <tbody>
-              {visible.map((item, i) => {
+              {visibleBlobs.map((item, i) => {
                 const key = keyOf(item)
                 return (
                   <tr
@@ -504,11 +624,7 @@ export default function Explorer(props: {
                       {item.isPrefix ? (
                         <button
                           className="linklike folder"
-                          onClick={() =>
-                            setNavPrefix(
-                              blobs && blobs.prefix ? `${blobs.prefix}/${item.leaf}` : item.name
-                            )
-                          }
+                          onClick={() => go(blobs && blobs.prefix ? `${blobs.prefix}/${item.leaf}` : item.name)}
                         >
                           <span className="file-ico folder" aria-hidden />
                           {item.leaf}
@@ -537,16 +653,41 @@ export default function Explorer(props: {
   )
 }
 
+function Action(props: {
+  icon: string
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  primary?: boolean
+  danger?: boolean
+  working?: boolean
+  workingLabel?: string
+}): React.JSX.Element {
+  return (
+    <button
+      className={`action${props.primary ? ' primary' : ''}${props.danger ? ' danger' : ''}`}
+      onClick={props.onClick}
+      disabled={props.disabled}
+    >
+      <span className="action-icon" aria-hidden>
+        {props.icon}
+      </span>
+      {props.working ? (props.workingLabel ?? props.label) : props.label}
+    </button>
+  )
+}
+
 function Th(props: {
   label: string
   k: 'name' | 'size' | 'modified'
   sortKey: string
   dir: 1 | -1
   onSort: (k: 'name' | 'size' | 'modified') => void
+  wide?: boolean
 }): React.JSX.Element {
   const active = props.sortKey === props.k
   return (
-    <th>
+    <th className={props.wide ? 'wide' : ''}>
       <button className={`th-btn${active ? ' active' : ''}`} onClick={() => props.onSort(props.k)}>
         {props.label}
         <span className="sort-arrow">{active ? (props.dir === 1 ? ' ↑' : ' ↓') : ''}</span>

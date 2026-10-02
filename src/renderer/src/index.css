@@ -1653,3 +1653,219 @@ li.done .wiz-num {
 .toast-in {
   animation: toastIn 0.22s ease both;
 }
+
+/* ---------- Blobfish v3: action bar + nav row + directory ---------- */
+
+.content.no-topbar {
+  padding-top: 22px;
+}
+
+.eyebrow {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+}
+
+.group-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 6px 10px 4px;
+}
+
+.group-row .count {
+  margin-left: auto;
+  font-size: 11.5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.kind-ico.service {
+  background: linear-gradient(180deg, #7ee2c4 0 30%, #f2f4f6 30% 55%, #2e9e7b 55% 75%, #1d6e55 75% 100%);
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+}
+
+.file-ico.container-lg {
+  background: linear-gradient(180deg, #4a7ddb 0 32%, #6ec6e8 32% 100%);
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+}
+
+/* Icon action bar (ASE-style, no dropdowns) */
+
+.actionbar {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 6px 0;
+  margin-top: 4px;
+}
+
+.action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 76px;
+  background: none;
+  border: none;
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 12.5px;
+  padding: 7px 10px;
+  cursor: pointer;
+  transition: background 0.13s ease, opacity 0.13s ease;
+}
+
+.action:hover:not(:disabled) {
+  background: var(--panel-strong);
+}
+
+.action:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.action-icon {
+  font-size: 17px;
+  line-height: 1;
+  color: var(--muted);
+}
+
+.action:hover:not(:disabled) .action-icon {
+  color: var(--text);
+}
+
+.action.primary .action-icon {
+  color: var(--mint);
+}
+
+.action.danger .action-icon {
+  color: var(--danger);
+}
+
+.action-sep {
+  width: 1px;
+  background: var(--border);
+  margin: 4px 6px;
+}
+
+/* Navigation row: history + address + filter */
+
+.navrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nav-btns {
+  display: flex;
+  gap: 2px;
+}
+
+.nav-btn {
+  background: none;
+  border: none;
+  border-radius: 9px;
+  color: var(--text);
+  font-size: 16px;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  transition: background 0.13s ease;
+}
+
+.nav-btn:hover:not(:disabled) {
+  background: var(--panel-strong);
+}
+
+.nav-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.address {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 14px;
+  font-size: 14px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.address .sep {
+  color: var(--muted);
+  margin: 0 2px;
+}
+
+.crumb.addr-acct {
+  color: var(--muted);
+}
+
+.addr-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 14px;
+  color: var(--muted);
+  font-size: 14px;
+  min-width: 170px;
+}
+
+.addr-filter input {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 14px;
+  padding: 0;
+  width: 100%;
+  outline: none;
+}
+
+/* Directory table */
+
+.dir-table tr.clickable {
+  cursor: pointer;
+}
+
+.dir-table tr.clickable:hover .file-row {
+  color: var(--accent);
+}
+
+.row-act {
+  width: 44px;
+  text-align: right;
+}
+
+th.wide {
+  width: auto;
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}

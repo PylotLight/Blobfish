@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { APP_ID } from '../shared/config'
 import { registerIpc } from './ipc'
+import { createAppMenu } from './menu'
 import { createAppTray, destroyTray } from './tray'
 import { createWindow, hideWindow, showWindow } from './window'
 
@@ -18,6 +19,7 @@ app.whenReady().then(() => {
   })
 
   registerIpc()
+  createAppMenu()
   createWindow()
   createAppTray({
     onShow: showWindow,
