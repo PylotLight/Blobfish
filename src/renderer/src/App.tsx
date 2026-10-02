@@ -5,7 +5,7 @@ import Explorer from './views/Explorer'
 import ConnectWizard from './views/ConnectWizard'
 import TransfersPanel from './views/TransfersPanel'
 import { ConfirmDialog, PromptDialog } from './views/Dialogs'
-import { DEFAULT_PREFS, loadPrefs, savePrefs, SettingsView, type Prefs } from './views/Settings'
+import { DEFAULT_PREFS, accentVars, loadPrefs, savePrefs, SettingsView, type Prefs } from './views/Settings'
 
 export interface SelectionTarget {
   accountId: string
@@ -268,6 +268,7 @@ export default function App(): React.JSX.Element {
       data-accent={prefs.accent}
       data-density={prefs.density}
       data-motion={prefs.motion}
+      style={accentVars(prefs) as React.CSSProperties}
     >
       <aside className="sidebar">
         <div className="traffic-spacer" aria-hidden />

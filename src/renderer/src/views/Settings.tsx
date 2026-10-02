@@ -1,13 +1,15 @@
 export type ThemeName = 'midnight' | 'abyss' | 'slate'
 export type DensityName = 'comfortable' | 'compact'
 export type MotionName = 'full' | 'reduced'
-export type AccentName = 'mint' | 'sky' | 'violet' | 'amber' | 'coral'
+export type AccentName = 'mint' | 'sky' | 'violet' | 'amber' | 'coral' | 'custom'
 
 export interface Prefs {
   theme: ThemeName
   density: DensityName
   motion: MotionName
   accent: AccentName
+  /** Custom accent hex (`#rrggbb`) used when `accent === 'custom'`. */
+  customAccent: string
   vibrancy: boolean
   /** Parallel block connections per upload (1–16). */
   uploadConcurrency: number
@@ -20,6 +22,7 @@ export const DEFAULT_PREFS: Prefs = {
   density: 'comfortable',
   motion: 'full',
   accent: 'mint',
+  customAccent: '#7ee2a8',
   vibrancy: true,
   uploadConcurrency: 8,
   maxParallel: 2
@@ -33,7 +36,7 @@ function clampInt(v: unknown, min: number, max: number, fallback: number): numbe
     : fallback
 }
 
-const ACCENTS: AccentName[] = ['mint', 'sky', 'violet', 'amber', 'coral']
+const ACCENTS: AccentName[] = ['mint', 'sky', 'violet', 'amber', 'coral', 'custom']
 const THEMES: ThemeName[] = ['midnight', 'abyss', 'slate']
 
 function isTheme(v: unknown): v is ThemeName {
@@ -42,6 +45,29 @@ function isTheme(v: unknown): v is ThemeName {
 
 function isAccent(v: unknown): v is AccentName {
   return typeof v === 'string' && (ACCENTS as string[]).includes(v)
+}
+
+function isHex(v: unknown): v is string {
+  return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v)
+}
+
+/** Custom accent → CSS variable overrides applied inline on `.shell`. */
+export function accentVars(prefs: Prefs): Record<string, string> {
+  if (prefs.accent !== 'custom' || !isHex(prefs.customAccent)) return {}
+  const hex = prefs.customAccent
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  // Relative luminance picks readable button text for any chosen color.
+  const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+  const ink = lum > 0.45 ? '#10141a' : '#f2f4f6'
+  return {
+    '--accent': hex,
+    '--accent-ink': ink,
+    '--mint': hex,
+    '--mint-ink': ink,
+    '--mint-dim': `rgba(${r}, ${g}, ${b}, 0.16)`
+  }
 }
 
 export function loadPrefs(): Prefs {
@@ -54,6 +80,7 @@ export function loadPrefs(): Prefs {
       density: parsed.density === 'compact' ? 'compact' : 'comfortable',
       motion: parsed.motion === 'reduced' ? 'reduced' : 'full',
       accent: isAccent(parsed.accent) ? parsed.accent : 'mint',
+      customAccent: isHex(parsed.customAccent) ? parsed.customAccent : DEFAULT_PREFS.customAccent,
       vibrancy: parsed.vibrancy !== false,
       uploadConcurrency: clampInt(parsed.uploadConcurrency, 1, 16, DEFAULT_PREFS.uploadConcurrency),
       maxParallel: clampInt(parsed.maxParallel, 1, 4, DEFAULT_PREFS.maxParallel)
@@ -82,8 +109,11 @@ const ACCENT_META: Record<AccentName, { title: string; desc: string }> = {
   sky: { title: 'Sky', desc: 'Cool blue.' },
   violet: { title: 'Violet', desc: 'Soft purple.' },
   amber: { title: 'Amber', desc: 'Warm gold.' },
-  coral: { title: 'Coral', desc: 'Warm red-orange.' }
+  coral: { title: 'Coral', desc: 'Warm red-orange.' },
+  custom: { title: 'Custom', desc: 'Pick any color below.' }
 }
+
+const PRESET_ACCENTS: AccentName[] = ['mint', 'sky', 'violet', 'amber', 'coral']
 
 /**
  * Full in-app settings view (not a modal) — room to grow as more
@@ -137,7 +167,7 @@ export function SettingsView(props: {
         <div className="settings-section">
           <h4>Accent color</h4>
           <div className="seg-row" role="radiogroup" aria-label="Accent color">
-            {(Object.keys(ACCENT_META) as AccentName[]).map((id) => (
+            {PRESET_ACCENTS.map((id) => (
               <button
                 key={id}
                 role="radio"
@@ -150,7 +180,35 @@ export function SettingsView(props: {
                 {ACCENT_META[id]!.title}
               </button>
             ))}
+            <button
+              role="radio"
+              aria-checked={prefs.accent === 'custom'}
+              className={`seg custom-seg${prefs.accent === 'custom' ? ' selected' : ''}`}
+              onClick={() => set({ accent: 'custom' })}
+              title={ACCENT_META.custom.desc}
+            >
+              <span
+                className="swatch accent-custom"
+                style={{ background: prefs.customAccent }}
+                aria-hidden
+              />
+              Custom
+            </button>
           </div>
+          {prefs.accent === 'custom' && (
+            <label className="field row between custom-picker-row">
+              <span>
+                Custom color <code>{prefs.customAccent}</code>
+              </span>
+              <input
+                type="color"
+                className="color-input"
+                value={prefs.customAccent}
+                onChange={(e) => set({ accent: 'custom', customAccent: e.target.value })}
+                aria-label="Pick a custom accent color"
+              />
+            </label>
+          )}
           <p className="muted small">
             Drives buttons, links, progress bars, selection and focus rings.
           </p>

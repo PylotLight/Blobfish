@@ -2025,6 +2025,38 @@ li.done .wiz-num {
   border: 1px solid rgba(255, 138, 122, 0.5);
 }
 
+.swatch.accent-custom {
+  border: 1px solid var(--border);
+}
+
+.custom-picker-row {
+  margin-top: 12px;
+}
+
+.color-input {
+  width: 52px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+
+.color-input::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.color-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 6px;
+}
+
+.color-input::-moz-color-swatch {
+  border: none;
+  border-radius: 6px;
+}
+
 /* ---------- Themes ---------- */
 
 .shell[data-theme='abyss'] {
