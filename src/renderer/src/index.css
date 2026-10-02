@@ -707,3 +707,306 @@ input[type='range'] {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* ---------- Blobfish: accounts + explorer ---------- */
+
+.accounts-block {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  -webkit-app-region: no-drag;
+}
+
+.accounts-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.btn.small {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+
+.accounts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.account-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  border-radius: 12px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
+.account-row:hover {
+  background: var(--panel);
+}
+
+.account-row.active {
+  background: var(--panel-strong);
+  border-color: var(--border);
+}
+
+.kind-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.kind-dot.account {
+  background: var(--accent);
+}
+
+.kind-dot.blob-container {
+  background: var(--mint);
+}
+
+.kind-dot.adls-container {
+  background: #c9a6fe;
+}
+
+.account-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.account-name {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-sub {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.explorer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.section-label {
+  margin: 16px 0 8px !important;
+  font-size: 12.5px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.endpoint-line {
+  margin: 4px 0 0;
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.container-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.chip {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.chip:hover {
+  background: var(--panel);
+}
+
+.chip.active {
+  background: var(--mint-dim);
+  border-color: rgba(126, 226, 168, 0.4);
+  color: var(--mint);
+}
+
+.small {
+  font-size: 12.5px;
+}
+
+.error-text {
+  color: var(--danger);
+  font-size: 13.5px;
+  margin: 10px 0 0;
+}
+
+.pill.warn {
+  color: #f0b429;
+  border-color: rgba(240, 180, 41, 0.4);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.crumbs {
+  margin-top: 10px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.crumb {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+  font-size: 13.5px;
+}
+
+.blob-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 14px;
+}
+
+.blob-table th {
+  text-align: left;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.blob-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.blob-table tr:last-child td {
+  border-bottom: none;
+}
+
+.blob-table .num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.linklike {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.linklike:hover {
+  color: var(--accent);
+}
+
+.narrow-filter {
+  width: 160px;
+}
+
+.connect-modal {
+  width: 520px;
+  max-height: 86vh;
+  overflow-y: auto;
+}
+
+.kind-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.kind-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.kind-row.selected {
+  border-color: rgba(126, 226, 168, 0.5);
+  background: var(--mint-dim);
+}
+
+.kind-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  flex-shrink: 0;
+}
+
+.kind-icon.account {
+  background: linear-gradient(180deg, #7ee2c4 0 30%, #f2f4f6 30% 55%, #2e9e7b 55% 75%, #1d6e55 75% 100%);
+}
+
+.kind-icon.blob-container,
+.kind-icon.adls-container {
+  background: linear-gradient(180deg, #4a7ddb 0 32%, #6ec6e8 32% 100%);
+}
+
+.kind-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.kind-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.kind-desc {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.secret-input,
+textarea.secret-input {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  resize: vertical;
+  width: 100%;
+}

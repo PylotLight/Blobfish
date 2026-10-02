@@ -1,7 +1,25 @@
 import { app, ipcMain, Notification, shell, type IpcMainInvokeEvent } from 'electron'
 import * as os from 'node:os'
 import { getGlassState, getMainWindow, setGlassVibrancy, showWindow } from './window'
-import type { GlassState, SysInfo, VibrancyName } from '../shared/types'
+import type {
+  AccountCreateInput,
+  AccountSummary,
+  AccountUpdateInput,
+  GlassState,
+  ListBlobsArgs,
+  ListBlobsResult,
+  StorageContainer,
+  SysInfo,
+  VibrancyName
+} from '../shared/types'
+import {
+  addAccount,
+  encryptionAvailable,
+  listAccounts,
+  removeAccount,
+  updateAccount
+} from './accounts'
+import { listBlobs, listContainers } from './azure'
 
 const isMac = process.platform === 'darwin'
 
@@ -94,4 +112,32 @@ export function registerIpc(): void {
   })
 
   ipcMain.handle('app:quit', () => app.quit())
+
+  // ----- Blobfish storage accounts (secrets stay in main via safeStorage) -----
+  ipcMain.handle('accounts:encryption', (): boolean => encryptionAvailable())
+  ipcMain.handle('accounts:list', (): AccountSummary[] => listAccounts())
+  ipcMain.handle(
+    'accounts:add',
+    (_event: IpcMainInvokeEvent, input: AccountCreateInput): AccountSummary =>
+      addAccount(input)
+  )
+  ipcMain.handle(
+    'accounts:remove',
+    (_event: IpcMainInvokeEvent, id: string): boolean => removeAccount(id)
+  )
+  ipcMain.handle(
+    'accounts:update',
+    (_event: IpcMainInvokeEvent, id: string, patch: AccountUpdateInput): AccountSummary =>
+      updateAccount(id, patch)
+  )
+  ipcMain.handle(
+    'storage:list-containers',
+    (_event: IpcMainInvokeEvent, accountId: string): Promise<StorageContainer[]> =>
+      listContainers(accountId)
+  )
+  ipcMain.handle(
+    'storage:list-blobs',
+    (_event: IpcMainInvokeEvent, args: ListBlobsArgs): Promise<ListBlobsResult> =>
+      listBlobs(args.accountId, args.container, args.prefix, args.pageSize)
+  )
 }

@@ -1,5 +1,15 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { GlassState, SysInfo, VibrancyName } from '../shared/types'
+import type {
+  AccountCreateInput,
+  AccountSummary,
+  AccountUpdateInput,
+  GlassState,
+  ListBlobsArgs,
+  ListBlobsResult,
+  StorageContainer,
+  SysInfo,
+  VibrancyName
+} from '../shared/types'
 
 export interface Versions {
   node: () => string
@@ -42,6 +52,21 @@ const api = {
   },
   shell: {
     open: (url: string): Promise<boolean> => ipcRenderer.invoke('shell:open', url)
+  },
+  accounts: {
+    encryption: (): Promise<boolean> => ipcRenderer.invoke('accounts:encryption'),
+    list: (): Promise<AccountSummary[]> => ipcRenderer.invoke('accounts:list'),
+    add: (input: AccountCreateInput): Promise<AccountSummary> =>
+      ipcRenderer.invoke('accounts:add', input),
+    remove: (id: string): Promise<boolean> => ipcRenderer.invoke('accounts:remove', id),
+    update: (id: string, patch: AccountUpdateInput): Promise<AccountSummary> =>
+      ipcRenderer.invoke('accounts:update', id, patch)
+  },
+  storage: {
+    listContainers: (accountId: string): Promise<StorageContainer[]> =>
+      ipcRenderer.invoke('storage:list-containers', accountId),
+    listBlobs: (args: ListBlobsArgs): Promise<ListBlobsResult> =>
+      ipcRenderer.invoke('storage:list-blobs', args)
   },
   app: {
     hide: (): Promise<boolean> => ipcRenderer.invoke('app:hide'),
