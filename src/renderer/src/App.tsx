@@ -5,7 +5,7 @@ import Explorer from './views/Explorer'
 import ConnectWizard from './views/ConnectWizard'
 import TransfersPanel from './views/TransfersPanel'
 import { ConfirmDialog, PromptDialog } from './views/Dialogs'
-import { DEFAULT_PREFS, loadPrefs, savePrefs, SettingsDialog, type Prefs } from './views/Settings'
+import { DEFAULT_PREFS, loadPrefs, savePrefs, SettingsView, type Prefs } from './views/Settings'
 
 export interface SelectionTarget {
   accountId: string
@@ -30,6 +30,8 @@ export default function App(): React.JSX.Element {
   const [renameValue, setRenameValue] = useState('')
   const [detachFor, setDetachFor] = useState<AccountSummary | null>(null)
   const [createFor, setCreateFor] = useState<string | null>(null)
+  const [renameContainerFor, setRenameContainerFor] = useState<{ accountId: string; name: string } | null>(null)
+  const [deleteContainerFor, setDeleteContainerFor] = useState<{ accountId: string; name: string } | null>(null)
   const [quickOpen, setQuickOpen] = useState(true)
   const [allOpen, setAllOpen] = useState(true)
 
@@ -126,19 +128,39 @@ export default function App(): React.JSX.Element {
     const isOpen = expanded[a.id] ?? false
     const cached = containersCache[a.id]
     const loading = loadingContainers[a.id] ?? false
+    const canManageContainers = a.kind === 'account' && !a.containerName
     const leaves = (
       <>
         {loading && <li className="tree-loading">Loading…</li>}
         {!loading && cached?.length === 0 && <li className="tree-loading">No containers.</li>}
         {cached?.map((c) => (
-          <li key={c.name}>
+          <li key={c.name} className="tree-leaf-row">
             <button
               className={`tree-leaf${target?.accountId === a.id && target.container === c.name ? ' active' : ''}`}
               onClick={() => selectAccount(a.id, c.name)}
+              title={c.name}
             >
               <span className="kind-ico container" aria-hidden />
-              {c.name}
+              <span className="leaf-name">{c.name}</span>
             </button>
+            {canManageContainers && (
+              <span className="leaf-actions">
+                <button
+                  className="mini-btn"
+                  title={`Rename container "${c.name}"`}
+                  onClick={() => setRenameContainerFor({ accountId: a.id, name: c.name })}
+                >
+                  ✎
+                </button>
+                <button
+                  className="mini-btn danger-x"
+                  title={`Delete container "${c.name}"`}
+                  onClick={() => setDeleteContainerFor({ accountId: a.id, name: c.name })}
+                >
+                  ✕
+                </button>
+              </span>
+            )}
           </li>
         ))}
       </>
@@ -243,6 +265,7 @@ export default function App(): React.JSX.Element {
       className="shell"
       data-platform={platform ?? 'unknown'}
       data-theme={prefs.theme}
+      data-accent={prefs.accent}
       data-density={prefs.density}
       data-motion={prefs.motion}
     >
@@ -301,18 +324,27 @@ export default function App(): React.JSX.Element {
 
       <div className="content no-topbar">
         <main className="view">
-          <Explorer
-            key={selected?.id ?? 'none'}
-            account={selected}
-            target={target?.accountId === selected?.id ? target : null}
-            onOpenContainer={(c) => {
-              if (selected) selectAccount(selected.id, c)
-            }}
-            onChanged={refreshAccounts}
-            onContainersChanged={invalidateContainers}
-          />
+          {showSettings ? (
+            <SettingsView
+              prefs={prefs}
+              vibrancySupported={platform === 'darwin'}
+              onChange={updatePrefs}
+              onBack={() => setShowSettings(false)}
+            />
+          ) : (
+            <Explorer
+              key={selected?.id ?? 'none'}
+              account={selected}
+              target={target?.accountId === selected?.id ? target : null}
+              onOpenContainer={(c) => {
+                if (selected) selectAccount(selected.id, c)
+              }}
+              onChanged={refreshAccounts}
+              onContainersChanged={invalidateContainers}
+            />
+          )}
         </main>
-        <TransfersPanel onOpenSettings={() => setShowSettings(true)} />
+        {!showSettings && <TransfersPanel onOpenSettings={() => setShowSettings(true)} />}
       </div>
 
       {showWizard && (
@@ -324,15 +356,6 @@ export default function App(): React.JSX.Element {
             setExpanded((p) => ({ ...p, [a.id]: true }))
             ensureContainers(a.id)
           }}
-        />
-      )}
-
-      {showSettings && (
-        <SettingsDialog
-          prefs={prefs}
-          vibrancySupported={platform === 'darwin'}
-          onChange={updatePrefs}
-          onClose={() => setShowSettings(false)}
         />
       )}
 
@@ -373,6 +396,53 @@ export default function App(): React.JSX.Element {
             await window.api.storage.createContainer({ accountId: id, container: v })
             setExpanded((p) => ({ ...p, [id]: true }))
             invalidateContainers(id)
+          }}
+        />
+      )}
+
+      {renameContainerFor && (
+        <PromptDialog
+          title={`Rename container "${renameContainerFor.name}"`}
+          label="New container name"
+          initial={renameContainerFor.name}
+          placeholder="mycontainer"
+          hint="Copies everything to the new container, then deletes the old one."
+          confirmLabel="Rename"
+          validate={(v) =>
+            /^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$/.test(v)
+              ? null
+              : 'Use 3–63 lowercase letters, numbers and dashes.'
+          }
+          onCancel={() => setRenameContainerFor(null)}
+          onSubmit={async (v) => {
+            const { accountId, name } = renameContainerFor
+            const dest = await window.api.storage.renameContainer({
+              accountId,
+              source: name,
+              dest: v
+            })
+            invalidateContainers(accountId)
+            if (target?.accountId === accountId && target.container === name) {
+              selectAccount(accountId, dest)
+            }
+          }}
+        />
+      )}
+
+      {deleteContainerFor && (
+        <ConfirmDialog
+          title={`Delete container "${deleteContainerFor.name}"?`}
+          body="Everything inside is permanently deleted. This cannot be undone."
+          requireText={deleteContainerFor.name}
+          confirmLabel="Delete"
+          onCancel={() => setDeleteContainerFor(null)}
+          onConfirm={async () => {
+            const { accountId, name } = deleteContainerFor
+            await window.api.storage.deleteContainer({ accountId, container: name })
+            invalidateContainers(accountId)
+            if (target?.accountId === accountId && target.container === name) {
+              selectAccount(accountId, null)
+            }
           }}
         />
       )}

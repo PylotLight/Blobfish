@@ -701,6 +701,20 @@ export default function Explorer(props: {
               </tr>
             </thead>
             <tbody>
+              {(blobs?.prefix ?? navPrefix) !== '' && (
+                <tr className="row-in parent-row clickable" onClick={goUp} title="Up to parent folder">
+                  <td className="check-col" />
+                  <td className="name-col">
+                    <span className="file-row parent-link">
+                      <span className="file-ico folder up" aria-hidden>↩</span>
+                      <strong>..</strong>
+                      <span className="muted small">Up to parent</span>
+                    </span>
+                  </td>
+                  <td className="num muted">—</td>
+                  <td className="muted">—</td>
+                </tr>
+              )}
               {visibleBlobs.map((item, i) => {
                 const key = keyOf(item)
                 return (

@@ -241,6 +241,72 @@ export async function deleteContainer(accountId: string, name: string): Promise<
   }
 }
 
+/**
+ * Azure has no server-side container rename, so this copies every blob to a
+ * new container and deletes the source. Refuses to delete the source unless
+ * every copy succeeded.
+ */
+export async function renameContainer(
+  accountId: string,
+  source: string,
+  destRaw: string
+): Promise<string> {
+  const dest = destRaw.trim().toLowerCase()
+  if (!/^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$/.test(dest)) {
+    throw new Error('Container names are 3–63 lowercase letters, numbers and dashes.')
+  }
+  if (dest === source) return source
+  const started = Date.now()
+  const { profile, secret } = decryptSecret(accountId)
+  if (isDfsEndpoint(profile.endpoint)) {
+    throw new Error('Renaming ADLS Gen2 filesystems is not supported yet — create a new one and move files instead.')
+  }
+  if (profile.kind !== 'account' || profile.containerName) {
+    throw new Error('Renaming containers is only available on full storage-account connections.')
+  }
+  const svc = blobServiceFromSecret(profile.endpoint, secret)
+  const srcClient = svc.getContainerClient(source)
+  const destClient = svc.getContainerClient(dest)
+  try {
+    await destClient.create()
+  } catch (err) {
+    throw friendlyError(err, `Failed to create container "${dest}"`)
+  }
+  try {
+    const names: string[] = []
+    for await (const b of srcClient.listBlobsFlat()) {
+      names.push(b.name)
+    }
+    let sas = ''
+    if (!isConnectionStringSecret(secret) && secret.includes('?')) {
+      sas = secret.slice(secret.indexOf('?'))
+    }
+    // Bounded parallelism keeps large containers moving without flooding.
+    const queue = [...names]
+    const workers = Array.from({ length: Math.min(8, Math.max(1, queue.length)) }, async () => {
+      while (queue.length > 0) {
+        const n = queue.shift()!
+        const srcUrl = `${srcClient.getBlobClient(n).url}${sas}`
+        await destClient.getBlockBlobClient(n).syncCopyFromURL(srcUrl)
+      }
+    })
+    await Promise.all(workers)
+    await srcClient.delete()
+    logActivity({
+      kind: 'container',
+      text: `Renamed container '${source}' → '${dest}' (${names.length} blob${names.length === 1 ? '' : 's'})`,
+      status: 'success',
+      durationMs: Date.now() - started
+    })
+    return dest
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to rename container'
+    logActivity({ kind: 'container', text: `Rename container '${source}' failed`, detail: message, status: 'failed' })
+    // Leave both containers in place so nothing is lost; surface the cause.
+    throw friendlyError(err, `Failed to rename container "${source}"`)
+  }
+}
+
 export async function createFolder(
   accountId: string,
   container: string,

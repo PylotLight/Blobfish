@@ -14,6 +14,7 @@ import type {
   ListBlobsArgs,
   ListBlobsResult,
   RenameBlobArgs,
+  RenameContainerArgs,
   StorageContainer,
   SysInfo,
   TransferConfigure,
@@ -38,7 +39,8 @@ import {
   deleteNames,
   listBlobs,
   listContainers,
-  renameBlob
+  renameBlob,
+  renameContainer
 } from './azure'
 import {
   cancelAll,
@@ -200,6 +202,11 @@ export function registerIpc(): void {
     'storage:rename-blob',
     (_event: IpcMainInvokeEvent, args: RenameBlobArgs): Promise<string> =>
       renameBlob(args.accountId, args.container, args.source, args.destLeaf)
+  )
+  ipcMain.handle(
+    'storage:rename-container',
+    (_event: IpcMainInvokeEvent, args: RenameContainerArgs): Promise<string> =>
+      renameContainer(args.accountId, args.source, args.dest)
   )
   // ----- Transfers: queued file movement (progress streams over `transfers:changed`) -----
   ipcMain.handle('transfers:list', (): TransfersSnapshot => transfersSnapshot())

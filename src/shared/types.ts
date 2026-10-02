@@ -141,6 +141,12 @@ export interface RenameBlobArgs {
   destLeaf: string
 }
 
+export interface RenameContainerArgs {
+  accountId: string
+  source: string
+  dest: string
+}
+
 export interface UploadEnqueueArgs {
   accountId: string
   container: string

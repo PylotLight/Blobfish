@@ -12,6 +12,7 @@ import type {
   ListBlobsArgs,
   ListBlobsResult,
   RenameBlobArgs,
+  RenameContainerArgs,
   StorageContainer,
   SysInfo,
   TransferConfigure,
@@ -88,7 +89,9 @@ const api = {
     deleteBlobs: (args: DeleteBlobsArgs): Promise<number> =>
       ipcRenderer.invoke('storage:delete-blobs', args),
     renameBlob: (args: RenameBlobArgs): Promise<string> =>
-      ipcRenderer.invoke('storage:rename-blob', args)
+      ipcRenderer.invoke('storage:rename-blob', args),
+    renameContainer: (args: RenameContainerArgs): Promise<string> =>
+      ipcRenderer.invoke('storage:rename-container', args)
   },
   transfers: {
     list: (): Promise<TransfersSnapshot> => ipcRenderer.invoke('transfers:list'),
