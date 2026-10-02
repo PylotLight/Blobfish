@@ -216,4 +216,7 @@ export interface ActivityEntry {
   detail?: string
   status: ActivityStatus
   durationMs?: number
+  localPath?: string
+  transferDirection?: TransferDirection
+  fileDeleted?: boolean
 }

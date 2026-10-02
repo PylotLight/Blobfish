@@ -8,6 +8,7 @@ import type {
 import type { SelectionTarget } from '../App'
 import { ConfirmDialog, PromptDialog } from './Dialogs'
 import { formatBytes } from '../../../shared/format'
+import logoUrl from '../assets/logo.png'
 
 type SortKey = 'name' | 'size' | 'modified'
 type SortDir = 1 | -1
@@ -29,8 +30,10 @@ export default function Explorer(props: {
   account: AccountSummary | null
   target: SelectionTarget | null
   onOpenContainer: (container: string) => void
+  onContainerChange?: (container: string | null) => void
   onChanged: () => void
   onContainersChanged: (accountId: string) => void
+  onNewConnection?: () => void
 }): React.JSX.Element {
   const { account } = props
   const [containers, setContainers] = useState<StorageContainer[]>([])
@@ -48,6 +51,17 @@ export default function Explorer(props: {
   const [notice, setNotice] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>(1)
+
+  const navPrefixRef = useRef(navPrefix)
+  navPrefixRef.current = navPrefix
+  const containerRef = useRef(container)
+  containerRef.current = container
+
+  function switchContainer(next: string | null): void {
+    setContainer(next)
+    containerRef.current = next
+    props.onContainerChange?.(next)
+  }
 
   interface ConfirmState {
     title: string
@@ -85,6 +99,7 @@ export default function Explorer(props: {
 
   function resetNav(): void {
     setNavPrefix('')
+    navPrefixRef.current = ''
     setBackHist([])
     setFwdHist([])
     setSelection(new Set())
@@ -97,10 +112,13 @@ export default function Explorer(props: {
       .then((cs) => {
         setContainers(cs)
         setContainer((prev) => {
-          if (highlight && cs.some((c) => c.name === highlight)) return highlight
-          if (prev && cs.some((c) => c.name === prev)) return prev
-          if (cs.length === 1) return cs[0]?.name ?? null
-          return null
+          let chosen: string | null = null
+          if (highlight && cs.some((c) => c.name === highlight)) chosen = highlight
+          else if (prev && cs.some((c) => c.name === prev)) chosen = prev
+          else if (cs.length === 1) chosen = cs[0]?.name ?? null
+          containerRef.current = chosen
+          props.onContainerChange?.(chosen)
+          return chosen
         })
         if (cs.length === 0) setError('No containers found.')
       })
@@ -111,7 +129,7 @@ export default function Explorer(props: {
   // Initial load per account.
   useEffect(() => {
     setContainers([])
-    setContainer(null)
+    switchContainer(null)
     setBlobs(null)
     setFilter('')
     setError(null)
@@ -123,29 +141,31 @@ export default function Explorer(props: {
 
   // Sidebar picks (account or container rows, or post-wizard selection).
   useEffect(() => {
-    if (props.target?.container) {
-      setContainer(props.target.container)
+    if (props.target) {
+      switchContainer(props.target.container)
       resetNav()
     }
-    // Account-row clicks pass container: null → stay where we are.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.target?.tick])
 
-  // Refresh the listing when one of our queued transfers finishes.
+  // Refresh the listing when one of our queued uploads finishes.
+  // Note: downloads never alter Azure containers, so only uploads reload blobs.
   const seenDone = useRef<Set<string>>(new Set())
   useEffect(() => {
     const off = window.api.transfers.onUpdate((snap) => {
-      let ours = false
+      let reloadNeeded = false
       for (const t of snap.transfers) {
         if (t.status !== 'completed' || seenDone.current.has(t.id)) continue
         seenDone.current.add(t.id)
-        if (t.accountId === accountId && t.container === container) ours = true
+        if (t.direction === 'upload' && t.accountId === accountId && t.container === containerRef.current) {
+          reloadNeeded = true
+        }
       }
-      if (ours) reloadBlobs()
+      if (reloadNeeded) reloadBlobs()
     })
     return off
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountId, container])
+  }, [accountId])
 
   // Blob listing.
   useEffect(() => {
@@ -176,10 +196,12 @@ export default function Explorer(props: {
   }, [accountId, container, navPrefix])
 
   function reloadBlobs(): void {
-    if (!accountId || !container) return
+    const curContainer = containerRef.current
+    if (!accountId || !curContainer) return
+    const curPrefix = navPrefixRef.current
     setLoadingList(true)
     window.api.storage
-      .listBlobs({ accountId, container, prefix: navPrefix || undefined })
+      .listBlobs({ accountId, container: curContainer, prefix: curPrefix || undefined })
       .then((res) => {
         setBlobs(res)
         setSelection(new Set())
@@ -194,6 +216,7 @@ export default function Explorer(props: {
     setBackHist((h) => [...h, navPrefix])
     setFwdHist([])
     setNavPrefix(next)
+    navPrefixRef.current = next
     setSelection(new Set())
   }
 
@@ -203,6 +226,7 @@ export default function Explorer(props: {
     setBackHist((h) => h.slice(0, -1))
     setFwdHist((h) => [navPrefix, ...h])
     setNavPrefix(prev)
+    navPrefixRef.current = prev
     setSelection(new Set())
   }
 
@@ -212,6 +236,7 @@ export default function Explorer(props: {
     setFwdHist(rest)
     setBackHist((h) => [...h, navPrefix])
     setNavPrefix(next!)
+    navPrefixRef.current = next!
     setSelection(new Set())
   }
 
@@ -219,7 +244,7 @@ export default function Explorer(props: {
     const segs = navPrefix.split('/').filter(Boolean)
     if (segs.length === 0) {
       // At container root → up means back to the container directory.
-      setContainer(null)
+      switchContainer(null)
       resetNav()
       return
     }
@@ -344,7 +369,7 @@ export default function Explorer(props: {
           await window.api.storage.deleteContainer({ accountId, container: name })
           flash(`Container "${name}" deleted`)
           if (container === name) {
-            setContainer(null)
+            switchContainer(null)
             setBlobs(null)
             resetNav()
           }
@@ -458,9 +483,20 @@ export default function Explorer(props: {
   if (!account) {
     return (
       <section className="card empty-hero fade-in">
-        <h2>Blobfish</h2>
-        <p className="muted">Attach a storage account to browse containers and blobs.</p>
-        <p className="muted small">Connection strings and SAS URLs stay encrypted in your OS keychain.</p>
+        <div className="hero-logo-frame">
+          <img src={logoUrl} alt="Blobfish" className="hero-logo-img" />
+        </div>
+        <h2>Welcome to Blobfish</h2>
+        <p className="hero-sub">Fast & elegant Azure Blob Storage explorer</p>
+        <p className="muted small">
+          Connect a storage account using a Connection String, SAS URL, or Account Key.
+          All credentials remain securely encrypted in your OS Keychain.
+        </p>
+        {props.onNewConnection && (
+          <button className="btn mint hero-cta" onClick={props.onNewConnection}>
+            + Connect Storage Account
+          </button>
+        )}
       </section>
     )
   }
@@ -490,7 +526,7 @@ export default function Explorer(props: {
         <button className="nav-btn" onClick={goUp} disabled={!container} title="Up" aria-label="Up">↑</button>
       </div>
       <nav className="address" aria-label="Path">
-        <button className="crumb addr-acct" onClick={() => { setContainer(null); resetNav() }} title={account.name}>
+        <button className="crumb addr-acct" onClick={() => { switchContainer(null); resetNav() }} title={account.name}>
           {account.containerName ?? account.accountName ?? account.name}
         </button>
         {container && (
@@ -579,7 +615,11 @@ export default function Explorer(props: {
                     key={c.name}
                     className="row-in clickable"
                     style={{ animationDelay: `${Math.min(i, 10) * 12}ms` }}
-                    onClick={() => props.onOpenContainer(c.name)}
+                    onClick={() => {
+                      switchContainer(c.name)
+                      resetNav()
+                      props.onOpenContainer(c.name)
+                    }}
                   >
                     <td className="name-col">
                       <span className="file-row">

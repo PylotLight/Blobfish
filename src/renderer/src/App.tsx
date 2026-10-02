@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { APP_NAME, APP_TAGLINE } from '../../shared/config'
 import type { AccountSummary, StorageContainer, SysInfo } from '../../shared/types'
+import logoUrl from './assets/logo.png'
 import Explorer from './views/Explorer'
 import ConnectWizard from './views/ConnectWizard'
 import TransfersPanel from './views/TransfersPanel'
@@ -22,6 +23,15 @@ export default function App(): React.JSX.Element {
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs())
   const [platform, setPlatform] = useState<SysInfo['platform'] | null>(null)
   const [encAvailable, setEncAvailable] = useState<boolean | null>(null)
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
+    const saved = localStorage.getItem('blobfish.sidebarWidth')
+    if (saved) {
+      const parsed = parseInt(saved, 10)
+      if (!Number.isNaN(parsed) && parsed >= 260 && parsed <= 600) return parsed
+    }
+    return 340
+  })
+  const [isDraggingSidebar, setIsDraggingSidebar] = useState(false)
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [containersCache, setContainersCache] = useState<Record<string, StorageContainer[]>>({})
@@ -64,6 +74,30 @@ export default function App(): React.JSX.Element {
       .configure({ uploadConcurrency: prefs.uploadConcurrency, maxParallel: prefs.maxParallel })
       .catch(console.error)
   }, [prefs, platform])
+
+  // Drag-to-resize sidebar width
+  useEffect(() => {
+    if (!isDraggingSidebar) return
+    const handleMouseMove = (e: MouseEvent) => {
+      const maxW = Math.min(640, Math.floor(window.innerWidth * 0.55))
+      const newWidth = Math.max(260, Math.min(maxW, e.clientX))
+      setSidebarWidth(newWidth)
+    }
+    const handleMouseUp = () => {
+      setIsDraggingSidebar(false)
+      localStorage.setItem('blobfish.sidebarWidth', String(sidebarWidth))
+    }
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isDraggingSidebar, sidebarWidth])
 
   function updatePrefs(next: Prefs): void {
     // Reset to defaults keeps one obvious escape hatch if a theme misbehaves.
@@ -181,7 +215,7 @@ export default function App(): React.JSX.Element {
               selectAccount(a.id)
               if (!isOpen) toggleExpand(a.id)
             }}
-            title={`${a.endpoint}${a.containerName ? ` / ${a.containerName}` : ''}`}
+            title={`${a.name}\n${a.containerName ? `Container: ${a.containerName}\n` : ''}Endpoint: ${a.endpoint}`}
           >
             <span className={`kind-ico ${a.kind}`} aria-hidden />
             <span className="tree-text">
@@ -199,9 +233,9 @@ export default function App(): React.JSX.Element {
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
-                <span className="account-name">{a.name}</span>
+                <span className="account-name" title={a.name}>{a.name}</span>
               )}
-              <span className="account-sub">
+              <span className="account-sub" title={a.containerName ?? a.accountName ?? hostOf(a.endpoint)}>
                 {a.containerName ?? a.accountName ?? hostOf(a.endpoint)}
               </span>
             </span>
@@ -270,11 +304,19 @@ export default function App(): React.JSX.Element {
       data-motion={prefs.motion}
       style={accentVars(prefs) as React.CSSProperties}
     >
-      <aside className="sidebar">
+      <aside className="sidebar" style={{ width: `${sidebarWidth}px` }}>
         <div className="traffic-spacer" aria-hidden />
         <div className="brand">
-          <h1>{APP_NAME}</h1>
-          <p>{APP_TAGLINE}</p>
+          <div className="brand-logo-frame">
+            <img src={logoUrl} alt="Blobfish" className="brand-logo-img" />
+          </div>
+          <div className="brand-details">
+            <div className="brand-name-row">
+              <h1 className="brand-title">{APP_NAME}</h1>
+              <span className="brand-badge">Azure</span>
+            </div>
+            <p className="brand-tagline">{APP_TAGLINE}</p>
+          </div>
         </div>
 
         <button className="btn mint attach-cta" onClick={() => setShowWizard(true)}>
@@ -303,9 +345,12 @@ export default function App(): React.JSX.Element {
             </button>
             {allOpen && (
               accounts.length === 0 ? (
-                <p className="muted small empty-note">
-                  Nothing attached yet. Connect with a connection string, SAS URL, or account key.
-                </p>
+                <div className="empty-sidebar-card">
+                  <p className="empty-sidebar-title">No storage accounts</p>
+                  <p className="muted small empty-note">
+                    Connect with a connection string, SAS URL, or account key to get started.
+                  </p>
+                </div>
               ) : (
                 <ul className="tree">{(pinned.length > 0 ? unpinned : accounts).map(accountRow)}</ul>
               )
@@ -318,10 +363,23 @@ export default function App(): React.JSX.Element {
             <span aria-hidden>⚙</span> Settings
           </button>
           <span className="status-sub">
-            {accounts.length} connection{accounts.length === 1 ? '' : 's'} · secrets in OS keychain
+            {accounts.length} {accounts.length === 1 ? 'connection' : 'connections'} · OS Keychain encrypted
           </span>
         </div>
       </aside>
+
+      <div
+        className={`sidebar-resizer${isDraggingSidebar ? ' dragging' : ''}`}
+        onMouseDown={(e) => {
+          e.preventDefault()
+          setIsDraggingSidebar(true)
+        }}
+        onDoubleClick={() => {
+          setSidebarWidth((w) => (w > 360 ? 300 : 440))
+        }}
+        title="Drag to resize sidebar · Double-click to toggle width"
+        aria-label="Resize sidebar"
+      />
 
       <div className="content no-topbar">
         <main className="view">
@@ -342,6 +400,7 @@ export default function App(): React.JSX.Element {
               }}
               onChanged={refreshAccounts}
               onContainersChanged={invalidateContainers}
+              onNewConnection={() => setShowWizard(true)}
             />
           )}
         </main>

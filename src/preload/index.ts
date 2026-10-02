@@ -118,6 +118,10 @@ const api = {
     list: (): Promise<ActivityEntry[]> => ipcRenderer.invoke('activity:list'),
     clear: (mode: 'completed' | 'successful'): Promise<ActivityEntry[]> =>
       ipcRenderer.invoke('activity:clear', mode),
+    deleteFile: (args: { id: string; localPath?: string }): Promise<{ success: boolean; movedOrMissing?: boolean; message: string }> =>
+      ipcRenderer.invoke('activity:delete-file', args),
+    revealFile: (localPath: string): Promise<boolean> =>
+      ipcRenderer.invoke('activity:reveal-file', localPath),
     onUpdate: (cb: (entries: ActivityEntry[]) => void): (() => void) => {
       const handler = (_event: IpcRendererEvent, entries: ActivityEntry[]): void => cb(entries)
       ipcRenderer.on('activity:changed', handler)

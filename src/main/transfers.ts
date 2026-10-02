@@ -212,7 +212,9 @@ async function run(t: ActiveTransfer): Promise<void> {
       text: `${describe(t)} complete`,
       detail: `${size} in ${formatDuration(t.finishedAt - wallStart)}${conn}`,
       status: 'success',
-      durationMs: t.finishedAt - wallStart
+      durationMs: t.finishedAt - wallStart,
+      localPath: t.spec.localPath,
+      transferDirection: t.spec.direction
     })
   } catch (err) {
     if (t.controller?.signal.aborted || (err instanceof Error && err.name === 'AbortError')) {

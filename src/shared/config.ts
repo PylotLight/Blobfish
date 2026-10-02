@@ -6,7 +6,7 @@
 export const APP_NAME = 'Blobfish'
 
 /** One-liner shown under the brand in the sidebar. */
-export const APP_TAGLINE = 'azure blob explorer · pure bun'
+export const APP_TAGLINE = 'Azure Blob Storage Explorer'
 
 /**
  * Reverse-DNS id used for setAppUserModelId (Windows notifications/tasks).

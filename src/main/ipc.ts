@@ -30,7 +30,7 @@ import {
   setPinned,
   updateAccount
 } from './accounts'
-import { clearActivities, listActivities } from './activity'
+import { clearActivities, deleteDownloadedFile, listActivities } from './activity'
 import {
   azuriteConnectionString,
   createContainer,
@@ -242,5 +242,18 @@ export function registerIpc(): void {
     'activity:clear',
     (_event: IpcMainInvokeEvent, mode: 'completed' | 'successful'): ActivityEntry[] =>
       clearActivities(mode)
+  )
+  ipcMain.handle(
+    'activity:delete-file',
+    async (_event: IpcMainInvokeEvent, args: { id: string; localPath?: string }) => {
+      return deleteDownloadedFile(args.id, args.localPath)
+    }
+  )
+  ipcMain.handle(
+    'activity:reveal-file',
+    (_event: IpcMainInvokeEvent, localPath: string): boolean => {
+      shell.showItemInFolder(localPath)
+      return true
+    }
   )
 }
