@@ -1,0 +1,71 @@
+# Releasing
+
+Releases are tag-driven: one local command cuts the release, one GitHub
+Actions workflow does the rest.
+
+```bash
+bun run release            # let git-cliff pick the next version from commits
+bun run release minor      # or force a bump: patch | minor | major | 1.2.3
+bun run release --dry-run  # preview version + changelog, change nothing
+git push --follow-tags     # or pass --push to do it in one go
+```
+
+What happens, end to end:
+
+1. **`scripts/release.ts`** bumps `package.json`, regenerates `CHANGELOG.md`
+   with [git-cliff](https://git-cliff.org) (conventional commits → Keep a
+   Changelog sections, compare links included), commits
+   `chore(release): vX.Y.Z` and creates the annotated tag `vX.Y.Z`.
+2. **`.github/workflows/release.yml`** (triggered by the tag push):
+   - builds macOS (`zip` + `dmg`, arm64 and x64) and Linux (AppImage + deb)
+     artifacts on `macos-14` / `ubuntu-latest`
+   - generates release notes with git-cliff and publishes the GitHub release
+   - renders the Homebrew cask (version + sha256s) and commits it to
+     `Casks/blobfish.rb` on main — see below
+
+Prerequisites locally: `git-cliff` on PATH (`brew install git-cliff` or
+`cargo install git-cliff`).
+
+Changelog grouping lives in `cliff.toml`: `feat` → Added, `fix` → Fixed,
+`perf` → Performance, `refactor`/`style` → Changed, `docs` → Documentation,
+`revert` → Reverted; `chore`/`ci`/`build`/`test` are skipped and anything
+else lands in Other. Commits with a `!` (`feat!: ...`) get a **breaking**
+marker and make the suggested bump major.
+
+## Homebrew tap (this repo — no setup)
+
+A Homebrew tap is just a git repo with a `Casks/` directory, so this repo
+doubles as the tap: `Casks/blobfish.rb` lives on main, and the release
+workflow re-renders it from `Casks/blobfish.rb.tmpl` (via
+`scripts/render-cask.ts`) and commits it back with the built-in
+`GITHUB_TOKEN` — no second repo, no access tokens, nothing to set up. Token
+pushes don't re-trigger workflows, so the tap commit can't start a loop, and
+its `chore(tap):` message is excluded from the changelog by `cliff.toml`.
+
+Users install with:
+
+```bash
+brew tap pylotlight/blobfish https://github.com/PylotLight/Blobfish.git
+brew install --cask blobfish
+```
+
+(The full URL is needed because the repo isn't named `homebrew-*`; without an
+explicit URL `brew tap` would look for `PylotLight/homebrew-blobfish`.)
+
+One caveat: the workflow pushes the cask commit straight to main. If you ever
+turn on branch protection for main, either allow GitHub Actions to bypass it
+or the `homebrew` job needs a PAT — the rest of the release is unaffected.
+
+Until the first release is published, the committed cask has placeholder
+checksums and the download URLs 404 — that's expected; the `v0.1.0` release
+fills in real values.
+
+## Code signing (optional, later)
+
+Artifacts ship unsigned for now: macOS shows a Gatekeeper warning on first
+open (`xattr -cr /Applications/Blobfish.app` clears it; `brew install
+--cask` users can also right-click → Open). To sign and notarize later, add
+`CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`/`APPLE_APP_SPECIFIC_PASSWORD` (or
+API key) secrets and electron-builder picks them up automatically — no
+workflow changes needed. Until then, don't submit the cask to the core
+`homebrew-cask` repo; the personal tap is the right home for unsigned builds.

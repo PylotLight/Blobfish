@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Fast native Azure Blob Storage explorer (Bun + Electron)",
   "private": true,
+  "author": "PylotLight",
   "type": "module",
   "main": "./out/main/index.js",
   "scripts": {
@@ -18,6 +19,8 @@
     "dist:dir": "electron-builder --dir",
     "dist:mac": "electron-builder --mac",
     "dist:linux": "electron-builder --linux",
+    "dist:ci": "electron-builder --publish never",
+    "release": "bun scripts/release.ts",
     "postinstall": "install-electron"
   },
   "build": {
@@ -27,6 +30,7 @@
       "buildResources": "build",
       "output": "release"
     },
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "files": [
       "out/**/*",
       "build/icon.png",
@@ -34,11 +38,22 @@
     ],
     "mac": {
       "icon": "build/icon.icns",
-      "category": "public.app-category.developer-tools"
+      "category": "public.app-category.developer-tools",
+      "target": [
+        {
+          "target": "zip",
+          "arch": ["arm64", "x64"]
+        },
+        {
+          "target": "dmg",
+          "arch": ["arm64", "x64"]
+        }
+      ]
     },
     "linux": {
       "icon": "build/icon.png",
-      "category": "Development"
+      "category": "Development",
+      "target": ["AppImage", "deb"]
     }
   },
   "devDependencies": {

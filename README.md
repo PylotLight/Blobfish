@@ -14,6 +14,19 @@ containers. Blobfish aims for: instant startup, virtualized blob lists that stay
 at 100k+ items, background transfers that live in the tray, and first-class support for
 local Azurite development.
 
+## Install
+
+**Homebrew (macOS):**
+
+```bash
+brew tap pylotlight/blobfish https://github.com/PylotLight/Blobfish.git
+brew install --cask blobfish
+```
+
+Or download binaries (macOS dmg/zip, Linux AppImage/deb) from
+[Releases](https://github.com/PylotLight/Blobfish/releases). Builds are unsigned
+for now — on macOS run `xattr -cr /Applications/Blobfish.app` after installing.
+
 ## Quickstart
 
 ```bash
@@ -23,7 +36,8 @@ bun run build && bun run start
 ```
 
 Template docs (architecture, bridge rules, vibrancy, troubleshooting) live in `docs/`
-and apply as-is.
+and apply as-is. Cutting a release: `bun run release` — see
+[docs/releasing.md](docs/releasing.md).
 
 ## Roadmap
 
