@@ -17,8 +17,9 @@ What happens, end to end:
    Changelog sections, compare links included), commits
    `chore(release): vX.Y.Z` and creates the annotated tag `vX.Y.Z`.
 2. **`.github/workflows/release.yml`** (triggered by the tag push):
-   - builds macOS (`zip` + `dmg`, arm64 and x64) and Linux (AppImage + deb)
-     artifacts on `macos-14` / `ubuntu-latest`
+   - builds macOS artifacts (`zip` + `dmg`, arm64 and x64) on `macos-14` —
+     Linux is disabled for now; the workflow has a commented pointer for
+     re-adding it, and `bun run dist:linux` still works locally
    - generates release notes with git-cliff and publishes the GitHub release
    - renders the Homebrew cask (version + sha256s) and commits it to
      `Casks/blobfish.rb` on main — see below

@@ -23,9 +23,10 @@ brew tap pylotlight/blobfish https://github.com/PylotLight/Blobfish.git
 brew install --cask blobfish
 ```
 
-Or download binaries (macOS dmg/zip, Linux AppImage/deb) from
+Or download binaries (macOS dmg/zip, Apple Silicon + Intel) from
 [Releases](https://github.com/PylotLight/Blobfish/releases). Builds are unsigned
 for now — on macOS run `xattr -cr /Applications/Blobfish.app` after installing.
+Linux isn't packaged in releases yet; run from source below.
 
 ## Quickstart
 

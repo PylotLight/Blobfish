@@ -23,12 +23,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # macOS only for now. To bring Linux back, re-add a matrix entry:
+          #   - name: linux
+          #     os: ubuntu-latest
+          #     target: --linux
+          # (plus a libfuse apt step for AppImage — see git history).
           - name: macos
             os: macos-14
             target: --mac
-          - name: linux
-            os: ubuntu-latest
-            target: --linux
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -39,11 +41,6 @@ jobs:
 
       - run: bun install --frozen-lockfile
       - run: bun run build
-
-      # appimagetool (used by electron-builder for AppImage) needs FUSE.
-      - name: install libfuse
-        if: matrix.name == 'linux'
-        run: sudo apt-get update && sudo apt-get install -y libfuse2t64 || sudo apt-get install -y libfuse2
 
       # Unsigned on macOS unless CSC_* secrets are configured — see
       # docs/releasing.md ("Code signing"). Brew casks work either way.
@@ -57,8 +54,6 @@ jobs:
           path: |
             release/*.zip
             release/*.dmg
-            release/*.AppImage
-            release/*.deb
           if-no-files-found: error
 
   release:
