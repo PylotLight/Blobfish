@@ -143,148 +143,164 @@ export function SettingsView(props: {
         </button>
       </div>
 
-      <div className="settings-grid">
-        <div className="settings-section">
-          <h4>Theme</h4>
-          <div className="seg-row" role="radiogroup" aria-label="Theme">
-            {THEMES.map((id) => (
-              <button
-                key={id}
-                role="radio"
-                aria-checked={prefs.theme === id}
-                className={`seg${prefs.theme === id ? ' selected' : ''}`}
-                onClick={() => set({ theme: id })}
-                title={THEME_META[id]!.desc}
-              >
-                <span className={`swatch ${id}`} aria-hidden />
-                {THEME_META[id]!.title}
-              </button>
-            ))}
-          </div>
-          <p className="muted small">{THEME_META[prefs.theme]!.desc} Accent applies on top.</p>
-        </div>
+      <div className="settings-groups">
+        <section className="settings-group">
+          <h4>Appearance</h4>
 
-        <div className="settings-section">
-          <h4>Accent color</h4>
-          <div className="seg-row" role="radiogroup" aria-label="Accent color">
-            {PRESET_ACCENTS.map((id) => (
-              <button
-                key={id}
-                role="radio"
-                aria-checked={prefs.accent === id}
-                className={`seg${prefs.accent === id ? ' selected' : ''}`}
-                onClick={() => set({ accent: id })}
-                title={ACCENT_META[id]!.desc}
-              >
-                <span className={`swatch accent-${id}`} aria-hidden />
-                {ACCENT_META[id]!.title}
-              </button>
-            ))}
-            <button
-              role="radio"
-              aria-checked={prefs.accent === 'custom'}
-              className={`seg custom-seg${prefs.accent === 'custom' ? ' selected' : ''}`}
-              onClick={() => set({ accent: 'custom' })}
-              title={ACCENT_META.custom.desc}
-            >
-              <span
-                className="swatch accent-custom"
-                style={{ background: prefs.customAccent }}
-                aria-hidden
-              />
-              Custom
-            </button>
+          <div className="setting-row stacked">
+            <span className="setting-label">Theme</span>
+            <div className="seg-row" role="radiogroup" aria-label="Theme">
+              {THEMES.map((id) => (
+                <button
+                  key={id}
+                  role="radio"
+                  aria-checked={prefs.theme === id}
+                  className={`seg${prefs.theme === id ? ' selected' : ''}`}
+                  onClick={() => set({ theme: id })}
+                  title={THEME_META[id]!.desc}
+                >
+                  <span className={`swatch ${id}`} aria-hidden />
+                  {THEME_META[id]!.title}
+                </button>
+              ))}
+            </div>
+            <p className="muted small setting-hint">{THEME_META[prefs.theme]!.desc} Accent applies on top.</p>
           </div>
-          {prefs.accent === 'custom' && (
-            <label className="field row between custom-picker-row">
-              <span>
-                Custom color <code>{prefs.customAccent}</code>
-              </span>
-              <input
-                type="color"
-                className="color-input"
-                value={prefs.customAccent}
-                onChange={(e) => set({ accent: 'custom', customAccent: e.target.value })}
-                aria-label="Pick a custom accent color"
-              />
-            </label>
-          )}
-          <p className="muted small">
-            Drives buttons, links, progress bars, selection and focus rings.
-          </p>
-        </div>
 
-        <div className="settings-section">
-          <h4>Density</h4>
-          <div className="seg-row" role="radiogroup" aria-label="Density">
-            {(['comfortable', 'compact'] as DensityName[]).map((d) => (
+          <div className="setting-row stacked">
+            <span className="setting-label">Accent color</span>
+            <div className="seg-row" role="radiogroup" aria-label="Accent color">
+              {PRESET_ACCENTS.map((id) => (
+                <button
+                  key={id}
+                  role="radio"
+                  aria-checked={prefs.accent === id}
+                  className={`seg${prefs.accent === id ? ' selected' : ''}`}
+                  onClick={() => set({ accent: id })}
+                  title={ACCENT_META[id]!.desc}
+                >
+                  <span className={`swatch accent-${id}`} aria-hidden />
+                  {ACCENT_META[id]!.title}
+                </button>
+              ))}
               <button
-                key={d}
                 role="radio"
-                aria-checked={prefs.density === d}
-                className={`seg${prefs.density === d ? ' selected' : ''}`}
-                onClick={() => set({ density: d })}
+                aria-checked={prefs.accent === 'custom'}
+                className={`seg custom-seg${prefs.accent === 'custom' ? ' selected' : ''}`}
+                onClick={() => set({ accent: 'custom' })}
+                title={ACCENT_META.custom.desc}
               >
-                {d === 'comfortable' ? 'Comfortable' : 'Compact'}
+                <span
+                  className="swatch accent-custom"
+                  style={{ background: prefs.customAccent }}
+                  aria-hidden
+                />
+                Custom
               </button>
-            ))}
+            </div>
+            {prefs.accent === 'custom' && (
+              <label className="custom-picker-row">
+                <span>
+                  Custom color <code>{prefs.customAccent}</code>
+                </span>
+                <input
+                  type="color"
+                  className="color-input"
+                  value={prefs.customAccent}
+                  onChange={(e) => set({ accent: 'custom', customAccent: e.target.value })}
+                  aria-label="Pick a custom accent color"
+                />
+              </label>
+            )}
+            <p className="muted small setting-hint">
+              Drives buttons, links, progress bars, selection and focus rings.
+            </p>
           </div>
-        </div>
 
-        <div className="settings-section">
-          <h4>Motion</h4>
-          <div className="seg-row" role="radiogroup" aria-label="Motion">
-            {(['full', 'reduced'] as MotionName[]).map((m) => (
-              <button
-                key={m}
-                role="radio"
-                aria-checked={prefs.motion === m}
-                className={`seg${prefs.motion === m ? ' selected' : ''}`}
-                onClick={() => set({ motion: m })}
-              >
-                {m === 'full' ? 'Full' : 'Reduced'}
-              </button>
-            ))}
+          <div className="setting-row inline">
+            <div className="setting-label">
+              Density
+              <span className="muted small setting-hint">Comfortable breathes; compact fits more rows.</span>
+            </div>
+            <div className="seg-row" role="radiogroup" aria-label="Density">
+              {(['comfortable', 'compact'] as DensityName[]).map((d) => (
+                <button
+                  key={d}
+                  role="radio"
+                  aria-checked={prefs.density === d}
+                  className={`seg${prefs.density === d ? ' selected' : ''}`}
+                  onClick={() => set({ density: d })}
+                >
+                  {d === 'comfortable' ? 'Comfortable' : 'Compact'}
+                </button>
+              ))}
+            </div>
           </div>
-          <p className="muted small">Reduced disables entrance, shimmer and progress animations.</p>
-        </div>
 
-        <div className="settings-section">
+          <div className="setting-row inline">
+            <div className="setting-label">
+              Motion
+              <span className="muted small setting-hint">Reduced disables entrance, shimmer and progress animations.</span>
+            </div>
+            <div className="seg-row" role="radiogroup" aria-label="Motion">
+              {(['full', 'reduced'] as MotionName[]).map((m) => (
+                <button
+                  key={m}
+                  role="radio"
+                  aria-checked={prefs.motion === m}
+                  className={`seg${prefs.motion === m ? ' selected' : ''}`}
+                  onClick={() => set({ motion: m })}
+                >
+                  {m === 'full' ? 'Full' : 'Reduced'}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="settings-group">
           <h4>Transfers</h4>
-          <label className="field">
-            <span>
+          <div className="setting-row inline">
+            <div className="setting-label">
               Upload connections per file: <code>{prefs.uploadConcurrency}</code>
-            </span>
+              <span className="muted small setting-hint">More saturate fast links; fewer are kinder to small networks and Azurite.</span>
+            </div>
             <input
               type="range"
+              className="slider-inline"
               min={1}
               max={16}
               value={prefs.uploadConcurrency}
               onChange={(e) => set({ uploadConcurrency: Number(e.target.value) })}
+              aria-label="Upload connections per file"
             />
-          </label>
-          <p className="muted small">
-            More connections saturate fast links; fewer are kinder to small networks and Azurite.
-            Downloads stream on a single connection each.
-          </p>
-          <label className="field">
-            <span>
+          </div>
+          <div className="setting-row inline">
+            <div className="setting-label">
               Simultaneous transfers: <code>{prefs.maxParallel}</code>
-            </span>
+              <span className="muted small setting-hint">Downloads stream on a single connection each.</span>
+            </div>
             <input
               type="range"
+              className="slider-inline"
               min={1}
               max={4}
               value={prefs.maxParallel}
               onChange={(e) => set({ maxParallel: Number(e.target.value) })}
+              aria-label="Simultaneous transfers"
             />
-          </label>
-        </div>
+          </div>
+        </section>
 
-        <div className="settings-section">
+        <section className="settings-group">
           <h4>Window</h4>
-          <label className="field row between">
-            <span>Native vibrancy blur {props.vibrancySupported ? '(macOS)' : ''}</span>
+          <div className="setting-row inline">
+            <div className="setting-label">
+              Native vibrancy blur {props.vibrancySupported ? '(macOS)' : ''}
+              {!props.vibrancySupported && (
+                <span className="muted small setting-hint">Only available on macOS.</span>
+              )}
+            </div>
             <button
               role="switch"
               aria-checked={prefs.vibrancy}
@@ -294,11 +310,8 @@ export function SettingsView(props: {
             >
               <span className="knob" />
             </button>
-          </label>
-          {!props.vibrancySupported && (
-            <p className="muted small">Vibrancy is only available on macOS.</p>
-          )}
-        </div>
+          </div>
+        </section>
       </div>
 
       <div className="row end">
