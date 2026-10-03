@@ -9,25 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **(storage)** Foundational accounts — safeStorage profiles, 3 attach kinds, container/blob listing ([188f911](https://github.com/PylotLight/Blobfish/commit/188f9118ae2b60852ee580d41145046fa97fff73))
-- **(storage)** Wizard, tree sidebar, quick access, blob/container CRUD ([c60d929](https://github.com/PylotLight/Blobfish/commit/c60d929a1f2ee2438eb5c0ca2ed7fa654ec9232c))
-- **(ui)** ASE-style browser, app menu with zoom, drop container dropdown ([c33c2c3](https://github.com/PylotLight/Blobfish/commit/c33c2c33c4e21fb4cfc467735e2c027e2ec1980f))
-- **(ui)** Settings, intentional confirms, smoother rollout, sidebar cleanup ([8b0d945](https://github.com/PylotLight/Blobfish/commit/8b0d9455885e27d7d3dfdf94b91a8f482c2cee39))
-- **(transfers)** Queued streaming uploads/downloads with progress dock ([6ec365e](https://github.com/PylotLight/Blobfish/commit/6ec365ef993fb5a5e8bd3d8f59227213c6c8a785))
-- **(ui)** Dialog blur, parent row, sidebar container actions, settings page, accents, sticky toolbar ([fc8cfb8](https://github.com/PylotLight/Blobfish/commit/fc8cfb80429454a0cfc730559000d41545505a7c))
-- **(settings)** Custom accent color picker ([3c68feb](https://github.com/PylotLight/Blobfish/commit/3c68feba45d788c2c503fb9765cb4169bb2fc2fd))
-- **(icons)** Wire app icon into debug and release builds ([3fce91a](https://github.com/PylotLight/Blobfish/commit/3fce91a35c23fcc27ecf1c9b28b53515ad83eaa2))
-- **(release)** Tag-driven release flow with changelog + homebrew cask ([bd3b0e5](https://github.com/PylotLight/Blobfish/commit/bd3b0e547c9bb614d8354c5ed0fb3fb04219fb0e))
+- **(storage)** Foundational accounts — safeStorage profiles, 3 attach kinds, container/blob listing ([237f460](https://github.com/PylotLight/Blobfish/commit/237f4600bbf110903ac61ee9019fa1315a4579bc))
+- **(storage)** Wizard, tree sidebar, quick access, blob/container CRUD ([18521bc](https://github.com/PylotLight/Blobfish/commit/18521bce2236e9d2a1b576faa345e3921fa0aee0))
+- **(ui)** ASE-style browser, app menu with zoom, drop container dropdown ([f2c27f8](https://github.com/PylotLight/Blobfish/commit/f2c27f81dec27a622b2a50f602a0f5cbd06f1e34))
+- **(ui)** Settings, intentional confirms, smoother rollout, sidebar cleanup ([b104416](https://github.com/PylotLight/Blobfish/commit/b1044169349d7c11d6516c1ff4fd211ce3e0c548))
+- **(transfers)** Queued streaming uploads/downloads with progress dock ([dd73abe](https://github.com/PylotLight/Blobfish/commit/dd73abeb8412cd668cd162ecf6a4f4194d524809))
+- **(ui)** Dialog blur, parent row, sidebar container actions, settings page, accents, sticky toolbar ([5d618a6](https://github.com/PylotLight/Blobfish/commit/5d618a6cd76007053652e2af1ffaa569ee90b3ac))
+- **(settings)** Custom accent color picker ([e984b16](https://github.com/PylotLight/Blobfish/commit/e984b163519283c3cccaa250fad74110b0c286e4))
+- **(icons)** Wire app icon into debug and release builds ([23314b8](https://github.com/PylotLight/Blobfish/commit/23314b8d3a672da5e5918cd24d12d76cced1790c))
+- **(release)** Tag-driven release flow with changelog + homebrew cask ([6daf36d](https://github.com/PylotLight/Blobfish/commit/6daf36d85a18e8262f1e0f4d5197246f00a36e3d))
 
 ### Fixed
 
-- **(ipc)** Remove duplicate transfers:configure handler ([e876c37](https://github.com/PylotLight/Blobfish/commit/e876c3715e07c0be1d703588fb3f2e4c75a25e88))
+- **(ipc)** Remove duplicate transfers:configure handler ([c0ff2a6](https://github.com/PylotLight/Blobfish/commit/c0ff2a66f373f50acad7ae479d9827b4388ebd5e))
+- **(release)** Don't fail when version/changelog are unchanged ([76fc7a5](https://github.com/PylotLight/Blobfish/commit/76fc7a52b36395cb283833d22b255919741779cd))
+- **(release)** Match electron-builder's mac artifact naming ([fabf2f0](https://github.com/PylotLight/Blobfish/commit/fabf2f0f1f04942e54fd9da4e5e58406ddb0230f))
 
 ### Other
 
-- Initial commit ([b593802](https://github.com/PylotLight/Blobfish/commit/b593802a369f3aef6cabbaaf824cafc0faca1e4d))
-- Blobfish identity on starter template (config, package, readme) ([064b49a](https://github.com/PylotLight/Blobfish/commit/064b49ae8196f4937f36546b9e1df6696ee61eae))
-- Add app build/icon assets ([0f133ba](https://github.com/PylotLight/Blobfish/commit/0f133ba4c24ed3bcbece2751c7f65e3e20bd7a0a))
+- Initial commit ([2941127](https://github.com/PylotLight/Blobfish/commit/2941127fa5df075422d72c5112a631101a8102d7))
+- Blobfish identity on starter template (config, package, readme) ([9718d04](https://github.com/PylotLight/Blobfish/commit/9718d04614759cf98264fabd561785edc44b67a8))
+- Add app build/icon assets ([d4780b7](https://github.com/PylotLight/Blobfish/commit/d4780b7d445fc77be83edf8161ff639de448e3cb))
 
 [0.1.0]: https://github.com/PylotLight/Blobfish/releases/tag/v0.1.0
 
