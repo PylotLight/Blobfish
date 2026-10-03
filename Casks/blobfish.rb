@@ -7,15 +7,21 @@ cask "blobfish" do
   sha256 arm:   "3ef82c824ca3bc5847da659d03db2d52c8fdf544193c7f653bc3d2b25d600892",
          intel: "1ac1f22415a48f5e96ca314979b689921e76a3af57e161ad5985711ea29fe529"
 
-  url "https://github.com/PylotLight/Blobfish/releases/download/v#{version}/Blobfish-#{version}-mac-#{arch}.zip",
-      verified: "github.com/PylotLight/Blobfish/"
+  url "https://github.com/PylotLight/Blobfish/releases/download/v#{version}/Blobfish-#{version}-mac-#{arch}.zip"
   name "Blobfish"
   desc "Fast native Azure Blob Storage explorer"
   homepage "https://github.com/PylotLight/Blobfish"
 
-  depends_on macos: ">= :monterey"
+  depends_on macos: :monterey
 
   app "Blobfish.app"
+
+  caveats <<~EOS
+    Blobfish is unsigned. If macOS reports it is "damaged", run:
+      xattr -cr /Applications/Blobfish.app
+    Or reinstall without the quarantine flag:
+      brew reinstall --cask --no-quarantine blobfish
+  EOS
 
   zap trash: [
     "~/Library/Application Support/Blobfish",

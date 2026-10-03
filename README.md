@@ -25,7 +25,20 @@ brew install --cask blobfish
 
 Or download binaries (macOS dmg/zip, Apple Silicon + Intel) from
 [Releases](https://github.com/PylotLight/Blobfish/releases). Builds are unsigned
-for now — on macOS run `xattr -cr /Applications/Blobfish.app` after installing.
+for now — macOS Gatekeeper (stricter on macOS 26/Tahoe) may report
+““Blobfish” is damaged and can’t be opened”. That means unsigned + quarantined,
+not a bad build. Click Cancel (don't trash it), then clear the quarantine flag:
+
+```bash
+xattr -cr /Applications/Blobfish.app
+```
+
+and open again (right-click → Open on first launch). Or skip the quarantine
+entirely with Homebrew:
+
+```bash
+brew install --cask blobfish --no-quarantine
+```
 Linux isn't packaged in releases yet; run from source below.
 
 ## Quickstart

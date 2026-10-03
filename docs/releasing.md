@@ -63,10 +63,20 @@ fills in real values.
 
 ## Code signing (optional, later)
 
-Artifacts ship unsigned for now: macOS shows a Gatekeeper warning on first
-open (`xattr -cr /Applications/Blobfish.app` clears it; `brew install
---cask` users can also right-click → Open). To sign and notarize later, add
-`CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`/`APPLE_APP_SPECIFIC_PASSWORD` (or
-API key) secrets and electron-builder picks them up automatically — no
-workflow changes needed. Until then, don't submit the cask to the core
+Artifacts ship unsigned for now: macOS Gatekeeper quarantines the download, and
+on recent macOS (26/Tahoe especially) the first open can show
+"“Blobfish” is damaged and can’t be opened" instead of the usual unsigned-app
+warning. It means unsigned + quarantined, not a corrupt build. Workarounds:
+click Cancel, then `xattr -cr /Applications/Blobfish.app` and open again
+(right-click → Open on first launch), or `brew install --cask blobfish
+--no-quarantine` to skip the quarantine flag entirely.
+
+To sign and notarize later, add these secrets and electron-builder picks them
+up automatically — no workflow changes needed (the `mac` target already sets
+`hardenedRuntime` + entitlements in `package.json` / `build/entitlements.mac.plist`):
+
+- `CSC_LINK` (base64 Developer ID Application cert), `CSC_KEY_PASSWORD`
+- `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`
+
+Until then, don't submit the cask to the core
 `homebrew-cask` repo; the personal tap is the right home for unsigned builds.
