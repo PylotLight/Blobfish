@@ -7,7 +7,7 @@ cask "blobfish" do
   sha256 arm:   "0000000000000000000000000000000000000000000000000000000000000000",
          intel: "0000000000000000000000000000000000000000000000000000000000000000"
 
-  url "https://github.com/PylotLight/Blobfish/releases/download/v#{version}/Blobfish-#{version}-macos-#{arch}.zip",
+  url "https://github.com/PylotLight/Blobfish/releases/download/v#{version}/Blobfish-#{version}-mac-#{arch}.zip",
       verified: "github.com/PylotLight/Blobfish/"
   name "Blobfish"
   desc "Fast native Azure Blob Storage explorer"

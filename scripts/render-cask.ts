@@ -6,8 +6,8 @@
 //
 //   bun scripts/render-cask.ts \
 //     --version 1.2.3 \
-//     --sha256-arm <sha of Blobfish-1.2.3-macos-arm64.zip> \
-//     --sha256-intel <sha of Blobfish-1.2.3-macos-x64.zip> \
+//     --sha256-arm <sha of Blobfish-1.2.3-mac-arm64.zip> \
+//     --sha256-intel <sha of Blobfish-1.2.3-mac-x64.zip> \
 //     [--out Casks/blobfish.rb]
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
