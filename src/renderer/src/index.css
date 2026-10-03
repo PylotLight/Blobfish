@@ -2979,6 +2979,11 @@ th.wide {
   border-radius: 12px;
   display: flex;
   flex-direction: column;
+  background: rgba(22, 27, 37, 0.92);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
 }
 
 .ctx-menu button[role='menuitem'] {

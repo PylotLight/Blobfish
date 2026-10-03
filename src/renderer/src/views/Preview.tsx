@@ -131,6 +131,8 @@ export default function PreviewDialog(props: {
   const leaf = name.includes('/') ? name.slice(name.lastIndexOf('/') + 1) : name
   const fetched = nextOffset ?? 0
   const rows = csv?.rows ?? []
+  const isCsv = flavor === 'csv' && !binary
+  const rowCount = rows.length
   const header = rows[0] ?? []
   const body = rows.slice(1)
   const renderedBody = body.slice(0, PREVIEW_RENDER_LINES)
@@ -282,9 +284,9 @@ export default function PreviewDialog(props: {
           <span className="muted small preview-progress" aria-live="polite">
             {binary
               ? `${formatBytes(size)} binary`
-              : eof || capped
-                ? `${formatBytes(fetched)} of ${formatBytes(size)} · end of preview`
-                : `${formatBytes(fetched)} of ${formatBytes(size)} · page ${formatBytes(PREVIEW_DEFAULT_BYTES)} at a time`}
+              : isCsv && rowCount > 0
+                ? `${rowCount} rows so far · ${formatBytes(fetched)} of ${formatBytes(size)}${eof || capped ? ' · end of preview' : ''}`
+                : `${formatBytes(fetched)} of ${formatBytes(size)}${eof || capped ? ' · end of preview' : ''}`}
             {capped && !binary ? ' · preview capped at 2 MiB' : ''}
             {csv?.pending ? ' · last row continues…' : ''}
             {loadingMore ? ' · loading…' : ''}

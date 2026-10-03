@@ -348,6 +348,8 @@ export default function Explorer(props: {
   function goUp(): void {
     const segs = navPrefix.split('/').filter(Boolean)
     if (segs.length === 0) {
+      // Scoped attachments are rooted at their container — nowhere above to go.
+      if (scoped) return
       // At container root → up means back to the container directory.
       switchContainer(null)
       resetNav()
@@ -874,7 +876,7 @@ export default function Explorer(props: {
     <div className="nav-btns">
       <button className="nav-btn" onClick={goBack} disabled={backHist.length === 0} title="Back" aria-label="Back">←</button>
       <button className="nav-btn" onClick={goForward} disabled={fwdHist.length === 0} title="Forward" aria-label="Forward">→</button>
-      <button className="nav-btn" onClick={goUp} disabled={!container && navPrefix === ''} title="Up one level" aria-label="Up">↑</button>
+      <button className="nav-btn" onClick={goUp} disabled={navPrefix === '' && (scoped || !container)} title="Up one level" aria-label="Up">↑</button>
       <button
         className="nav-btn"
         onClick={retryCurrent}
@@ -902,19 +904,31 @@ export default function Explorer(props: {
 
   const addressStrip = (
     <nav className="address-strip" aria-label="Path">
-      <button
-        className="crumb addr-acct"
-        onClick={() => { switchContainer(null); resetNav() }}
-        title={`${account.name}\n${account.endpoint}`}
-      >
-        {displayAccount}
-      </button>
-      {container && (
+      {scoped ? (
+        <button
+          className="crumb addr-acct"
+          onClick={() => go('')}
+          title={`${account.name}\n${account.endpoint}`}
+        >
+          {container ?? displayAccount}
+        </button>
+      ) : (
         <>
-          <span className="sep">/</span>
-          <button className="crumb root" onClick={() => go('')}>
-            {container}
+          <button
+            className="crumb addr-acct"
+            onClick={() => { switchContainer(null); resetNav() }}
+            title={`${account.name}\n${account.endpoint}`}
+          >
+            {displayAccount}
           </button>
+          {container && (
+            <>
+              <span className="sep">/</span>
+              <button className="crumb root" onClick={() => go('')}>
+                {container}
+              </button>
+            </>
+          )}
         </>
       )}
       {crumbs.map((seg, i) => (
