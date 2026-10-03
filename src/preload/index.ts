@@ -11,6 +11,8 @@ import type {
   GlassState,
   ListBlobsArgs,
   ListBlobsResult,
+  PreviewArgs,
+  PreviewResult,
   RenameBlobArgs,
   RenameContainerArgs,
   StorageContainer,
@@ -91,7 +93,9 @@ const api = {
     renameBlob: (args: RenameBlobArgs): Promise<string> =>
       ipcRenderer.invoke('storage:rename-blob', args),
     renameContainer: (args: RenameContainerArgs): Promise<string> =>
-      ipcRenderer.invoke('storage:rename-container', args)
+      ipcRenderer.invoke('storage:rename-container', args),
+    preview: (args: PreviewArgs): Promise<PreviewResult> =>
+      ipcRenderer.invoke('storage:preview', args)
   },
   transfers: {
     list: (): Promise<TransfersSnapshot> => ipcRenderer.invoke('transfers:list'),

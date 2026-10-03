@@ -147,6 +147,51 @@ export interface RenameContainerArgs {
   dest: string
 }
 
+/* ---------- Preview (range-based, never downloads the whole blob) ---------- */
+
+export type PreviewFlavor = 'csv' | 'text'
+
+export interface PreviewArgs {
+  accountId: string
+  container: string
+  /** Full blob name. */
+  name: string
+  /** Byte offset to start this page at. Defaults to 0. */
+  offset?: number
+  /** Max bytes to fetch (clamped server-side to 4 KiB – 1 MiB). */
+  maxBytes?: number
+  /** Max lines to return per page (clamped server-side to 1 – 2000). */
+  maxLines?: number
+}
+
+export interface PreviewResult {
+  name: string
+  /** Total blob size in bytes. */
+  size: number
+  contentType?: string
+  /** `csv` renders a table; `text` renders monospaced lines. */
+  flavor: PreviewFlavor
+  /** True when the sample contains NUL bytes — metadata only, no text. */
+  binary: boolean
+  /**
+   * True when neither the extension nor the content type claims text, but the
+   * bytes sniff as text. Shown as a "best guess" hint in the UI.
+   */
+  guessed?: boolean
+  encoding: string
+  /** Byte offset this page started at. */
+  offset: number
+  /** Byte offset the next page should request. Equals `size` at EOF. */
+  nextOffset: number
+  eof: boolean
+  /** Decoded text for this page (line-aligned except huge single lines). */
+  text: string
+  /** Bytes of usable text in this page. */
+  bytesFetched: number
+  /** Page ends mid-line; the next page continues the same line. */
+  cutMidLine: boolean
+}
+
 export interface UploadEnqueueArgs {
   accountId: string
   container: string

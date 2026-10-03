@@ -13,6 +13,8 @@ import type {
   GlassState,
   ListBlobsArgs,
   ListBlobsResult,
+  PreviewArgs,
+  PreviewResult,
   RenameBlobArgs,
   RenameContainerArgs,
   StorageContainer,
@@ -42,6 +44,7 @@ import {
   renameBlob,
   renameContainer
 } from './azure'
+import { previewBlob } from './preview'
 import {
   cancelAll,
   cancelTransfer,
@@ -208,6 +211,11 @@ export function registerIpc(): void {
     'storage:rename-container',
     (_event: IpcMainInvokeEvent, args: RenameContainerArgs): Promise<string> =>
       renameContainer(args.accountId, args.source, args.dest)
+  )
+  ipcMain.handle(
+    'storage:preview',
+    (_event: IpcMainInvokeEvent, args: PreviewArgs): Promise<PreviewResult> =>
+      previewBlob(args)
   )
   // ----- Transfers: queued file movement (progress streams over `transfers:changed`) -----
   ipcMain.handle('transfers:list', (): TransfersSnapshot => transfersSnapshot())

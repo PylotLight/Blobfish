@@ -7,6 +7,7 @@ import type {
 } from '../../../shared/types'
 import type { SelectionTarget } from '../App'
 import { ConfirmDialog, PromptDialog } from './Dialogs'
+import PreviewDialog from './Preview'
 import { formatBytes } from '../../../shared/format'
 import { parseStorageError, type ExplorerError } from './errors'
 import ErrorCallout from './ErrorCallout'
@@ -102,6 +103,7 @@ export default function Explorer(props: {
 
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [prompt, setPrompt] = useState<PromptState | null>(null)
+  const [preview, setPreview] = useState<{ name: string; size?: number } | null>(null)
 
   const accountId = account?.id
 
@@ -451,6 +453,17 @@ export default function Explorer(props: {
       .finally(() => setBusy(null))
   }
 
+  function onPreviewDownload(name: string): void {
+    if (!accountId || !container) return
+    setPreview(null)
+    setBusy('download')
+    setError(null)
+    window.api.transfers
+      .download({ accountId, container, names: [name] })
+      .catch((err: unknown) => fail(err, 'action'))
+      .finally(() => setBusy(null))
+  }
+
   function onDelete(): void {
     if (!accountId || !container || selection.size === 0) return
     const n = selection.size
@@ -525,6 +538,11 @@ export default function Explorer(props: {
 
   const selectedFiles = [...selection].filter((k) => !k.endsWith('/'))
   const canRename = selectedFiles.length === 1 && selection.size === 1
+  // Exactly one file selected → eligible for in-app preview.
+  const previewFile =
+    selection.size === 1 && selectedFiles.length === 1
+      ? (visibleBlobs.find((b) => !b.isPrefix && keyOf(b) === selectedFiles[0]) ?? null)
+      : null
 
   const displayAccount = account.containerName ?? account.accountName ?? account.name
   let endpointHost = account.endpoint
@@ -598,6 +616,7 @@ export default function Explorer(props: {
       <Action icon="+" label="New folder" onClick={onNewFolder} disabled={!container || busy !== null} />
       <Action icon="☑" label="Select all" onClick={() => toggleAll(visibleBlobs.map(keyOf))} disabled={visibleBlobs.length === 0} />
       <span className="action-sep" aria-hidden />
+      <Action icon="👁" label="Preview" onClick={() => previewFile && setPreview({ name: previewFile.name, size: previewFile.size })} disabled={!previewFile || busy !== null} />
       <Action icon="✎" label="Rename" onClick={onRename} disabled={!canRename || busy !== null} />
       <Action icon="✕" label={`Delete${selection.size > 0 ? ` (${selection.size})` : ''}`} danger onClick={onDelete} disabled={selection.size === 0 || busy !== null} />
     </div>
@@ -923,10 +942,14 @@ export default function Explorer(props: {
                             {item.leaf}
                           </button>
                         ) : (
-                          <span className="file-row" title={item.name}>
+                          <button
+                            className="linklike file"
+                            title={`${item.name} — click to preview`}
+                            onClick={() => setPreview({ name: item.name, size: item.size })}
+                          >
                             <span className="file-ico file" aria-hidden />
                             {item.leaf}
-                          </span>
+                          </button>
                         )}
                       </td>
                       <td className="num">{item.isPrefix ? '—' : formatBytes(item.size)}</td>
@@ -964,6 +987,16 @@ export default function Explorer(props: {
           validate={prompt.validate}
           onCancel={() => setPrompt(null)}
           onSubmit={prompt.submit}
+        />
+      )}
+      {preview && accountId && container && (
+        <PreviewDialog
+          accountId={accountId}
+          container={container}
+          name={preview.name}
+          size={preview.size}
+          onClose={() => setPreview(null)}
+          onDownload={() => onPreviewDownload(preview.name)}
         />
       )}
       {notice && <div className="toast glass strong toast-in">{notice}</div>}
