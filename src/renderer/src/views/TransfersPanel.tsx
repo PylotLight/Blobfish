@@ -109,6 +109,29 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
   // Pinned = user explicitly opened via click; hover alone only opens transiently.
   const [pinned, setPinned] = useState(false)
   const hadActive = useRef(false)
+  const hoverTimer = useRef<number | null>(null)
+
+  // Hover intent: small delay so brushing past the strip doesn't flicker it open.
+  function scheduleOpen(): void {
+    if (expanded || hoverTimer.current !== null) return
+    hoverTimer.current = window.setTimeout(() => {
+      hoverTimer.current = null
+      setExpanded(true)
+    }, 120)
+  }
+
+  function cancelScheduled(): void {
+    if (hoverTimer.current !== null) {
+      window.clearTimeout(hoverTimer.current)
+      hoverTimer.current = null
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current)
+    }
+  }, [])
 
   useEffect(() => {
     window.api.transfers.list().then(setSnap).catch(console.error)
@@ -138,10 +161,12 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
       <button
         className="transfers-bar"
         onClick={() => {
+          cancelScheduled()
           setPinned(true)
           setExpanded(true)
         }}
-        onMouseEnter={() => setExpanded(true)}
+        onMouseEnter={scheduleOpen}
+        onMouseLeave={cancelScheduled}
         title="Transfers and activity — hover to expand, click to pin"
       >
         <span className="t-stats">
@@ -167,8 +192,9 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
 
   return (
     <section
-      className="transfers-panel card fade-in"
+      className="transfers-panel card dock-in"
       aria-label="Transfers and activity"
+      onMouseEnter={cancelScheduled}
       onMouseLeave={() => {
         // Hover-opened dock slides away; pinned and active work stays put.
         if (!pinned && (snap.active === 0)) setExpanded(false)

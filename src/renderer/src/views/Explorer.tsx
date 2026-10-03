@@ -51,7 +51,6 @@ export default function Explorer(props: {
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<ExplorerError | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [errorNotice, setErrorNotice] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>(1)
   const [copiedEndpoint, setCopiedEndpoint] = useState(false)
@@ -111,16 +110,9 @@ export default function Explorer(props: {
     window.setTimeout(() => setNotice((n) => (n === message ? null : n)), 3200)
   }
 
-  function flashError(message: string): void {
-    setErrorNotice(message)
-    window.setTimeout(() => setErrorNotice((n) => (n === message ? null : n)), 4200)
-  }
-
   function fail(err: unknown, context: 'containers' | 'blobs' | 'action' = 'action'): void {
-    const parsed = parseStorageError(err, context)
-    setError(parsed)
-    // Surface via toast notification as well — never leave a silent inline dump.
-    flashError(parsed.title)
+    // Inline banner + activity dock carry the error — no extra toast needed.
+    setError(parseStorageError(err, context))
   }
 
   function resetNav(): void {
@@ -791,7 +783,6 @@ export default function Explorer(props: {
         />
       )}
       {notice && <div className="toast glass strong toast-in">{notice}</div>}
-      {errorNotice && <div className="toast glass strong toast-error toast-in" role="alert">{errorNotice}</div>}
       </div>
     )
   }
@@ -976,7 +967,6 @@ export default function Explorer(props: {
         />
       )}
       {notice && <div className="toast glass strong toast-in">{notice}</div>}
-      {errorNotice && <div className="toast glass strong toast-error toast-in" role="alert">{errorNotice}</div>}
     </div>
   )
 }

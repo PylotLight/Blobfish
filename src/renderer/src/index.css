@@ -3171,9 +3171,9 @@ th.wide {
 
 .transfers-bar {
   position: absolute;
-  bottom: 16px;
-  left: 20px;
-  right: 20px;
+  bottom: 18px;
+  left: 28px;
+  right: 28px;
   width: auto;
   max-width: none;
   margin-top: 0;
@@ -3185,13 +3185,30 @@ th.wide {
 
 .transfers-panel {
   position: absolute;
-  bottom: 16px;
-  left: 20px;
-  right: 20px;
+  bottom: 18px;
+  left: 28px;
+  right: 28px;
   width: auto;
   max-width: none;
   max-height: 46vh;
   margin-top: 0;
   z-index: 40;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  transform-origin: bottom center;
+}
+
+@keyframes dockIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.998);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.dock-in {
+  animation: dockIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
 }
