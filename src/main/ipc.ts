@@ -144,6 +144,7 @@ export function registerIpc(): void {
   })
 
   ipcMain.handle('app:quit', () => app.quit())
+  ipcMain.handle('app:version', (): string => app.getVersion())
 
   // ----- Blobfish storage accounts (secrets stay in main via safeStorage) -----
   ipcMain.handle('accounts:encryption', (): boolean => encryptionAvailable())

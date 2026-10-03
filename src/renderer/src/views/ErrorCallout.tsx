@@ -38,14 +38,14 @@ export default function ErrorCallout(props: {
         <p className="error-callout-msg">{error.message}</p>
         <div className="error-callout-actions">
           {props.onRetry && (
-            <button className="btn ghost small error-retry" onClick={props.onRetry}>
+            <button className="error-retry" onClick={props.onRetry}>
               ↻ Retry
             </button>
           )}
-          <button className="linklike small" onClick={() => setShowDetails((v) => !v)}>
+          <button className="error-text-btn" onClick={() => setShowDetails((v) => !v)}>
             {showDetails ? 'Hide details ▴' : 'Details ▾'}
           </button>
-          <button className="linklike small" onClick={() => void copyDetails()}>
+          <button className="error-text-btn" onClick={() => void copyDetails()}>
             {copied ? 'Copied ✓' : 'Copy details'}
           </button>
         </div>

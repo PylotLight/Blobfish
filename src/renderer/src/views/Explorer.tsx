@@ -60,6 +60,20 @@ export default function Explorer(props: {
   navPrefixRef.current = navPrefix
   const containerRef = useRef(container)
   containerRef.current = container
+  const filterRef = useRef<HTMLInputElement>(null)
+
+  // ⌘F / Ctrl+F focuses the single search box.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault()
+        filterRef.current?.focus()
+        filterRef.current?.select()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   function switchContainer(next: string | null): void {
     setContainer(next)
@@ -551,16 +565,17 @@ export default function Explorer(props: {
   ) : null
 
   const toolbarFilter = (
-    <label className="toolbar-filter">
+    <label className="toolbar-filter" title="Search (⌘F)">
       <span aria-hidden>⌕</span>
       <input
+        ref={filterRef}
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
-        placeholder={container ? 'Filter blobs…  (⌘F)' : 'Filter containers…  (⌘F)'}
-        aria-label="Filter current view"
+        placeholder="Search…"
+        aria-label="Search current view"
       />
       {filter && (
-        <button className="mini-btn" onClick={() => setFilter('')} aria-label="Clear filter">
+        <button className="mini-btn" onClick={() => setFilter('')} aria-label="Clear search">
           ✕
         </button>
       )}

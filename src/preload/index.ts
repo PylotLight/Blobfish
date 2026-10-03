@@ -130,7 +130,8 @@ const api = {
   },
   app: {
     hide: (): Promise<boolean> => ipcRenderer.invoke('app:hide'),
-    quit: (): Promise<void> => ipcRenderer.invoke('app:quit')
+    quit: (): Promise<void> => ipcRenderer.invoke('app:quit'),
+    version: (): Promise<string> => ipcRenderer.invoke('app:version')
   }
 }
 

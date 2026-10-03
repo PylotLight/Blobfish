@@ -2951,12 +2951,9 @@ th.wide {
   display: flex;
   align-items: center;
   gap: 2px;
-  font-size: 13.5px;
+  font-size: 13px;
   color: var(--muted);
-  background: rgba(0, 0, 0, 0.22);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 7px 12px;
+  padding: 2px 4px;
   overflow-x: auto;
   white-space: nowrap;
   flex-shrink: 0;
@@ -2972,33 +2969,34 @@ th.wide {
   padding-left: 12px;
 }
 
-/* ---------- Polished error callout (never raw IPC text) ---------- */
+/* ---------- Quiet error callout (never raw IPC text) ---------- */
 
 .error-callout {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: flex-start;
-  border: 1px solid rgba(229, 99, 111, 0.35);
-  background: rgba(229, 99, 111, 0.09);
-  border-radius: 12px;
-  padding: 13px 15px;
+  border: 1px solid rgba(229, 99, 111, 0.22);
+  border-left: 2px solid rgba(229, 99, 111, 0.65);
+  background: rgba(229, 99, 111, 0.05);
+  border-radius: 10px;
+  padding: 11px 13px;
   flex-shrink: 0;
   animation: fadeSlideIn 0.22s ease both;
 }
 
 .error-callout-icon {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  background: rgba(229, 99, 111, 0.2);
-  border: 1px solid rgba(229, 99, 111, 0.45);
-  color: var(--danger);
-  font-weight: 800;
-  font-size: 14px;
+  background: rgba(229, 99, 111, 0.14);
+  color: #d98a92;
+  font-weight: 700;
+  font-size: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  margin-top: 1px;
 }
 
 .error-callout-main {
@@ -3006,7 +3004,7 @@ th.wide {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .error-callout-title-row {
@@ -3017,32 +3015,71 @@ th.wide {
 }
 
 .error-callout-title {
-  font-size: 13.5px;
-  color: #f0a3ab;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
 }
 
 .error-dismiss {
-  opacity: 0.7;
+  opacity: 0.55;
+}
+
+.error-dismiss:hover {
+  opacity: 1;
 }
 
 .error-callout-msg {
   margin: 0;
-  font-size: 13px;
+  font-size: 12.5px;
   line-height: 1.5;
-  color: rgba(242, 244, 246, 0.82);
+  color: var(--muted);
 }
 
 .error-callout-actions {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-top: 6px;
+  gap: 16px;
+  margin-top: 7px;
   flex-wrap: wrap;
 }
 
 .error-retry {
-  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
   font-size: 12.5px;
+  font-weight: 500;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: background 0.13s ease;
+}
+
+.error-retry:hover {
+  background: var(--panel-strong);
+}
+
+.error-text-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: color 0.13s ease;
+}
+
+.error-text-btn:hover {
+  color: var(--text);
+}
+
+.error-callout button:focus {
+  outline: none;
+}
+
+.error-callout button:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.3);
+  outline-offset: 2px;
 }
 
 .error-technical {
@@ -3130,4 +3167,34 @@ th.wide {
   .toolbar-title {
     max-width: none;
   }
+}
+
+/* ---------- Floating transfers / activity dock (overlays content) ---------- */
+
+.content {
+  position: relative;
+}
+
+.transfers-bar {
+  position: absolute;
+  bottom: 16px;
+  right: 20px;
+  width: auto;
+  max-width: min(420px, calc(100% - 40px));
+  margin-top: 0;
+  z-index: 40;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+}
+
+.transfers-panel {
+  position: absolute;
+  bottom: 16px;
+  right: 20px;
+  width: 400px;
+  max-width: calc(100% - 40px);
+  margin-top: 0;
+  z-index: 40;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
 }

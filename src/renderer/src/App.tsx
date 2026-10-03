@@ -23,6 +23,7 @@ export default function App(): React.JSX.Element {
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs())
   const [platform, setPlatform] = useState<SysInfo['platform'] | null>(null)
   const [encAvailable, setEncAvailable] = useState<boolean | null>(null)
+  const [appVersion, setAppVersion] = useState<string | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
     const saved = localStorage.getItem('blobfish.sidebarWidth')
     if (saved) {
@@ -62,6 +63,7 @@ export default function App(): React.JSX.Element {
     refreshAccounts()
     window.api.sys.info().then((s) => setPlatform(s.platform)).catch(console.error)
     window.api.accounts.encryption().then(setEncAvailable).catch(() => setEncAvailable(false))
+    window.api.app.version().then(setAppVersion).catch(() => setAppVersion(null))
   }, [refreshAccounts])
 
   // Persist prefs + apply native vibrancy (macOS only; harmless elsewhere).
@@ -363,7 +365,7 @@ export default function App(): React.JSX.Element {
             <span aria-hidden>⚙</span> Settings
           </button>
           <span className="status-sub">
-            {accounts.length} {accounts.length === 1 ? 'connection' : 'connections'} · OS Keychain encrypted
+            {accounts.length} {accounts.length === 1 ? 'connection' : 'connections'} · OS Keychain encrypted{appVersion ? ` · v${appVersion}` : ''}
           </span>
         </div>
       </aside>
