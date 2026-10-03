@@ -2780,3 +2780,354 @@ th.wide {
   overflow: hidden;
   clip: rect(0 0 0 0);
 }
+
+/* ---------- Unified explorer panel (single continuous surface) ---------- */
+
+.explorer-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.view:has(.explorer-panel) {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 18px;
+}
+
+.explorer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--header-blur-bg, rgba(14, 18, 25, 0.85));
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.toolbar-div {
+  width: 1px;
+  align-self: stretch;
+  min-height: 28px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.toolbar-crumb {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.toolbar-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.toolbar-title {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+
+.endpoint-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: color 0.13s ease, border-color 0.13s ease;
+}
+
+.endpoint-badge:hover {
+  color: var(--text);
+  border-color: var(--panel-strong);
+}
+
+.endpoint-badge.static {
+  cursor: default;
+}
+
+.endpoint-badge.static:hover {
+  color: var(--muted);
+  border-color: var(--border);
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.toolbar-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 7px 12px;
+  color: var(--muted);
+  font-size: 13.5px;
+  min-width: 200px;
+}
+
+.toolbar-filter:focus-within {
+  border-color: var(--panel-strong);
+}
+
+.toolbar-filter input {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 13.5px;
+  padding: 0;
+  width: 100%;
+  outline: none;
+}
+
+.toolbar-filter .mini-btn {
+  padding: 1px 4px;
+}
+
+.toolbar-primary {
+  white-space: nowrap;
+}
+
+.explorer-panel .actionbar {
+  border-top: none;
+  margin-top: 0;
+  padding: 8px 18px;
+  flex-shrink: 0;
+}
+
+.explorer-body-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.address-strip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 13.5px;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 7px 12px;
+  overflow-x: auto;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.address-strip .sep {
+  color: var(--muted);
+  margin: 0 2px;
+}
+
+.address-hint {
+  margin-left: auto;
+  padding-left: 12px;
+}
+
+/* ---------- Polished error callout (never raw IPC text) ---------- */
+
+.error-callout {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border: 1px solid rgba(229, 99, 111, 0.35);
+  background: rgba(229, 99, 111, 0.09);
+  border-radius: 12px;
+  padding: 13px 15px;
+  flex-shrink: 0;
+  animation: fadeSlideIn 0.22s ease both;
+}
+
+.error-callout-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(229, 99, 111, 0.2);
+  border: 1px solid rgba(229, 99, 111, 0.45);
+  color: var(--danger);
+  font-weight: 800;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.error-callout-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.error-callout-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.error-callout-title {
+  font-size: 13.5px;
+  color: #f0a3ab;
+}
+
+.error-dismiss {
+  opacity: 0.7;
+}
+
+.error-callout-msg {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(242, 244, 246, 0.82);
+}
+
+.error-callout-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.error-retry {
+  padding: 5px 12px;
+  font-size: 12.5px;
+}
+
+.error-technical {
+  margin: 8px 0 0;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--muted);
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+/* ---------- Empty states (table headers stay visible via table) ---------- */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 48px 24px;
+  gap: 4px;
+}
+
+.empty-state-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.empty-state-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.empty-state-sub {
+  margin: 4px 0 0;
+  max-width: 420px;
+}
+
+.empty-state-cta {
+  justify-content: center;
+  margin-top: 14px;
+}
+
+.table-unavailable {
+  text-align: center;
+  padding: 28px 12px !important;
+  font-size: 13.5px;
+}
+
+.toast-error {
+  border-color: rgba(229, 99, 111, 0.5);
+  color: #f0a3ab;
+}
+
+@media (max-width: 900px) {
+  .explorer-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .toolbar-right {
+    width: 100%;
+  }
+
+  .toolbar-filter {
+    flex: 1;
+  }
+
+  .toolbar-title {
+    max-width: none;
+  }
+}

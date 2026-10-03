@@ -8,6 +8,8 @@ import type {
 import type { SelectionTarget } from '../App'
 import { ConfirmDialog, PromptDialog } from './Dialogs'
 import { formatBytes } from '../../../shared/format'
+import { parseStorageError, type ExplorerError } from './errors'
+import ErrorCallout from './ErrorCallout'
 import logoUrl from '../assets/logo.png'
 
 type SortKey = 'name' | 'size' | 'modified'
@@ -47,10 +49,12 @@ export default function Explorer(props: {
   const [loadingList, setLoadingList] = useState(false)
   const [loadingContainers, setLoadingContainers] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<ExplorerError | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [errorNotice, setErrorNotice] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>(1)
+  const [copiedEndpoint, setCopiedEndpoint] = useState(false)
 
   const navPrefixRef = useRef(navPrefix)
   navPrefixRef.current = navPrefix
@@ -93,8 +97,16 @@ export default function Explorer(props: {
     window.setTimeout(() => setNotice((n) => (n === message ? null : n)), 3200)
   }
 
-  function fail(err: unknown): void {
-    setError(err instanceof Error ? err.message : String(err))
+  function flashError(message: string): void {
+    setErrorNotice(message)
+    window.setTimeout(() => setErrorNotice((n) => (n === message ? null : n)), 4200)
+  }
+
+  function fail(err: unknown, context: 'containers' | 'blobs' | 'action' = 'action'): void {
+    const parsed = parseStorageError(err, context)
+    setError(parsed)
+    // Surface via toast notification as well — never leave a silent inline dump.
+    flashError(parsed.title)
   }
 
   function resetNav(): void {
@@ -107,10 +119,12 @@ export default function Explorer(props: {
 
   const loadContainers = (id: string, highlight?: string | null) => {
     setLoadingContainers(true)
+    setError(null)
     window.api.storage
       .listContainers(id)
       .then((cs) => {
         setContainers(cs)
+        setError(null)
         setContainer((prev) => {
           let chosen: string | null = null
           if (highlight && cs.some((c) => c.name === highlight)) chosen = highlight
@@ -120,9 +134,9 @@ export default function Explorer(props: {
           props.onContainerChange?.(chosen)
           return chosen
         })
-        if (cs.length === 0) setError('No containers found.')
+        // Empty list is a valid state — rendered as an empty table, not an error.
       })
-      .catch(fail)
+      .catch((err: unknown) => fail(err, 'containers'))
       .finally(() => setLoadingContainers(false))
   }
 
@@ -183,7 +197,7 @@ export default function Explorer(props: {
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          fail(err)
+          fail(err, 'blobs')
           setBlobs(null)
         }
       })
@@ -200,13 +214,15 @@ export default function Explorer(props: {
     if (!accountId || !curContainer) return
     const curPrefix = navPrefixRef.current
     setLoadingList(true)
+    setError(null)
     window.api.storage
       .listBlobs({ accountId, container: curContainer, prefix: curPrefix || undefined })
       .then((res) => {
         setBlobs(res)
+        setError(null)
         setSelection(new Set())
       })
-      .catch(fail)
+      .catch((err: unknown) => fail(err, 'blobs'))
       .finally(() => setLoadingList(false))
   }
 
@@ -321,7 +337,7 @@ export default function Explorer(props: {
       if (msg) flash(msg)
       reloadBlobs()
     } catch (err) {
-      fail(err)
+      fail(err, 'action')
     } finally {
       setBusy(null)
     }
@@ -347,7 +363,7 @@ export default function Explorer(props: {
           loadContainers(accountId, v)
           props.onContainersChanged(accountId)
         } catch (err) {
-          fail(err)
+          fail(err, 'action')
           throw err
         } finally {
           setBusy(null)
@@ -376,7 +392,7 @@ export default function Explorer(props: {
           loadContainers(accountId)
           props.onContainersChanged(accountId)
         } catch (err) {
-          fail(err)
+          fail(err, 'action')
           throw err
         } finally {
           setBusy(null)
@@ -415,7 +431,7 @@ export default function Explorer(props: {
     setError(null)
     window.api.transfers
       .upload({ accountId, container, prefix: blobs?.prefix || undefined })
-      .catch(fail)
+      .catch((err: unknown) => fail(err, 'action'))
       .finally(() => setBusy(null))
   }
 
@@ -425,7 +441,7 @@ export default function Explorer(props: {
     setError(null)
     window.api.transfers
       .download({ accountId, container, names: [...selection] })
-      .catch(fail)
+      .catch((err: unknown) => fail(err, 'action'))
       .finally(() => setBusy(null))
   }
 
@@ -504,6 +520,70 @@ export default function Explorer(props: {
   const selectedFiles = [...selection].filter((k) => !k.endsWith('/'))
   const canRename = selectedFiles.length === 1 && selection.size === 1
 
+  const displayAccount = account.containerName ?? account.accountName ?? account.name
+  let endpointHost = account.endpoint
+  try {
+    endpointHost = new URL(account.endpoint).host
+  } catch {
+    // Keep the raw endpoint when it is not a valid URL.
+  }
+
+  function copyEndpoint(): void {
+    const endpoint = account?.endpoint
+    if (!endpoint) return
+    void navigator.clipboard
+      ?.writeText(endpoint)
+      .then(() => {
+        setCopiedEndpoint(true)
+        window.setTimeout(() => setCopiedEndpoint(false), 1400)
+      })
+      .catch(() => undefined)
+  }
+
+  function retryCurrent(): void {
+    if (!accountId) return
+    if (!containerRef.current) loadContainers(accountId)
+    else reloadBlobs()
+  }
+
+  const errorCallout = error ? (
+    <ErrorCallout error={error} onRetry={retryCurrent} onDismiss={() => setError(null)} />
+  ) : null
+
+  const toolbarFilter = (
+    <label className="toolbar-filter">
+      <span aria-hidden>⌕</span>
+      <input
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        placeholder={container ? 'Filter blobs…  (⌘F)' : 'Filter containers…  (⌘F)'}
+        aria-label="Filter current view"
+      />
+      {filter && (
+        <button className="mini-btn" onClick={() => setFilter('')} aria-label="Clear filter">
+          ✕
+        </button>
+      )}
+    </label>
+  )
+
+  const historyButtons = (
+    <div className="nav-btns">
+      <button className="nav-btn" onClick={goBack} disabled={backHist.length === 0} title="Back" aria-label="Back">←</button>
+      <button className="nav-btn" onClick={goForward} disabled={fwdHist.length === 0} title="Forward" aria-label="Forward">→</button>
+      <button className="nav-btn" onClick={goUp} disabled={!container && navPrefix === ''} title="Up one level" aria-label="Up">↑</button>
+      <button
+        className="nav-btn"
+        onClick={retryCurrent}
+        disabled={!accountId || loadingContainers || loadingList}
+        title="Refresh"
+        aria-label="Refresh"
+      >
+        ↻
+      </button>
+    </div>
+  )
+
   const actionBar = (
     <div className="actionbar" role="toolbar" aria-label="Blob actions">
       <Action icon="↑" label="Upload" primary onClick={onUpload} disabled={!container || busy !== null} working={busy === 'upload'} workingLabel="Uploading…" />
@@ -513,92 +593,108 @@ export default function Explorer(props: {
       <span className="action-sep" aria-hidden />
       <Action icon="✎" label="Rename" onClick={onRename} disabled={!canRename || busy !== null} />
       <Action icon="✕" label={`Delete${selection.size > 0 ? ` (${selection.size})` : ''}`} danger onClick={onDelete} disabled={selection.size === 0 || busy !== null} />
-      <span className="action-sep" aria-hidden />
-      <Action icon="↻" label="Refresh" onClick={reloadBlobs} disabled={!container || busy !== null} />
     </div>
   )
 
-  const navRow = (
-    <div className="navrow">
-      <div className="nav-btns">
-        <button className="nav-btn" onClick={goBack} disabled={backHist.length === 0} title="Back" aria-label="Back">←</button>
-        <button className="nav-btn" onClick={goForward} disabled={fwdHist.length === 0} title="Forward" aria-label="Forward">→</button>
-        <button className="nav-btn" onClick={goUp} disabled={!container} title="Up" aria-label="Up">↑</button>
-      </div>
-      <nav className="address" aria-label="Path">
-        <button className="crumb addr-acct" onClick={() => { switchContainer(null); resetNav() }} title={account.name}>
-          {account.containerName ?? account.accountName ?? account.name}
-        </button>
-        {container && (
-          <>
-            <span className="sep">/</span>
-            <button className="crumb root" onClick={() => go('')}>
-              {container}
-            </button>
-          </>
-        )}
-        {crumbs.map((seg, i) => (
-          <span key={i} className="crumb-seg">
-            <span className="sep">/</span>
-            <button className="crumb" onClick={() => go(crumbs.slice(0, i + 1).join('/'))}>
-              {seg}
-            </button>
-          </span>
-        ))}
-      </nav>
-      <label className="addr-filter">
-        <span aria-hidden>⌕</span>
-        <input
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter…"
-          aria-label="Filter current view"
-        />
-      </label>
-    </div>
+  const addressStrip = (
+    <nav className="address-strip" aria-label="Path">
+      <button
+        className="crumb addr-acct"
+        onClick={() => { switchContainer(null); resetNav() }}
+        title={`${account.name}\n${account.endpoint}`}
+      >
+        {displayAccount}
+      </button>
+      {container && (
+        <>
+          <span className="sep">/</span>
+          <button className="crumb root" onClick={() => go('')}>
+            {container}
+          </button>
+        </>
+      )}
+      {crumbs.map((seg, i) => (
+        <span key={i} className="crumb-seg">
+          <span className="sep">/</span>
+          <button className="crumb" onClick={() => go(crumbs.slice(0, i + 1).join('/'))}>
+            {seg}
+          </button>
+        </span>
+      ))}
+      {navPrefix === '' && !container && (
+        <span className="muted small address-hint">{containers.length > 0 ? `${containers.length} containers` : ''}</span>
+      )}
+    </nav>
   )
 
   // ----- account level: container directory -----
   if (!container) {
+    const showEmpty = !loadingContainers && !error && visibleContainers.length === 0
     return (
-      <div className="explorer fade-in">
-        <div className="card explorer-head">
-          <div className="row between head-top">
-            <div className="head-id">
+      <div className="explorer explorer-panel fade-in">
+        <header className="explorer-toolbar">
+          <div className="toolbar-left">
+            {historyButtons}
+            <span className="toolbar-div" aria-hidden />
+            <div className="toolbar-crumb">
               <span className="eyebrow">Storage account</span>
-              <h2>{account.name}</h2>
-              <span className="muted small">
-                <code>{account.endpoint}</code>
-              </span>
-            </div>
-            <div className="row tight">
-              {warn && <span className="pill warn">{warn}</span>}
-              {!scoped && (
-                <button className="btn mint small" disabled={busy !== null} onClick={onNewContainer}>
-                  New container
+              <div className="toolbar-title-row">
+                <strong className="toolbar-title" title={account.name}>{account.name}</strong>
+                <button
+                  className="endpoint-badge"
+                  onClick={copyEndpoint}
+                  title={`${account.endpoint} — click to copy`}
+                >
+                  <span className="endpoint-host">{endpointHost}</span>
+                  <span className="endpoint-copy">{copiedEndpoint ? '✓' : '⧉'}</span>
                 </button>
-              )}
+                {warn && <span className="pill warn">{warn}</span>}
+              </div>
             </div>
           </div>
-          {navRow}
-        </div>
+          <div className="toolbar-right">
+            {toolbarFilter}
+            {!scoped && (
+              <button className="btn mint small toolbar-primary" disabled={busy !== null} onClick={onNewContainer}>
+                + New container
+              </button>
+            )}
+          </div>
+        </header>
 
-        <div className="card explorer-body">
-          {error && <p className="error-text" role="alert">{error}</p>}
+        <div className="explorer-body-scroll">
+          {addressStrip}
+          {errorCallout}
           {loadingContainers ? (
             <ul className="skeleton">
               {Array.from({ length: 8 }, (_, i) => (
                 <li key={i} style={{ animationDelay: `${i * 40}ms` }} />
               ))}
             </ul>
-          ) : visibleContainers.length === 0 ? (
-            <div className="empty-note">
-              <p className="muted">No containers{filter ? ` matching "${filter}"` : ''}.</p>
-              {!scoped && (
-                <button className="btn mint small" onClick={onNewContainer}>
-                  New container
-                </button>
-              )}
+          ) : showEmpty ? (
+            <div className="empty-state">
+              <div className="empty-state-icon" aria-hidden>▦</div>
+              <p className="empty-state-title">
+                {filter ? `No containers matching "${filter}"` : 'No containers yet'}
+              </p>
+              <p className="muted small empty-state-sub">
+                {filter
+                  ? 'Try a different filter, or clear it to see everything.'
+                  : 'Containers organize your blobs. Create your first container to get started.'}
+              </p>
+              <div className="row empty-state-cta">
+                {filter ? (
+                  <button className="btn ghost small" onClick={() => setFilter('')}>
+                    Clear filter
+                  </button>
+                ) : (
+                  !scoped && (
+                    <button className="btn mint small" onClick={onNewContainer}>
+                      + New container
+                    </button>
+                  )
+                )}
+              </div>
             </div>
           ) : (
             <table className="blob-table dir-table table-in">
@@ -610,39 +706,47 @@ export default function Explorer(props: {
                 </tr>
               </thead>
               <tbody>
-                {visibleContainers.map((c, i) => (
-                  <tr
-                    key={c.name}
-                    className="row-in clickable"
-                    style={{ animationDelay: `${Math.min(i, 10) * 12}ms` }}
-                    onClick={() => {
-                      switchContainer(c.name)
-                      resetNav()
-                      props.onOpenContainer(c.name)
-                    }}
-                  >
-                    <td className="name-col">
-                      <span className="file-row">
-                        <span className="file-ico container-lg" aria-hidden />
-                        {c.name}
-                      </span>
+                {error && visibleContainers.length === 0 ? (
+                  <tr>
+                    <td colSpan={scoped ? 2 : 3} className="muted table-unavailable">
+                      Container listing unavailable — fix the error above, then retry.
                     </td>
-                    <td className="muted">
-                      {c.lastModified ? new Date(c.lastModified).toLocaleString() : '—'}
-                    </td>
-                    {!scoped && (
-                      <td className="row-act" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          className="mini-btn danger-x"
-                          title={`Delete container "${c.name}"`}
-                          onClick={() => onDeleteContainer(c.name)}
-                        >
-                          ✕
-                        </button>
-                      </td>
-                    )}
                   </tr>
-                ))}
+                ) : (
+                  visibleContainers.map((c, i) => (
+                    <tr
+                      key={c.name}
+                      className="row-in clickable"
+                      style={{ animationDelay: `${Math.min(i, 10) * 12}ms` }}
+                      onClick={() => {
+                        switchContainer(c.name)
+                        resetNav()
+                        props.onOpenContainer(c.name)
+                      }}
+                    >
+                      <td className="name-col">
+                        <span className="file-row">
+                          <span className="file-ico container-lg" aria-hidden />
+                          {c.name}
+                        </span>
+                      </td>
+                      <td className="muted">
+                        {c.lastModified ? new Date(c.lastModified).toLocaleString() : '—'}
+                      </td>
+                      {!scoped && (
+                        <td className="row-act" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            className="mini-btn danger-x"
+                            title={`Delete container "${c.name}"`}
+                            onClick={() => onDeleteContainer(c.name)}
+                          >
+                            ✕
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           )}
@@ -672,55 +776,80 @@ export default function Explorer(props: {
         />
       )}
       {notice && <div className="toast glass strong toast-in">{notice}</div>}
+      {errorNotice && <div className="toast glass strong toast-error toast-in" role="alert">{errorNotice}</div>}
       </div>
     )
   }
 
   // ----- container level: blob browser -----
+  const showBlobEmpty = !loadingList && !error && visibleBlobs.length === 0
   return (
-    <div className="explorer fade-in">
-      <div className="card explorer-head">
-        <div className="row between head-top">
-          <div className="head-id">
+    <div className="explorer explorer-panel fade-in">
+      <header className="explorer-toolbar">
+        <div className="toolbar-left">
+          {historyButtons}
+          <span className="toolbar-div" aria-hidden />
+          <div className="toolbar-crumb">
             <span className="eyebrow">Blob container</span>
-            <h2>{container}</h2>
-          </div>
-          <div className="row tight">
-            {warn && <span className="pill warn">{warn}</span>}
-            {!scoped && (
-              <button
-                className="btn ghost small"
-                disabled={busy !== null}
-                onClick={() => onDeleteContainer(container)}
-                title="Delete this container and everything in it"
-              >
-                Delete container
-              </button>
-            )}
+            <div className="toolbar-title-row">
+              <strong className="toolbar-title" title={container ?? ''}>{container}</strong>
+              <span className="endpoint-badge static" title={account.endpoint}>
+                <span className="endpoint-host">{endpointHost}</span>
+              </span>
+              {warn && <span className="pill warn">{warn}</span>}
+            </div>
           </div>
         </div>
-        {actionBar}
-        {navRow}
-      </div>
+        <div className="toolbar-right">
+          {toolbarFilter}
+          {!scoped && (
+            <button
+              className="btn ghost small"
+              disabled={busy !== null}
+              onClick={() => container && onDeleteContainer(container)}
+              title="Delete this container and everything in it"
+            >
+              Delete container
+            </button>
+          )}
+        </div>
+      </header>
 
-      <div className="card explorer-body">
-        {error && <p className="error-text" role="alert">{error}</p>}
+      {actionBar}
+
+      <div className="explorer-body-scroll">
+        {addressStrip}
+        {errorCallout}
         {loadingList ? (
           <ul className="skeleton">
             {Array.from({ length: 8 }, (_, i) => (
               <li key={i} style={{ animationDelay: `${i * 40}ms` }} />
             ))}
           </ul>
-        ) : visibleBlobs.length === 0 ? (
-          <div className="empty-note">
-            <p className="muted">This folder is empty{filter ? ` (nothing matches "${filter}")` : ''}.</p>
-            <div className="row">
-              <button className="btn mint small" onClick={onUpload}>
-                Upload files
-              </button>
-              <button className="btn ghost small" onClick={onNewFolder}>
-                New folder
-              </button>
+        ) : showBlobEmpty ? (
+          <div className="empty-state">
+            <div className="empty-state-icon" aria-hidden>◍</div>
+            <p className="empty-state-title">
+              {filter ? `Nothing matches "${filter}"` : 'This folder is empty'}
+            </p>
+            <p className="muted small empty-state-sub">
+              {filter ? 'Try a different filter, or clear it to see everything.' : 'Upload files or create a folder to get started.'}
+            </p>
+            <div className="row empty-state-cta">
+              {filter ? (
+                <button className="btn ghost small" onClick={() => setFilter('')}>
+                  Clear filter
+                </button>
+              ) : (
+                <>
+                  <button className="btn mint small" onClick={onUpload}>
+                    Upload files
+                  </button>
+                  <button className="btn ghost small" onClick={onNewFolder}>
+                    New folder
+                  </button>
+                </>
+              )}
             </div>
           </div>
         ) : (
@@ -741,7 +870,7 @@ export default function Explorer(props: {
               </tr>
             </thead>
             <tbody>
-              {(blobs?.prefix ?? navPrefix) !== '' && (
+              {!error && (blobs?.prefix ?? navPrefix) !== '' && (
                 <tr className="row-in parent-row clickable" onClick={goUp} title="Up to parent folder">
                   <td className="check-col" />
                   <td className="name-col">
@@ -755,45 +884,53 @@ export default function Explorer(props: {
                   <td className="muted">—</td>
                 </tr>
               )}
-              {visibleBlobs.map((item, i) => {
-                const key = keyOf(item)
-                return (
-                  <tr
-                    key={key}
-                    className={`row-in${selection.has(key) ? ' selected' : ''}`}
-                    style={{ animationDelay: `${Math.min(i, 10) * 12}ms` }}
-                  >
-                    <td className="check-col">
-                      <input
-                        type="checkbox"
-                        aria-label={`Select ${item.leaf}`}
-                        checked={selection.has(key)}
-                        onChange={() => toggleOne(key)}
-                      />
-                    </td>
-                    <td className="name-col">
-                      {item.isPrefix ? (
-                        <button
-                          className="linklike folder"
-                          onClick={() => go(blobs && blobs.prefix ? `${blobs.prefix}/${item.leaf}` : item.name)}
-                        >
-                          <span className="file-ico folder" aria-hidden />
-                          {item.leaf}
-                        </button>
-                      ) : (
-                        <span className="file-row" title={item.name}>
-                          <span className="file-ico file" aria-hidden />
-                          {item.leaf}
-                        </span>
-                      )}
-                    </td>
-                    <td className="num">{item.isPrefix ? '—' : formatBytes(item.size)}</td>
-                    <td className="muted">
-                      {item.lastModified ? new Date(item.lastModified).toLocaleString() : '—'}
-                    </td>
-                  </tr>
-                )
-              })}
+              {error && visibleBlobs.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="muted table-unavailable">
+                    Blob listing unavailable — fix the error above, then retry.
+                  </td>
+                </tr>
+              ) : (
+                visibleBlobs.map((item, i) => {
+                  const key = keyOf(item)
+                  return (
+                    <tr
+                      key={key}
+                      className={`row-in${selection.has(key) ? ' selected' : ''}`}
+                      style={{ animationDelay: `${Math.min(i, 10) * 12}ms` }}
+                    >
+                      <td className="check-col">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${item.leaf}`}
+                          checked={selection.has(key)}
+                          onChange={() => toggleOne(key)}
+                        />
+                      </td>
+                      <td className="name-col">
+                        {item.isPrefix ? (
+                          <button
+                            className="linklike folder"
+                            onClick={() => go(blobs && blobs.prefix ? `${blobs.prefix}/${item.leaf}` : item.name)}
+                          >
+                            <span className="file-ico folder" aria-hidden />
+                            {item.leaf}
+                          </button>
+                        ) : (
+                          <span className="file-row" title={item.name}>
+                            <span className="file-ico file" aria-hidden />
+                            {item.leaf}
+                          </span>
+                        )}
+                      </td>
+                      <td className="num">{item.isPrefix ? '—' : formatBytes(item.size)}</td>
+                      <td className="muted">
+                        {item.lastModified ? new Date(item.lastModified).toLocaleString() : '—'}
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
             </tbody>
           </table>
         )}
@@ -824,6 +961,7 @@ export default function Explorer(props: {
         />
       )}
       {notice && <div className="toast glass strong toast-in">{notice}</div>}
+      {errorNotice && <div className="toast glass strong toast-error toast-in" role="alert">{errorNotice}</div>}
     </div>
   )
 }

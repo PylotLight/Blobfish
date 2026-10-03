@@ -75,7 +75,14 @@ export async function listContainers(accountId: string): Promise<StorageContaine
         await container.getProperties()
       }
     } catch (err) {
-      throw friendlyError(err, `Cannot access container "${profile.containerName}"`)
+      const friendly = friendlyError(err, `Cannot access container "${profile.containerName}"`)
+      logActivity({
+        kind: 'connection',
+        text: `Access container '${profile.containerName}' in '${profile.name}' failed`,
+        detail: friendly.message,
+        status: 'failed'
+      })
+      throw friendly
     }
     return [{ name: profile.containerName }]
   }
@@ -102,7 +109,14 @@ export async function listContainers(accountId: string): Promise<StorageContaine
     }
     return out.sort((a, b) => a.name.localeCompare(b.name))
   } catch (err) {
-    throw friendlyError(err, 'Failed to list containers')
+    const friendly = friendlyError(err, 'Failed to list containers')
+    logActivity({
+      kind: 'connection',
+      text: `List containers in '${profile.name}' failed`,
+      detail: friendly.message,
+      status: 'failed'
+    })
+    throw friendly
   }
 }
 
@@ -187,7 +201,14 @@ export async function listBlobs(
     items.sort((a, b) => Number(b.isPrefix) - Number(a.isPrefix) || a.leaf.localeCompare(b.leaf))
     return { container, prefix: effective, items }
   } catch (err) {
-    throw friendlyError(err, `Failed to list blobs in "${container}"`)
+    const friendly = friendlyError(err, `Failed to list blobs in "${container}"`)
+    logActivity({
+      kind: 'connection',
+      text: `List blobs in '${container}' failed`,
+      detail: friendly.message,
+      status: 'failed'
+    })
+    throw friendly
   }
 }
 

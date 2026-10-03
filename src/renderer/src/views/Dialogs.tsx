@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { stripIpcWrapper } from './errors'
 
 function useDismiss(onCancel: () => void): void {
   useEffect(() => {
@@ -45,7 +46,7 @@ export function ConfirmDialog(props: {
       await props.onConfirm()
       props.onCancel()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(stripIpcWrapper(err instanceof Error ? err.message : String(err)))
     } finally {
       setBusy(false)
     }
@@ -137,7 +138,7 @@ export function PromptDialog(props: {
       await props.onSubmit(value.trim())
       props.onCancel()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(stripIpcWrapper(err instanceof Error ? err.message : String(err)))
     } finally {
       setBusy(false)
     }

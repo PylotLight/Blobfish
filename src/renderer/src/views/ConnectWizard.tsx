@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AccountCreateInput, AccountSummary, StorageKind } from '../../../shared/types'
+import { stripIpcWrapper } from './errors'
 import {
   parseConnectionString,
   parseSasUrl,
@@ -152,7 +153,7 @@ export default function ConnectWizard(props: {
       props.onAdded(added)
       props.onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(stripIpcWrapper(err instanceof Error ? err.message : String(err)))
     } finally {
       setBusy(false)
     }
@@ -165,7 +166,7 @@ export default function ConnectWizard(props: {
       setAcctName('devstoreaccount1')
       setEndpointMode('custom')
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(stripIpcWrapper(err instanceof Error ? err.message : String(err)))
     }
   }
 
