@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Fast native Azure Blob Storage explorer (Bun + Electron)",
   "private": true,
-  "author": "PylotLight <PylotLight@users.noreply.github.com>",
+  "author": "PylotLight <lochois@gmail.com>",
   "type": "module",
   "main": "./out/main/index.js",
   "scripts": {
