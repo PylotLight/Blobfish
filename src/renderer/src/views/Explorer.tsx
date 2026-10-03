@@ -678,7 +678,7 @@ export default function Explorer(props: {
         </header>
 
         <div className="explorer-body-scroll">
-          {addressStrip}
+          {(container || crumbs.length > 0) && addressStrip}
           {errorCallout}
           {loadingContainers ? (
             <ul className="skeleton">

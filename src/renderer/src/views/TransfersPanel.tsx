@@ -106,6 +106,8 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
   const [snap, setSnap] = useState<TransfersSnapshot | null>(null)
   const [activities, setActivities] = useState<ActivityEntry[]>([])
   const [expanded, setExpanded] = useState(false)
+  // Pinned = user explicitly opened via click; hover alone only opens transiently.
+  const [pinned, setPinned] = useState(false)
   const hadActive = useRef(false)
 
   useEffect(() => {
@@ -133,7 +135,15 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
 
   if (!expanded) {
     return (
-      <button className="transfers-bar" onClick={() => setExpanded(true)}>
+      <button
+        className="transfers-bar"
+        onClick={() => {
+          setPinned(true)
+          setExpanded(true)
+        }}
+        onMouseEnter={() => setExpanded(true)}
+        title="Transfers and activity — hover to expand, click to pin"
+      >
         <span className="t-stats">
           {up > 0 && <span>↑ {up}</span>}
           {down > 0 && <span>↓ {down}</span>}
@@ -156,7 +166,14 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
   )
 
   return (
-    <section className="transfers-panel card fade-in" aria-label="Transfers and activity">
+    <section
+      className="transfers-panel card fade-in"
+      aria-label="Transfers and activity"
+      onMouseLeave={() => {
+        // Hover-opened dock slides away; pinned and active work stays put.
+        if (!pinned && (snap.active === 0)) setExpanded(false)
+      }}
+    >
       <header className="transfers-head">
         <strong>Transfers</strong>
         <span className="muted small">
@@ -186,7 +203,14 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
               Cancel all
             </button>
           )}
-          <button className="mini-btn" onClick={() => setExpanded(false)} aria-label="Collapse">
+          <button
+            className="mini-btn"
+            onClick={() => {
+              setPinned(false)
+              setExpanded(false)
+            }}
+            aria-label="Collapse"
+          >
             ⌄
           </button>
         </span>

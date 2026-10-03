@@ -6,6 +6,9 @@ import { getMainWindow } from './window'
 import type { ActivityEntry, ActivityKind, ActivityStatus, TransferDirection } from '../shared/types'
 
 const MAX_ENTRIES = 120
+/** Identical failures fired in bursts (sidebar + explorer fetch the same
+ * listing) collapse into one entry instead of spamming the dock. */
+const DEDUPE_MS = 30_000
 
 let entries: ActivityEntry[] = []
 
@@ -22,6 +25,17 @@ export function logActivity(input: {
   localPath?: string
   transferDirection?: TransferDirection
 }): ActivityEntry {
+  const latest = entries[0]
+  if (
+    latest &&
+    latest.kind === input.kind &&
+    latest.text === input.text &&
+    latest.detail === input.detail &&
+    latest.status === input.status &&
+    Date.now() - latest.at < DEDUPE_MS
+  ) {
+    return latest
+  }
   const entry: ActivityEntry = {
     id: randomUUID(),
     at: Date.now(),

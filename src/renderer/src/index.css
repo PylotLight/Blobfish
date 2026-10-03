@@ -2969,78 +2969,72 @@ th.wide {
   padding-left: 12px;
 }
 
-/* ---------- Quiet error callout (never raw IPC text) ---------- */
+/* ---------- Slim error banner (full story lives in the activity dock) ---------- */
 
-.error-callout {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
+.error-banner {
   border: 1px solid rgba(229, 99, 111, 0.22);
   border-left: 2px solid rgba(229, 99, 111, 0.65);
   background: rgba(229, 99, 111, 0.05);
   border-radius: 10px;
-  padding: 11px 13px;
+  padding: 8px 12px;
   flex-shrink: 0;
   animation: fadeSlideIn 0.22s ease both;
 }
 
-.error-callout-icon {
-  width: 20px;
-  height: 20px;
+.error-banner-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.error-banner-icon {
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: rgba(229, 99, 111, 0.14);
   color: #d98a92;
   font-weight: 700;
-  font-size: 12px;
+  font-size: 11px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  margin-top: 1px;
 }
 
-.error-callout-main {
+.error-banner-title {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.error-callout-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.error-callout-title {
-  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--text);
 }
 
-.error-dismiss {
-  opacity: 0.55;
+.error-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
 }
 
-.error-dismiss:hover {
-  opacity: 1;
+.error-banner-detail {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
 }
 
-.error-callout-msg {
+.error-banner-detail p {
   margin: 0;
   font-size: 12.5px;
   line-height: 1.5;
   color: var(--muted);
-}
-
-.error-callout-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-top: 7px;
-  flex-wrap: wrap;
 }
 
 .error-retry {
@@ -3073,11 +3067,11 @@ th.wide {
   color: var(--text);
 }
 
-.error-callout button:focus {
+.error-banner button:focus {
   outline: none;
 }
 
-.error-callout button:focus-visible {
+.error-banner button:focus-visible {
   outline: 1px solid rgba(255, 255, 255, 0.3);
   outline-offset: 2px;
 }
@@ -3178,9 +3172,10 @@ th.wide {
 .transfers-bar {
   position: absolute;
   bottom: 16px;
+  left: 20px;
   right: 20px;
   width: auto;
-  max-width: min(420px, calc(100% - 40px));
+  max-width: none;
   margin-top: 0;
   z-index: 40;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
@@ -3191,9 +3186,11 @@ th.wide {
 .transfers-panel {
   position: absolute;
   bottom: 16px;
+  left: 20px;
   right: 20px;
-  width: 400px;
-  max-width: calc(100% - 40px);
+  width: auto;
+  max-width: none;
+  max-height: 46vh;
   margin-top: 0;
   z-index: 40;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
