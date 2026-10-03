@@ -159,9 +159,15 @@ info('regenerated CHANGELOG.md')
 // --- commit + tag -------------------------------------------------------------------
 
 run('git', ['add', 'package.json', 'CHANGELOG.md'])
-run('git', ['commit', '-m', `chore(release): ${tag}`])
+// Re-cutting a version that was already released (or re-running after a
+// failed push) can leave nothing staged — skip the commit and just tag.
+if (run('git', ['diff', '--cached', '--name-only'])) {
+  run('git', ['commit', '-m', `chore(release): ${tag}`])
+  info(`committed and tagged ${tag}`)
+} else {
+  info(`version and changelog already up to date — tagging HEAD as ${tag}`)
+}
 run('git', ['tag', '-a', tag, '-m', tag])
-info(`committed and tagged ${tag}`)
 
 if (push) {
   run('git', ['push', '--follow-tags'])
