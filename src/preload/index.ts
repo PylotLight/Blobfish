@@ -75,6 +75,8 @@ const api = {
       ipcRenderer.invoke('accounts:update', id, patch),
     pin: (id: string, pinned: boolean): Promise<AccountSummary> =>
       ipcRenderer.invoke('accounts:pin', id, pinned),
+    pinContainer: (id: string, container: string): Promise<AccountSummary> =>
+      ipcRenderer.invoke('accounts:pin-container', id, container),
     azuriteTemplate: (): Promise<string> => ipcRenderer.invoke('accounts:azurite-template')
   },
   storage: {

@@ -184,6 +184,46 @@ export function setPinned(id: string, pinned: boolean): AccountSummary {
   return stripSecret(data.accounts[idx]!)
 }
 
+/**
+ * Pin a single container from a full storage-account connection as its own
+ * Quick Access entry. Reuses the source secret so no credential re-entry is
+ * needed. Idempotent — returns the existing attachment when one already
+ * covers the same endpoint + container.
+ */
+export function pinContainerAttachment(sourceId: string, containerRaw: string): AccountSummary {
+  ensureEncryption()
+  const container = containerRaw.trim()
+  if (container === '') throw new Error('Container name is required.')
+  const { profile, secret } = decryptSecret(sourceId)
+  const data = readFile()
+  const existing = data.accounts.find(
+    (a) => a.endpoint === profile.endpoint && (a.containerName ?? '').toLowerCase() === container.toLowerCase()
+  )
+  if (existing) {
+    existing.pinned = true
+    writeFile(data)
+    return stripSecret(existing)
+  }
+  const kind: StorageKind = profile.endpoint.includes('.dfs.') ? 'adls-container' : 'blob-container'
+  const stored: StoredAccount = {
+    id: randomUUID(),
+    name: `${profile.name} / ${container}`,
+    kind,
+    endpoint: profile.endpoint,
+    containerName: container,
+    prefix: undefined,
+    authType: profile.authType,
+    accountName: profile.accountName,
+    createdAt: Date.now(),
+    sasExpiry: profile.sasExpiry ?? null,
+    pinned: true,
+    encryptedSecret: safeStorage.encryptString(secret).toString('base64')
+  }
+  data.accounts.push(stored)
+  writeFile(data)
+  return stripSecret(stored)
+}
+
 export function encryptionAvailable(): boolean {
   return safeStorage.isEncryptionAvailable()
 }

@@ -2815,6 +2815,49 @@ th.wide {
   width: auto;
 }
 
+.blob-table th.resizable {
+  position: relative;
+  overflow: visible;
+}
+
+.blob-table .col-resizer {
+  position: absolute;
+  top: 0;
+  right: -6px;
+  width: 12px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 2;
+}
+
+.blob-table .col-resizer::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 5px;
+  width: 2px;
+  border-radius: 2px;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+
+.blob-table th.resizable:hover .col-resizer::after {
+  background: var(--border);
+}
+
+.blob-table .col-resizer:active::after {
+  background: var(--accent);
+}
+
+.blob-table td.name-col,
+.blob-table td.num,
+.blob-table td.muted {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .sr {
   position: absolute;
   width: 1px;

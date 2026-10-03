@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AccountCreateInput, AccountSummary, StorageKind } from '../../../shared/types'
 import { stripIpcWrapper } from './errors'
 import {
@@ -64,8 +64,12 @@ export default function ConnectWizard(props: {
   const [prefix, setPrefix] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [nameTouched, setNameTouched] = useState(false)
+  const [containerTouched, setContainerTouched] = useState(false)
+  const [prefixTouched, setPrefixTouched] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const lastAutoContainer = useRef('')
+  const lastAutoPrefix = useRef('')
 
   // Keep the method valid when the resource kind changes.
   useEffect(() => {
@@ -92,6 +96,34 @@ export default function ConnectWizard(props: {
   }, [effectiveSecretPreview, containerName, prefix, nameTouched])
 
   const needsContainer = kind !== 'account'
+
+  // Live-autofill container + directory from a pasted SAS URL. User edits
+  // win: once touched, we only overwrite the field while it still holds the
+  // previous auto value (or is empty).
+  useEffect(() => {
+    if (method !== 'sas-url') return
+    let parsedContainer: string | undefined
+    let parsedPrefix: string | undefined
+    try {
+      const parsed = parseSasUrl(secret.trim())
+      parsedContainer = parsed.containerName
+      parsedPrefix = parsed.prefix
+    } catch {
+      return
+    }
+    if (parsedContainer) {
+      if (!containerTouched || containerName === '' || containerName === lastAutoContainer.current) {
+        lastAutoContainer.current = parsedContainer
+        setContainerName(parsedContainer)
+      }
+    }
+    if (parsedPrefix) {
+      if (!prefixTouched || prefix === '' || prefix === lastAutoPrefix.current) {
+        lastAutoPrefix.current = parsedPrefix
+        setPrefix(parsedPrefix)
+      }
+    }
+  }, [secret, method, containerTouched, prefixTouched, containerName, prefix])
 
   function buildSecret(): string {
     if (method === 'account-key') {
@@ -315,19 +347,28 @@ export default function ConnectWizard(props: {
                     <span>Container</span>
                     <input
                       value={containerName}
-                      onChange={(e) => setContainerName(e.target.value)}
+                      onChange={(e) => {
+                        setContainerName(e.target.value)
+                        setContainerTouched(true)
+                      }}
                       placeholder={
                         method === 'connection-string' || method === 'account-key'
                           ? 'required — mycontainer'
                           : 'auto-detected from URL'
                       }
                     />
+                    {method === 'sas-url' && containerName !== '' && !containerTouched && (
+                      <span className="muted small hint">Auto-detected from SAS URL — editable.</span>
+                    )}
                   </label>
                   <label className="field">
                     <span>Directory (optional)</span>
                     <input
                       value={prefix}
-                      onChange={(e) => setPrefix(e.target.value)}
+                      onChange={(e) => {
+                        setPrefix(e.target.value)
+                        setPrefixTouched(true)
+                      }}
                       placeholder="uploads/2026"
                     />
                   </label>

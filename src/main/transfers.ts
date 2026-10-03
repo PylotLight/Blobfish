@@ -6,11 +6,10 @@ import { decryptSecret } from './accounts'
 import { logActivity } from './activity'
 import { getMainWindow } from './window'
 import {
-  blobServiceFromSecret,
-  dataLakeServiceFromSecret,
+  blobContainerClientFromSecret,
+  dataLakeFileSystemClientFromSecret,
   expandFiles,
   friendlyError,
-  isConnectionStringSecret,
   isDfsEndpoint
 } from './azure'
 import type {
@@ -248,9 +247,8 @@ async function run(t: ActiveTransfer): Promise<void> {
 /* ---------------- engines ---------------- */
 
 async function runBlobUpload(t: ActiveTransfer): Promise<void> {
-  const { profile, secret } = decryptSecret(t.spec.accountId)
-  const svc = blobServiceFromSecret(profile.endpoint, secret)
-  const blob = svc.getContainerClient(t.spec.container).getBlockBlobClient(t.spec.name)
+  const { secret } = decryptSecret(t.spec.accountId)
+  const blob = blobContainerClientFromSecret(secret, t.spec.container).getBlockBlobClient(t.spec.name)
   await blob.uploadFile(t.spec.localPath, {
     blockSize: t.spec.totalBytes >= LARGE_FILE_BYTES ? LARGE_BLOCK_SIZE : undefined,
     concurrency: uploadConcurrency,
@@ -261,7 +259,7 @@ async function runBlobUpload(t: ActiveTransfer): Promise<void> {
 
 async function runDfsUpload(t: ActiveTransfer): Promise<void> {
   const { secret } = decryptSecret(t.spec.accountId)
-  const fs = dataLakeServiceFromSecret(secret).getFileSystemClient(t.spec.container)
+  const fs = dataLakeFileSystemClientFromSecret(secret, t.spec.container)
   const file = fs.getFileClient(t.spec.name)
   await file.create().catch(() => {})
   await file.uploadFile(t.spec.localPath, {
@@ -272,9 +270,8 @@ async function runDfsUpload(t: ActiveTransfer): Promise<void> {
 }
 
 async function runBlobDownload(t: ActiveTransfer): Promise<void> {
-  const { profile, secret } = decryptSecret(t.spec.accountId)
-  const svc = blobServiceFromSecret(profile.endpoint, secret)
-  const blob = svc.getContainerClient(t.spec.container).getBlobClient(t.spec.name)
+  const { secret } = decryptSecret(t.spec.accountId)
+  const blob = blobContainerClientFromSecret(secret, t.spec.container).getBlobClient(t.spec.name)
   try {
     const props = await blob.getProperties()
     if (props.contentLength) t.spec.totalBytes = props.contentLength
@@ -291,7 +288,7 @@ async function runBlobDownload(t: ActiveTransfer): Promise<void> {
 
 async function runDfsDownload(t: ActiveTransfer): Promise<void> {
   const { secret } = decryptSecret(t.spec.accountId)
-  const fs = dataLakeServiceFromSecret(secret).getFileSystemClient(t.spec.container)
+  const fs = dataLakeFileSystemClientFromSecret(secret, t.spec.container)
   const file = fs.getFileClient(t.spec.name)
   try {
     const props = await file.getProperties()

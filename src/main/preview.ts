@@ -1,7 +1,7 @@
 import { decryptSecret } from './accounts'
 import {
-  blobServiceFromSecret,
-  dataLakeServiceFromSecret,
+  blobContainerClientFromSecret,
+  dataLakeFileSystemClientFromSecret,
   friendlyError,
   isDfsEndpoint
 } from './azure'
@@ -54,7 +54,7 @@ export async function previewBlob(args: PreviewArgs): Promise<PreviewResult> {
     let size = 0
     let contentType: string | undefined
     if (dfs) {
-      const file = dataLakeServiceFromSecret(secret).getFileSystemClient(container).getFileClient(name)
+      const file = dataLakeFileSystemClientFromSecret(secret, container).getFileClient(name)
       const props = await file.getProperties()
       size = props.contentLength ?? 0
       contentType = (props as { contentType?: string }).contentType ?? undefined
@@ -67,7 +67,7 @@ export async function previewBlob(args: PreviewArgs): Promise<PreviewResult> {
       return buildChunk(base, buf, { size, contentType, name, offset, maxLines })
     }
 
-    const blob = blobServiceFromSecret(profile.endpoint, secret).getContainerClient(container).getBlobClient(name)
+    const blob = blobContainerClientFromSecret(secret, container).getBlobClient(name)
     const props = await blob.getProperties()
     size = props.contentLength ?? 0
     contentType = props.contentType

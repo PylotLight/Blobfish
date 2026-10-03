@@ -45,6 +45,7 @@ export default function App(): React.JSX.Element {
   const [deleteContainerFor, setDeleteContainerFor] = useState<{ accountId: string; name: string } | null>(null)
   const [quickOpen, setQuickOpen] = useState(true)
   const [allOpen, setAllOpen] = useState(true)
+  const [attachedOpen, setAttachedOpen] = useState(true)
 
   const refreshAccounts = useCallback(() => {
     window.api.accounts
@@ -157,7 +158,41 @@ export default function App(): React.JSX.Element {
 
   const selected = accounts.find((a) => a.id === selectedId) ?? null
   const pinned = accounts.filter((a) => a.pinned)
-  const unpinned = accounts.filter((a) => !a.pinned)
+  const visible = pinned.length > 0 ? accounts.filter((a) => !a.pinned) : accounts
+  const visibleAccounts = visible.filter((a) => a.kind === 'account')
+  const visibleContainers = visible.filter((a) => a.kind !== 'account')
+  const pinnedContainerKeys = new Set(
+    pinned
+      .filter((a) => a.containerName)
+      .map((a) => `${a.endpoint}::${(a.containerName ?? '').toLowerCase()}`)
+  )
+
+  function isContainerPinned(endpoint: string, container: string): boolean {
+    return pinnedContainerKeys.has(`${endpoint}::${container.toLowerCase()}`)
+  }
+
+  function toggleContainerPin(source: AccountSummary, container: string): void {
+    const match = accounts.find(
+      (a) =>
+        a.containerName &&
+        a.endpoint === source.endpoint &&
+        a.containerName.toLowerCase() === container.toLowerCase()
+    )
+    if (match?.pinned) {
+      window.api.accounts.pin(match.id, false).then(() => refreshAccounts()).catch(console.error)
+    } else if (match) {
+      window.api.accounts.pin(match.id, true).then(() => refreshAccounts()).catch(console.error)
+    } else {
+      window.api.accounts
+        .pinContainer(source.id, container)
+        .then((added) => {
+          refreshAccounts()
+          setExpanded((p) => ({ ...p, [added.id]: true }))
+          ensureContainers(added.id)
+        })
+        .catch(console.error)
+    }
+  }
 
   function accountRow(a: AccountSummary): React.JSX.Element {
     const isActive = a.id === selectedId
@@ -181,6 +216,17 @@ export default function App(): React.JSX.Element {
             </button>
             {canManageContainers && (
               <span className="leaf-actions">
+                <button
+                  className={`mini-btn${isContainerPinned(a.endpoint, c.name) ? ' on' : ''}`}
+                  title={
+                    isContainerPinned(a.endpoint, c.name)
+                      ? `Unpin container "${c.name}" from Quick Access`
+                      : `Pin container "${c.name}" to Quick Access`
+                  }
+                  onClick={() => toggleContainerPin(a, c.name)}
+                >
+                  {isContainerPinned(a.endpoint, c.name) ? '★' : '☆'}
+                </button>
                 <button
                   className="mini-btn"
                   title={`Rename container "${c.name}"`}
@@ -343,10 +389,10 @@ export default function App(): React.JSX.Element {
             <button className="section-toggle" onClick={() => setAllOpen((v) => !v)}>
               <span className={`twisty${allOpen ? ' open' : ''}`}>›</span>
               Storage accounts
-              <span className="count">{accounts.length}</span>
+              <span className="count">{visibleAccounts.length}</span>
             </button>
             {allOpen && (
-              accounts.length === 0 ? (
+              visibleAccounts.length === 0 && visibleContainers.length === 0 ? (
                 <div className="empty-sidebar-card">
                   <p className="empty-sidebar-title">No storage accounts</p>
                   <p className="muted small empty-note">
@@ -354,10 +400,21 @@ export default function App(): React.JSX.Element {
                   </p>
                 </div>
               ) : (
-                <ul className="tree">{(pinned.length > 0 ? unpinned : accounts).map(accountRow)}</ul>
+                <ul className="tree">{visibleAccounts.map(accountRow)}</ul>
               )
             )}
           </section>
+
+          {visibleContainers.length > 0 && (
+            <section className="tree-section">
+              <button className="section-toggle" onClick={() => setAttachedOpen((v) => !v)}>
+                <span className={`twisty${attachedOpen ? ' open' : ''}`}>›</span>
+                Attached containers
+                <span className="count">{visibleContainers.length}</span>
+              </button>
+              {attachedOpen && <ul className="tree">{visibleContainers.map(accountRow)}</ul>}
+            </section>
+          )}
         </div>
 
         <div className="side-foot">

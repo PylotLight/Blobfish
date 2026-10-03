@@ -1,5 +1,5 @@
-import { BlobServiceClient } from '@azure/storage-blob'
-import { DataLakeServiceClient } from '@azure/storage-file-datalake'
+import { BlobServiceClient, ContainerClient } from '@azure/storage-blob'
+import { DataLakeFileSystemClient, DataLakeServiceClient } from '@azure/storage-file-datalake'
 import { basename } from 'node:path'
 import { decryptSecret } from './accounts'
 import { logActivity } from './activity'
@@ -29,10 +29,78 @@ export function dataLakeServiceFromSecret(secret: string): DataLakeServiceClient
   return new DataLakeServiceClient(secret.trim())
 }
 
+/**
+ * A SAS URL may be scoped to the whole service (`https://acct.blob…?sv=…`),
+ * a single container (`…/mycontainer?sv=…`), or a directory inside one
+ * (`…/mycontainer/dir?sv=…`). `new BlobServiceClient(containerSasUrl)
+ * .getContainerClient(container)` would then double the path
+ * (`…/mycontainer/mycontainer`) and Azure answers 400 "The requested URI
+ * does not represent any resource on the server." — exactly the failure
+ * reported for container-SAS attachments. These helpers return a client
+ * bound to the SAS scope instead.
+ */
+function containerUrlFromSas(secret: string, container: string): string {
+  const trimmed = secret.trim()
+  const url = new URL(trimmed)
+  const segs = url.pathname.split('/').filter(Boolean)
+  const sasContainer = segs[0] ? decodeURIComponent(segs[0]) : undefined
+  if (!sasContainer) return trimmed
+  if (container && sasContainer.toLowerCase() !== container.trim().toLowerCase()) {
+    throw new Error(
+      `This SAS grants access to container "${sasContainer}", not "${container}". Re-attach with a service SAS or the matching container SAS.`
+    )
+  }
+  // Strip any directory prefix — the client must point at the container root.
+  return `${url.origin}/${encodeURIComponent(sasContainer)}${url.search}`
+}
+
+function sasContainerName(secret: string): string | undefined {
+  try {
+    const url = new URL(secret.trim())
+    const segs = url.pathname.split('/').filter(Boolean)
+    return segs[0] ? decodeURIComponent(segs[0]) : undefined
+  } catch {
+    return undefined
+  }
+}
+
+export function blobContainerClientFromSecret(secret: string, container: string): ContainerClient {
+  if (isConnectionStringSecret(secret)) {
+    return BlobServiceClient.fromConnectionString(secret.trim()).getContainerClient(container)
+  }
+  const trimmed = secret.trim()
+  const sasContainer = sasContainerName(trimmed)
+  if (!sasContainer) {
+    // Service-scoped SAS — derive the container from it.
+    return new BlobServiceClient(trimmed).getContainerClient(container)
+  }
+  return new ContainerClient(containerUrlFromSas(trimmed, container))
+}
+
+export function dataLakeFileSystemClientFromSecret(
+  secret: string,
+  container: string
+): DataLakeFileSystemClient {
+  if (isConnectionStringSecret(secret)) {
+    return DataLakeServiceClient.fromConnectionString(secret.trim()).getFileSystemClient(container)
+  }
+  const trimmed = secret.trim()
+  const sasContainer = sasContainerName(trimmed)
+  if (!sasContainer) {
+    return new DataLakeServiceClient(trimmed).getFileSystemClient(container)
+  }
+  return new DataLakeFileSystemClient(containerUrlFromSas(trimmed, container))
+}
+
 /** Friendly wrapper so renderer errors are readable, not SDK soup. */
 export function friendlyError(err: unknown, fallback: string): Error {
   if (err instanceof Error) {
     const msg = err.message
+    if (/does not represent any resource on the server/i.test(msg)) {
+      return new Error(
+        `Invalid resource (400). The SAS scope doesn't match the requested container — re-attach with a service SAS or the matching container SAS. (${msg})`
+      )
+    }
     if (/403|AuthorizationFailure|not authorized/i.test(msg)) {
       return new Error('Access denied (403). This key/SAS lacks permission for that action, or it has expired.')
     }
@@ -59,6 +127,13 @@ function joinKey(prefix: string | undefined, leaf: string): string {
   return p ? `${p}/${l}` : l
 }
 
+/** Append the SAS query to a blob URL unless the client URL already carries it. */
+function withSas(blobUrl: string, secret: string): string {
+  if (blobUrl.includes('?')) return blobUrl
+  if (isConnectionStringSecret(secret) || !secret.includes('?')) return blobUrl
+  return `${blobUrl}?${secret.slice(secret.indexOf('?') + 1)}`
+}
+
 export async function listContainers(accountId: string): Promise<StorageContainer[]> {
   const { profile, secret } = decryptSecret(accountId)
   // Container-scoped attachments cannot enumerate the account — return the
@@ -66,12 +141,10 @@ export async function listContainers(accountId: string): Promise<StorageContaine
   if (profile.kind !== 'account' && profile.containerName) {
     try {
       if (isDfsEndpoint(profile.endpoint)) {
-        const svc = dataLakeServiceFromSecret(secret)
-        const fs = svc.getFileSystemClient(profile.containerName)
+        const fs = dataLakeFileSystemClientFromSecret(secret, profile.containerName)
         await fs.getProperties()
       } else {
-        const svc = blobServiceFromSecret(profile.endpoint, secret)
-        const container = svc.getContainerClient(profile.containerName)
+        const container = blobContainerClientFromSecret(secret, profile.containerName)
         await container.getProperties()
       }
     } catch (err) {
@@ -136,8 +209,7 @@ export async function listBlobs(
 
   try {
     if (isDfsEndpoint(profile.endpoint)) {
-      const svc = dataLakeServiceFromSecret(secret)
-      const fs = svc.getFileSystemClient(container)
+      const fs = dataLakeFileSystemClientFromSecret(secret, container)
       const items: StorageBlobItem[] = []
       const seen = new Set<string>()
       // listPaths with recursive=false emulates hierarchy.
@@ -170,8 +242,7 @@ export async function listBlobs(
       return { container, prefix: effective, items }
     }
 
-    const svc = blobServiceFromSecret(profile.endpoint, secret)
-    const client = svc.getContainerClient(container)
+    const client = blobContainerClientFromSecret(secret, container)
     const items: StorageBlobItem[] = []
     const iter = client.listBlobsByHierarchy('/', { prefix: listingPrefix })
     for await (const entry of iter) {
@@ -307,7 +378,8 @@ export async function renameContainer(
     const workers = Array.from({ length: Math.min(8, Math.max(1, queue.length)) }, async () => {
       while (queue.length > 0) {
         const n = queue.shift()!
-        const srcUrl = `${srcClient.getBlobClient(n).url}${sas}`
+        const rawUrl = srcClient.getBlobClient(n).url
+        const srcUrl = rawUrl.includes('?') ? rawUrl : `${rawUrl}${sas}`
         await destClient.getBlockBlobClient(n).syncCopyFromURL(srcUrl)
       }
     })
@@ -343,10 +415,10 @@ export async function createFolder(
   const { profile, secret } = decryptSecret(accountId)
   try {
     if (isDfsEndpoint(profile.endpoint)) {
-      const fs = dataLakeServiceFromSecret(secret).getFileSystemClient(container)
+      const fs = dataLakeFileSystemClientFromSecret(secret, container)
       await fs.getDirectoryClient(full).create()
     } else {
-      const client = blobServiceFromSecret(profile.endpoint, secret).getContainerClient(container)
+      const client = blobContainerClientFromSecret(secret, container)
       // Zero-byte `folder/` marker — renders as a folder in hierarchy listings.
       await client.getBlockBlobClient(`${full}/`).uploadData(Buffer.alloc(0))
     }
@@ -378,7 +450,7 @@ export async function expandFiles(
   const out = [...files]
   const seen = new Set(out.map((f) => f.name))
   if (isDfsEndpoint(profileEndpoint)) {
-    const fs = dataLakeServiceFromSecret(secret).getFileSystemClient(container)
+    const fs = dataLakeFileSystemClientFromSecret(secret, container)
     for (const f of folders) {
       const trimmed = f.replace(/\/$/, '')
       for await (const p of fs.listPaths({ path: trimmed, recursive: true })) {
@@ -389,8 +461,7 @@ export async function expandFiles(
       }
     }
   } else {
-    const svc = blobServiceFromSecret(profileEndpoint, secret)
-    const client = svc.getContainerClient(container)
+    const client = blobContainerClientFromSecret(secret, container)
     for (const f of folders) {
       for await (const b of client.listBlobsFlat({ prefix: f })) {
         if (!seen.has(b.name)) {
@@ -414,7 +485,7 @@ export async function deleteNames(
   try {
     let count: number
     if (isDfsEndpoint(profile.endpoint)) {
-      const fs = dataLakeServiceFromSecret(secret).getFileSystemClient(container)
+      const fs = dataLakeFileSystemClientFromSecret(secret, container)
       // Directories first (recursive), then files.
       for (const n of names.filter((x) => x.endsWith('/'))) {
         await fs.getDirectoryClient(n.replace(/\/$/, '')).delete(true)
@@ -425,8 +496,7 @@ export async function deleteNames(
         count += 1
       }
     } else {
-      const svc = blobServiceFromSecret(profile.endpoint, secret)
-      const client = svc.getContainerClient(container)
+      const client = blobContainerClientFromSecret(secret, container)
       const flat = (await expandFiles(profile.endpoint, secret, container, names)).map((f) => f.name)
       await Promise.all(flat.map((n) => client.deleteBlob(n)))
       // Remove any folder markers left behind.
@@ -468,14 +538,10 @@ export async function renameBlob(
     throw new Error('Rename is not supported for ADLS Gen2 attachments yet.')
   }
   try {
-    const svc = blobServiceFromSecret(profile.endpoint, secret)
-    const client = svc.getContainerClient(container)
+    const client = blobContainerClientFromSecret(secret, container)
     const srcBlob = client.getBlobClient(source)
     const destBlob = client.getBlockBlobClient(dest)
-    let srcUrl = srcBlob.url
-    if (!isConnectionStringSecret(secret) && secret.includes('?')) {
-      srcUrl = `${srcUrl}?${secret.slice(secret.indexOf('?') + 1)}`
-    }
+    const srcUrl = withSas(srcBlob.url, secret)
     await destBlob.syncCopyFromURL(srcUrl)
     await srcBlob.delete()
     logActivity({

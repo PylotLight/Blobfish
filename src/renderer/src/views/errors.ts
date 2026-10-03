@@ -40,6 +40,16 @@ export function parseStorageError(err: unknown, context: 'containers' | 'blobs' 
 
   const technical = clean.length > 800 ? `${clean.slice(0, 800)}…` : clean
 
+  if (/does not represent any resource on the server/i.test(clean)) {
+    return {
+      title: 'Wrong SAS scope (400)',
+      message:
+        'This SAS URL is scoped to a different container than the one requested. Re-attach with a service SAS or the matching container SAS.',
+      technical,
+      kind: 'auth',
+      unauthorized: true
+    }
+  }
   if (/403|authorizationfailure|not authorized|access denied/i.test(clean)) {
     return {
       title: context === 'containers' ? 'Cannot list containers — access denied (403)' : context === 'blobs' ? 'Cannot list blobs — access denied (403)' : 'Access denied (403)',

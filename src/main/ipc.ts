@@ -28,6 +28,7 @@ import {
   addAccount,
   encryptionAvailable,
   listAccounts,
+  pinContainerAttachment,
   removeAccount,
   setPinned,
   updateAccount
@@ -170,6 +171,11 @@ export function registerIpc(): void {
     'accounts:pin',
     (_event: IpcMainInvokeEvent, id: string, pinned: boolean): AccountSummary =>
       setPinned(id, pinned)
+  )
+  ipcMain.handle(
+    'accounts:pin-container',
+    (_event: IpcMainInvokeEvent, id: string, container: string): Promise<AccountSummary> =>
+      Promise.resolve(pinContainerAttachment(id, container))
   )
   ipcMain.handle('accounts:azurite-template', (): string => azuriteConnectionString())
   ipcMain.handle(

@@ -55,6 +55,55 @@ export default function Explorer(props: {
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>(1)
   const [copiedEndpoint, setCopiedEndpoint] = useState(false)
+  const [colWidths, setColWidths] = useState<{ size: number; modified: number }>(() => {
+    try {
+      const raw = localStorage.getItem('blobfish.colWidths')
+      if (raw) {
+        const parsed = JSON.parse(raw) as { size?: number; modified?: number }
+        const size = Math.min(320, Math.max(70, Number(parsed.size) || 110))
+        const modified = Math.min(480, Math.max(130, Number(parsed.modified) || 230))
+        return { size, modified }
+      }
+    } catch {
+      // Fall through to defaults.
+    }
+    return { size: 110, modified: 230 }
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('blobfish.colWidths', JSON.stringify(colWidths))
+    } catch {
+      // Storage full/blocked — widths just won't persist.
+    }
+  }, [colWidths])
+
+  function startColResize(e: React.MouseEvent, key: 'size' | 'modified'): void {
+    e.preventDefault()
+    e.stopPropagation()
+    const startX = e.clientX
+    const startW = colWidths[key]
+    const onMove = (ev: MouseEvent): void => {
+      const dx = ev.clientX - startX
+      const limits = key === 'size' ? { min: 70, max: 320 } : { min: 130, max: 480 }
+      const next = Math.min(limits.max, Math.max(limits.min, startW + dx))
+      setColWidths((prev) => ({ ...prev, [key]: next }))
+    }
+    const onUp = (): void => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  function resetColWidths(): void {
+    setColWidths({ size: 110, modified: 230 })
+  }
 
   const navPrefixRef = useRef(navPrefix)
   navPrefixRef.current = navPrefix
@@ -723,11 +772,21 @@ export default function Explorer(props: {
               </div>
             </div>
           ) : (
-            <table className="blob-table dir-table table-in">
+            <table className="blob-table dir-table table-in" style={{ tableLayout: 'fixed' }}>
               <thead>
                 <tr>
                   <Th label="Name" k="name" sortKey={sortKey} dir={sortDir} onSort={toggleSort} wide />
-                  <Th label="Last Modified" k="modified" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                  <Th
+                    label="Last Modified"
+                    k="modified"
+                    sortKey={sortKey}
+                    dir={sortDir}
+                    onSort={toggleSort}
+                    width={colWidths.modified}
+                    resizeKey="modified"
+                    onResizeStart={startColResize}
+                    onResetWidths={resetColWidths}
+                  />
                   {!scoped && <th><span className="sr">Actions</span></th>}
                 </tr>
               </thead>
@@ -878,7 +937,7 @@ export default function Explorer(props: {
             </div>
           </div>
         ) : (
-          <table className="blob-table table-in">
+          <table className="blob-table table-in" style={{ tableLayout: 'fixed' }}>
             <thead>
               <tr>
                 <th className="check-col">
@@ -890,8 +949,28 @@ export default function Explorer(props: {
                   />
                 </th>
                 <Th label="Name" k="name" sortKey={sortKey} dir={sortDir} onSort={toggleSort} wide />
-                <Th label="Size" k="size" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />
-                <Th label="Last Modified" k="modified" sortKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <Th
+                  label="Size"
+                  k="size"
+                  sortKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                  width={colWidths.size}
+                  resizeKey="size"
+                  onResizeStart={startColResize}
+                  onResetWidths={resetColWidths}
+                />
+                <Th
+                  label="Last Modified"
+                  k="modified"
+                  sortKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                  width={colWidths.modified}
+                  resizeKey="modified"
+                  onResizeStart={startColResize}
+                  onResetWidths={resetColWidths}
+                />
               </tr>
             </thead>
             <tbody>
@@ -1035,14 +1114,33 @@ function Th(props: {
   dir: 1 | -1
   onSort: (k: 'name' | 'size' | 'modified') => void
   wide?: boolean
+  width?: number
+  resizeKey?: 'size' | 'modified'
+  onResizeStart?: (e: React.MouseEvent, key: 'size' | 'modified') => void
+  onResetWidths?: () => void
 }): React.JSX.Element {
   const active = props.sortKey === props.k
   return (
-    <th className={props.wide ? 'wide' : ''}>
+    <th
+      className={`${props.wide ? 'wide' : ''}${props.resizeKey ? ' resizable' : ''}`}
+      style={props.width ? { width: `${props.width}px`, minWidth: `${props.width}px`, maxWidth: `${props.width}px` } : undefined}
+    >
       <button className={`th-btn${active ? ' active' : ''}`} onClick={() => props.onSort(props.k)}>
         {props.label}
         <span className="sort-arrow">{active ? (props.dir === 1 ? ' ↑' : ' ↓') : ''}</span>
       </button>
+      {props.resizeKey && props.onResizeStart && (
+        <span
+          className="col-resizer"
+          onMouseDown={(e) => props.onResizeStart!(e, props.resizeKey!)}
+          onDoubleClick={(e) => {
+            e.stopPropagation()
+            props.onResetWidths?.()
+          }}
+          title="Drag to resize · double-click to reset"
+          aria-hidden
+        />
+      )}
     </th>
   )
 }
