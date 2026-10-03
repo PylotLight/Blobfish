@@ -4,8 +4,8 @@ cask "blobfish" do
   arch arm: "arm64", intel: "x64"
 
   version "0.1.0"
-  sha256 arm:   "0000000000000000000000000000000000000000000000000000000000000000",
-         intel: "0000000000000000000000000000000000000000000000000000000000000000"
+  sha256 arm:   "3ef82c824ca3bc5847da659d03db2d52c8fdf544193c7f653bc3d2b25d600892",
+         intel: "1ac1f22415a48f5e96ca314979b689921e76a3af57e161ad5985711ea29fe529"
 
   url "https://github.com/PylotLight/Blobfish/releases/download/v#{version}/Blobfish-#{version}-mac-#{arch}.zip",
       verified: "github.com/PylotLight/Blobfish/"
