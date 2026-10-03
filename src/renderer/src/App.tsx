@@ -123,6 +123,9 @@ export default function App(): React.JSX.Element {
   }, [])
 
   function toggleExpand(accountId: string): void {
+    const a = accounts.find((x) => x.id === accountId)
+    // Container attachments open straight into their container — nothing to expand.
+    if (a && a.kind !== 'account') return
     setExpanded((prev) => {
       const next = !prev[accountId]
       if (next) ensureContainers(accountId)
@@ -131,8 +134,11 @@ export default function App(): React.JSX.Element {
   }
 
   function selectAccount(accountId: string, container: string | null = null): void {
+    const a = accounts.find((x) => x.id === accountId)
+    const resolved =
+      container ?? (a && a.kind !== 'account' ? (a.containerName ?? null) : null)
     setSelectedId(accountId)
-    setTarget((t) => ({ accountId, container, tick: (t?.tick ?? 0) + 1 }))
+    setTarget((t) => ({ accountId, container: resolved, tick: (t?.tick ?? 0) + 1 }))
   }
 
   function invalidateContainers(accountId: string): void {
@@ -185,11 +191,7 @@ export default function App(): React.JSX.Element {
     } else {
       window.api.accounts
         .pinContainer(source.id, container)
-        .then((added) => {
-          refreshAccounts()
-          setExpanded((p) => ({ ...p, [added.id]: true }))
-          ensureContainers(added.id)
-        })
+        .then(() => refreshAccounts())
         .catch(console.error)
     }
   }
@@ -200,6 +202,7 @@ export default function App(): React.JSX.Element {
     const cached = containersCache[a.id]
     const loading = loadingContainers[a.id] ?? false
     const canManageContainers = a.kind === 'account' && !a.containerName
+    const isScopedContainer = a.kind !== 'account'
     const leaves = (
       <>
         {loading && <li className="tree-loading">Loading…</li>}
@@ -250,18 +253,22 @@ export default function App(): React.JSX.Element {
     return (
       <li key={a.id} className="tree-account">
         <div className={`tree-row${isActive ? ' active' : ''}`}>
-          <button
-            className={`twisty${isOpen ? ' open' : ''}`}
-            onClick={() => toggleExpand(a.id)}
-            aria-label={isOpen ? 'Collapse' : 'Expand'}
-          >
-            ›
-          </button>
+          {isScopedContainer ? (
+            <span className="twisty leaf-spacer" aria-hidden />
+          ) : (
+            <button
+              className={`twisty${isOpen ? ' open' : ''}`}
+              onClick={() => toggleExpand(a.id)}
+              aria-label={isOpen ? 'Collapse' : 'Expand'}
+            >
+              ›
+            </button>
+          )}
           <button
             className="tree-main"
             onClick={() => {
-              selectAccount(a.id)
-              if (!isOpen) toggleExpand(a.id)
+              selectAccount(a.id, a.kind === 'account' ? null : (a.containerName ?? null))
+              if (!isOpen && !isScopedContainer) toggleExpand(a.id)
             }}
             title={`${a.name}\n${a.containerName ? `Container: ${a.containerName}\n` : ''}Endpoint: ${a.endpoint}`}
           >
@@ -337,7 +344,6 @@ export default function App(): React.JSX.Element {
             {leaves}
           </ul>
         )}
-        {isOpen && a.kind !== 'account' && <ul className="tree-containers">{leaves}</ul>}
       </li>
     )
   }
@@ -472,8 +478,10 @@ export default function App(): React.JSX.Element {
           onAdded={(a) => {
             refreshAccounts()
             selectAccount(a.id, a.containerName ?? null)
-            setExpanded((p) => ({ ...p, [a.id]: true }))
-            ensureContainers(a.id)
+            if (a.kind === 'account') {
+              setExpanded((p) => ({ ...p, [a.id]: true }))
+              ensureContainers(a.id)
+            }
           }}
         />
       )}

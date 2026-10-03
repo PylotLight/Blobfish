@@ -25,6 +25,8 @@ export default function PreviewDialog(props: {
   size?: number
   onClose: () => void
   onDownload: () => void
+  /** Inline mode renders the panel without the modal backdrop (for tabbed previews). */
+  inline?: boolean
 }): React.JSX.Element {
   const { accountId, container, name } = props
   const [text, setText] = useState('')
@@ -43,13 +45,14 @@ export default function PreviewDialog(props: {
   const [pretty, setPretty] = useState(true)
 
   useEffect(() => {
+    if (props.inline) return
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') props.onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [props.inline])
 
   function load(offset: number, append: boolean): void {
     if (append) setLoadingMore(true)
@@ -141,9 +144,12 @@ export default function PreviewDialog(props: {
   const canMore = !eof && !capped && nextOffset !== null && !binary
 
   return (
-    <div className="modal-backdrop" onClick={props.onClose}>
+    <div
+      className={props.inline ? 'preview-inline fade-in' : 'modal-backdrop'}
+      onClick={props.inline ? undefined : props.onClose}
+    >
       <div
-        className="modal glass strong preview-modal fade-in"
+        className={props.inline ? 'preview-pane' : 'modal glass strong preview-modal fade-in'}
         role="dialog"
         aria-label={`Preview ${leaf}`}
         onClick={(e) => e.stopPropagation()}

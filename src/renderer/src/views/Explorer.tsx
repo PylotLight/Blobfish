@@ -29,6 +29,20 @@ function keyOf(item: StorageBlobItem): string {
   return item.isPrefix ? `${item.name}/` : item.name
 }
 
+interface PreviewTab {
+  key: string
+  container: string
+  name: string
+  size?: number
+}
+
+interface CtxMenu {
+  x: number
+  y: number
+  /** Selection keys the menu acts on (empty = background). */
+  keys: string[]
+}
+
 export default function Explorer(props: {
   account: AccountSummary | null
   target: SelectionTarget | null
@@ -40,7 +54,9 @@ export default function Explorer(props: {
 }): React.JSX.Element {
   const { account } = props
   const [containers, setContainers] = useState<StorageContainer[]>([])
-  const [container, setContainer] = useState<string | null>(null)
+  // Container-scoped attachments open straight into their container —
+  // no intermediate container-directory level.
+  const [container, setContainer] = useState<string | null>(() => account?.containerName ?? null)
   const [blobs, setBlobs] = useState<ListBlobsResult | null>(null)
   const [navPrefix, setNavPrefix] = useState('')
   const [backHist, setBackHist] = useState<string[]>([])
@@ -109,15 +125,19 @@ export default function Explorer(props: {
   navPrefixRef.current = navPrefix
   const containerRef = useRef(container)
   containerRef.current = container
+  const selectionRef = useRef(selection)
+  selectionRef.current = selection
   const filterRef = useRef<HTMLInputElement>(null)
 
-  // ⌘F / Ctrl+F focuses the single search box.
+  // ⌘F / Ctrl+F focuses the single search box. Escape closes the context menu.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
         e.preventDefault()
         filterRef.current?.focus()
         filterRef.current?.select()
+      } else if (e.key === 'Escape') {
+        setCtx(null)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -127,6 +147,8 @@ export default function Explorer(props: {
   function switchContainer(next: string | null): void {
     setContainer(next)
     containerRef.current = next
+    setActiveTab(null)
+    setCtx(null)
     props.onContainerChange?.(next)
   }
 
@@ -152,7 +174,11 @@ export default function Explorer(props: {
 
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [prompt, setPrompt] = useState<PromptState | null>(null)
-  const [preview, setPreview] = useState<{ name: string; size?: number } | null>(null)
+  // Tabbed previews (ASE-style): browse tab + one tab per open file.
+  const [previewTabs, setPreviewTabs] = useState<PreviewTab[]>([])
+  const [activeTab, setActiveTab] = useState<string | null>(null)
+  const [ctx, setCtx] = useState<CtxMenu | null>(null)
+  const lastSelectedRef = useRef<string | null>(null)
 
   const accountId = account?.id
 
@@ -200,10 +226,16 @@ export default function Explorer(props: {
   // Initial load per account.
   useEffect(() => {
     setContainers([])
-    switchContainer(null)
+    const initial = account?.containerName ?? null
+    setContainer(initial)
+    containerRef.current = initial
+    props.onContainerChange?.(initial)
     setBlobs(null)
     setFilter('')
     setError(null)
+    setPreviewTabs([])
+    setActiveTab(null)
+    setCtx(null)
     resetNav()
     if (!accountId) return
     loadContainers(accountId, account?.containerName ?? props.target?.container ?? undefined)
@@ -384,6 +416,90 @@ export default function Explorer(props: {
     setSelection((prev) => (prev.size === keys.length && keys.length > 0 ? new Set() : new Set(keys)))
   }
 
+  /* ---------- tabbed previews ---------- */
+
+  function openPreviewTab(name: string, size?: number, containerOverride?: string): void {
+    const cont = (containerOverride ?? containerRef.current ?? '').trim()
+    if (cont === '') return
+    const key = `${cont}/${name}`
+    setPreviewTabs((prev) => (prev.some((t) => t.key === key) ? prev : [...prev, { key, container: cont, name, size }]))
+    setActiveTab(key)
+    setCtx(null)
+  }
+
+  function closePreviewTab(key: string): void {
+    setPreviewTabs((prev) => prev.filter((t) => t.key !== key))
+    setActiveTab((cur) => (cur === key ? null : cur))
+  }
+
+  function dropTabsForNames(containerName: string, names: string[]): void {
+    const gone = new Set(names)
+    setPreviewTabs((prev) => prev.filter((t) => !(t.container === containerName && gone.has(t.name))))
+    setActiveTab((cur) => {
+      if (cur === null) return cur
+      const tab = previewTabs.find((t) => t.key === cur)
+      if (tab && tab.container === containerName && gone.has(tab.name)) return null
+      return cur
+    })
+  }
+
+  /* ---------- click-to-select + context menu ---------- */
+
+  /** Single click selects; ⌘/Ctrl toggles; Shift extends a range. Double-click opens. */
+  function selectRow(e: React.MouseEvent, key: string, orderedKeys: string[]): void {
+    if (e.shiftKey && lastSelectedRef.current) {
+      const anchor = orderedKeys.indexOf(lastSelectedRef.current)
+      const at = orderedKeys.indexOf(key)
+      if (anchor !== -1 && at !== -1) {
+        const [lo, hi] = anchor < at ? [anchor, at] : [at, anchor]
+        setSelection(new Set(orderedKeys.slice(lo, hi + 1)))
+        return
+      }
+    }
+    if (e.metaKey || e.ctrlKey) {
+      toggleOne(key)
+      lastSelectedRef.current = key
+      return
+    }
+    setSelection(new Set([key]))
+    lastSelectedRef.current = key
+  }
+
+  function openRow(item: StorageBlobItem): void {
+    if (item.isPrefix) {
+      go(blobs && blobs.prefix ? `${blobs.prefix}/${item.leaf}` : item.name)
+    } else {
+      openPreviewTab(item.name, item.size)
+    }
+  }
+
+  function openCtx(e: React.MouseEvent, key: string | null, orderedKeys: string[]): void {
+    e.preventDefault()
+    e.stopPropagation()
+    if (key === null) {
+      setCtx({ x: e.clientX, y: e.clientY, keys: [] })
+      return
+    }
+    const cur = selectionRef.current
+    const keys = cur.has(key) && cur.size > 0 ? [...cur] : [key]
+    if (!cur.has(key)) {
+      lastSelectedRef.current = key
+      const next = new Set([key])
+      selectionRef.current = next
+      setSelection(next)
+    }
+    setCtx({ x: e.clientX, y: e.clientY, keys })
+  }
+
+  function copyPaths(keys: string[]): void {
+    const text = keys.map((k) => k.replace(/\/$/, '')).join('\n')
+    void navigator.clipboard
+      ?.writeText(text)
+      .then(() => flash(keys.length === 1 ? 'Path copied' : `${keys.length} paths copied`))
+      .catch(() => undefined)
+    setCtx(null)
+  }
+
   /* ---------- CRUD ---------- */
 
   async function run(label: string, fn: () => Promise<string | void>): Promise<void> {
@@ -502,13 +618,12 @@ export default function Explorer(props: {
       .finally(() => setBusy(null))
   }
 
-  function onPreviewDownload(name: string): void {
-    if (!accountId || !container) return
-    setPreview(null)
+  function onPreviewDownload(containerName: string, name: string): void {
+    if (!accountId || !containerName) return
     setBusy('download')
     setError(null)
     window.api.transfers
-      .download({ accountId, container, names: [name] })
+      .download({ accountId, container: containerName, names: [name] })
       .catch((err: unknown) => fail(err, 'action'))
       .finally(() => setBusy(null))
   }
@@ -528,6 +643,7 @@ export default function Explorer(props: {
             container,
             names: [...selection]
           })
+          dropTabsForNames(container, [...selection])
           return `Deleted ${count} item${count === 1 ? '' : 's'}`
         })
       }
@@ -550,12 +666,23 @@ export default function Explorer(props: {
       submit: async (v) => {
         if (v === currentLeaf) return
         await run('rename', async () => {
-          await window.api.storage.renameBlob({
+          // Main returns the full destination blob path.
+          const destFull = await window.api.storage.renameBlob({
             accountId,
             container,
             source: src,
             destLeaf: v
           })
+          setPreviewTabs((prev) =>
+            prev.map((t) =>
+              t.container === container && t.name === src
+                ? { ...t, name: destFull, key: `${container}/${destFull}` }
+                : t
+            )
+          )
+          setActiveTab((cur) =>
+            cur === `${container}/${src}` ? `${container}/${destFull}` : cur
+          )
           return `Renamed to "${v}"`
         })
       }
@@ -623,6 +750,108 @@ export default function Explorer(props: {
     <ErrorCallout error={error} onRetry={retryCurrent} onDismiss={() => setError(null)} />
   ) : null
 
+  const activePreview = activeTab !== null ? (previewTabs.find((t) => t.key === activeTab) ?? null) : null
+
+  const tabStrip = container ? (
+    <div className="tab-strip" role="tablist" aria-label="Open tabs">
+      <button
+        className={`tab${activePreview === null ? ' active' : ''}`}
+        role="tab"
+        aria-selected={activePreview === null}
+        onClick={() => {
+          setActiveTab(null)
+          setCtx(null)
+        }}
+        title={container}
+      >
+        <span className="kind-ico container tab-ico" aria-hidden />
+        <span className="tab-label">{container}</span>
+      </button>
+      {previewTabs.map((t) => {
+        const leaf = t.name.includes('/') ? t.name.slice(t.name.lastIndexOf('/') + 1) : t.name
+        const isActive = activeTab === t.key
+        return (
+          <button
+            key={t.key}
+            className={`tab preview-tab${isActive ? ' active' : ''}`}
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => {
+              setActiveTab(t.key)
+              setCtx(null)
+            }}
+            title={t.name}
+          >
+            <span className="file-ico file tab-ico" aria-hidden />
+            <span className="tab-label">{leaf}</span>
+            <span
+              className="tab-close"
+              role="button"
+              aria-label={`Close preview ${leaf}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                closePreviewTab(t.key)
+              }}
+            >
+              ✕
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  ) : null
+
+  const ctxMenu = ctx ? (
+    <>
+      <div className="ctx-overlay" onClick={() => setCtx(null)} onContextMenu={() => setCtx(null)} />
+      <div
+        className="ctx-menu glass strong"
+        role="menu"
+        style={{
+          left: `${Math.min(ctx.x, window.innerWidth - 220)}px`,
+          top: `${Math.min(ctx.y, window.innerHeight - 260)}px`
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {ctx.keys.length === 0 ? (
+          <>
+            <button role="menuitem" onClick={() => { setCtx(null); onUpload() }}>Upload files…</button>
+            <button role="menuitem" onClick={() => { setCtx(null); onNewFolder() }}>New folder…</button>
+            <button role="menuitem" onClick={() => { setCtx(null); toggleAll(visibleBlobs.map(keyOf)) }}>Select all</button>
+            <div className="ctx-sep" aria-hidden />
+            <button role="menuitem" onClick={() => { setCtx(null); retryCurrent() }}>Refresh</button>
+          </>
+        ) : (
+          <>
+            {ctx.keys.length === 1 && !ctx.keys[0]!.endsWith('/') && (
+              <button
+                role="menuitem"
+                onClick={() => {
+                  const item = visibleBlobs.find((b) => keyOf(b) === ctx.keys[0])
+                  setCtx(null)
+                  if (item && !item.isPrefix) openPreviewTab(item.name, item.size)
+                }}
+              >
+                Preview
+              </button>
+            )}
+            <button role="menuitem" onClick={() => { setCtx(null); onDownload() }}>
+              Download{ctx.keys.length > 1 ? ` (${ctx.keys.length})` : ''}
+            </button>
+            <button role="menuitem" onClick={() => copyPaths(ctx.keys)}>Copy path</button>
+            {ctx.keys.length === 1 && !ctx.keys[0]!.endsWith('/') && (
+              <button role="menuitem" onClick={() => { setCtx(null); onRename() }}>Rename…</button>
+            )}
+            <div className="ctx-sep" aria-hidden />
+            <button role="menuitem" className="danger" onClick={() => { setCtx(null); onDelete() }}>
+              Delete{ctx.keys.length > 1 ? ` (${ctx.keys.length})` : ''}
+            </button>
+          </>
+        )}
+      </div>
+    </>
+  ) : null
+
   const toolbarFilter = (
     <label className="toolbar-filter" title="Search (⌘F)">
       <span aria-hidden>⌕</span>
@@ -665,7 +894,7 @@ export default function Explorer(props: {
       <Action icon="+" label="New folder" onClick={onNewFolder} disabled={!container || busy !== null} />
       <Action icon="☑" label="Select all" onClick={() => toggleAll(visibleBlobs.map(keyOf))} disabled={visibleBlobs.length === 0} />
       <span className="action-sep" aria-hidden />
-      <Action icon="👁" label="Preview" onClick={() => previewFile && setPreview({ name: previewFile.name, size: previewFile.size })} disabled={!previewFile || busy !== null} />
+      <Action icon="👁" label="Preview" onClick={() => previewFile && openPreviewTab(previewFile.name, previewFile.size)} disabled={!previewFile || busy !== null} />
       <Action icon="✎" label="Rename" onClick={onRename} disabled={!canRename || busy !== null} />
       <Action icon="✕" label={`Delete${selection.size > 0 ? ` (${selection.size})` : ''}`} danger onClick={onDelete} disabled={selection.size === 0 || busy !== null} />
     </div>
@@ -899,9 +1128,26 @@ export default function Explorer(props: {
         </div>
       </header>
 
+      {tabStrip}
+
+      {activePreview && accountId ? (
+        <div className="explorer-body-scroll preview-tab-body">
+          <PreviewDialog
+            key={activePreview.key}
+            accountId={accountId}
+            container={activePreview.container}
+            name={activePreview.name}
+            size={activePreview.size}
+            inline
+            onClose={() => closePreviewTab(activePreview.key)}
+            onDownload={() => onPreviewDownload(activePreview.container, activePreview.name)}
+          />
+        </div>
+      ) : (
+      <>
       {actionBar}
 
-      <div className="explorer-body-scroll">
+      <div className="explorer-body-scroll" onContextMenu={(e) => openCtx(e, null, [])}>
         {addressStrip}
         {errorCallout}
         {loadingList ? (
@@ -997,39 +1243,31 @@ export default function Explorer(props: {
               ) : (
                 visibleBlobs.map((item, i) => {
                   const key = keyOf(item)
+                  const orderedKeys = visibleBlobs.map(keyOf)
                   return (
                     <tr
                       key={key}
-                      className={`row-in${selection.has(key) ? ' selected' : ''}`}
+                      className={`row-in clickable${selection.has(key) ? ' selected' : ''}`}
                       style={{ animationDelay: `${Math.min(i, 10) * 12}ms` }}
+                      onClick={(e) => selectRow(e, key, orderedKeys)}
+                      onDoubleClick={() => openRow(item)}
+                      onContextMenu={(e) => openCtx(e, key, orderedKeys)}
+                      title={item.isPrefix ? 'Open folder' : 'Double-click to preview · right-click for actions'}
                     >
-                      <td className="check-col">
+                      <td className="check-col" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           aria-label={`Select ${item.leaf}`}
                           checked={selection.has(key)}
                           onChange={() => toggleOne(key)}
+                          onClick={(e) => e.stopPropagation()}
                         />
                       </td>
                       <td className="name-col">
-                        {item.isPrefix ? (
-                          <button
-                            className="linklike folder"
-                            onClick={() => go(blobs && blobs.prefix ? `${blobs.prefix}/${item.leaf}` : item.name)}
-                          >
-                            <span className="file-ico folder" aria-hidden />
-                            {item.leaf}
-                          </button>
-                        ) : (
-                          <button
-                            className="linklike file"
-                            title={`${item.name} — click to preview`}
-                            onClick={() => setPreview({ name: item.name, size: item.size })}
-                          >
-                            <span className="file-ico file" aria-hidden />
-                            {item.leaf}
-                          </button>
-                        )}
+                        <span className="file-row" title={item.name}>
+                          <span className={`file-ico ${item.isPrefix ? 'folder' : 'file'}`} aria-hidden />
+                          {item.leaf}
+                        </span>
                       </td>
                       <td className="num">{item.isPrefix ? '—' : formatBytes(item.size)}</td>
                       <td className="muted">
@@ -1043,7 +1281,10 @@ export default function Explorer(props: {
           </table>
         )}
       </div>
+      </>
+      )}
 
+      {ctxMenu}
       {confirm && (
         <ConfirmDialog
           title={confirm.title}
@@ -1066,16 +1307,6 @@ export default function Explorer(props: {
           validate={prompt.validate}
           onCancel={() => setPrompt(null)}
           onSubmit={prompt.submit}
-        />
-      )}
-      {preview && accountId && container && (
-        <PreviewDialog
-          accountId={accountId}
-          container={container}
-          name={preview.name}
-          size={preview.size}
-          onClose={() => setPreview(null)}
-          onDownload={() => onPreviewDownload(preview.name)}
         />
       )}
       {notice && <div className="toast glass strong toast-in">{notice}</div>}

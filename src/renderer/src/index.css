@@ -2858,6 +2858,158 @@ th.wide {
   white-space: nowrap;
 }
 
+.blob-table tr.clickable {
+  cursor: default;
+  user-select: none;
+}
+
+/* ---------- Explorer tab strip (browse + preview tabs, ASE-style) ---------- */
+
+.tab-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 8px 12px 0;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.tab-strip .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 260px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  color: var(--muted);
+  font-size: 13.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab-strip .tab:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.tab-strip .tab.active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.045);
+  border-color: var(--border);
+  margin-bottom: -1px;
+  border-bottom: 1px solid var(--panel);
+  font-weight: 600;
+}
+
+.tab-strip .tab-ico {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.tab-strip .tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-strip .tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.tab-strip .tab-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+
+.preview-tab-body {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.preview-inline {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 18px 20px 14px;
+  overflow: hidden;
+}
+
+.preview-inline .preview-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.preview-inline .preview-body,
+.preview-inline .csv-wrap {
+  max-height: none;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ---------- Context menu (right-click actions) ---------- */
+
+.ctx-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+.ctx-menu {
+  position: fixed;
+  z-index: 61;
+  min-width: 190px;
+  max-width: 260px;
+  padding: 6px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ctx-menu button[role='menuitem'] {
+  background: none;
+  border: none;
+  color: var(--text);
+  text-align: left;
+  font-size: 13.5px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.ctx-menu button[role='menuitem']:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.ctx-menu button[role='menuitem'].danger {
+  color: #ff8f8f;
+}
+
+.ctx-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 5px 8px;
+}
+
+.twisty.leaf-spacer {
+  visibility: hidden;
+}
+
 .sr {
   position: absolute;
   width: 1px;
