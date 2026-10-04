@@ -51,10 +51,20 @@ export function parseStorageError(err: unknown, context: 'containers' | 'blobs' 
     }
   }
   if (/403|authorizationfailure|not authorized|access denied/i.test(clean)) {
+    // One title for every 403, wherever it surfaces (sidebar prefetch,
+    // container listing, blob listing). The context only changes the message
+    // so a single off-VPN failure doesn't read as three different errors.
+    const action =
+      context === 'containers'
+        ? 'listing containers'
+        : context === 'blobs'
+          ? 'listing blobs'
+          : 'completing that action'
     return {
-      title: context === 'containers' ? 'Cannot list containers — access denied (403)' : context === 'blobs' ? 'Cannot list blobs — access denied (403)' : 'Access denied (403)',
+      title: 'Access denied (403)',
       message:
-        "This connection's key or SAS token lacks permission for that action, or it has expired. Update the connection credentials, then retry.",
+        `This connection's key or SAS token lacks permission for ${action}, or it has expired. ` +
+        'Update the connection credentials, then retry.',
       technical,
       kind: 'auth',
       unauthorized: true

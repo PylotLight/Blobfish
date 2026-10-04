@@ -6,9 +6,23 @@ import { getMainWindow } from './window'
 import type { ActivityEntry, ActivityKind, ActivityStatus, TransferDirection } from '../shared/types'
 
 const MAX_ENTRIES = 120
-/** Identical failures fired in bursts (sidebar + explorer fetch the same
- * listing) collapse into one entry instead of spamming the dock. */
+/**
+ * Identical failures fired in bursts (sidebar prefetch + explorer listing
+ * hitting the same 403 off VPN) collapse into one entry instead of spamming
+ * the dock. Comparison ignores the quoted resource names — "List blobs in
+ * 'chat-x' failed" and "Access container 'chat-x' failed" share the same
+ * normalized detail — and scans recent history, not just the latest entry.
+ */
 const DEDUPE_MS = 30_000
+const DEDUPE_SCAN = 8
+
+function normalizeDetail(detail: string | undefined): string {
+  return (detail ?? '')
+    .toLowerCase()
+    .replace(/['"][^'"]*['"]/g, "'…'")
+    .replace(/\s+/g, ' ')
+    .trim()
+}
 
 let entries: ActivityEntry[] = []
 
@@ -25,16 +39,19 @@ export function logActivity(input: {
   localPath?: string
   transferDirection?: TransferDirection
 }): ActivityEntry {
-  const latest = entries[0]
-  if (
-    latest &&
-    latest.kind === input.kind &&
-    latest.text === input.text &&
-    latest.detail === input.detail &&
-    latest.status === input.status &&
-    Date.now() - latest.at < DEDUPE_MS
-  ) {
-    return latest
+  const now = Date.now()
+  const normDetail = normalizeDetail(input.detail)
+  for (const existing of entries.slice(0, DEDUPE_SCAN)) {
+    if (
+      existing.kind === input.kind &&
+      existing.status === input.status &&
+      normalizeDetail(existing.detail) === normDetail &&
+      now - existing.at < DEDUPE_MS
+    ) {
+      return existing
+    }
+    // Stop scanning once entries are older than the window (list is newest-first).
+    if (now - existing.at >= DEDUPE_MS) break
   }
   const entry: ActivityEntry = {
     id: randomUUID(),

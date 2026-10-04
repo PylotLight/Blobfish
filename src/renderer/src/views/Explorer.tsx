@@ -125,6 +125,12 @@ export default function Explorer(props: {
   navPrefixRef.current = navPrefix
   const containerRef = useRef(container)
   containerRef.current = container
+  // Monotonic request ids — stale listings (e.g. a slow 403 for container A
+  // resolving after the user picked container B) never overwrite fresh state.
+  // Container and blob listings track independently so one selection resolving
+  // can't invalidate the other.
+  const containerSeq = useRef(0)
+  const blobSeq = useRef(0)
   const selectionRef = useRef(selection)
   selectionRef.current = selection
   const filterRef = useRef<HTMLInputElement>(null)
@@ -189,7 +195,14 @@ export default function Explorer(props: {
 
   function fail(err: unknown, context: 'containers' | 'blobs' | 'action' = 'action'): void {
     // Inline banner + activity dock carry the error — no extra toast needed.
-    setError(parseStorageError(err, context))
+    // Coalesce repeated auth failures (sidebar prefetch + container listing +
+    // blob listing all 403 off VPN): first one wins until the selection
+    // changes, so one outage reads as one error, not three.
+    const next = parseStorageError(err, context)
+    setError((prev) => {
+      if (prev && prev.kind === 'auth' && next.kind === 'auth') return prev
+      return next
+    })
   }
 
   function resetNav(): void {
@@ -201,11 +214,13 @@ export default function Explorer(props: {
   }
 
   const loadContainers = (id: string, highlight?: string | null) => {
+    const seq = ++containerSeq.current
     setLoadingContainers(true)
     setError(null)
     window.api.storage
       .listContainers(id)
       .then((cs) => {
+        if (seq !== containerSeq.current) return
         setContainers(cs)
         setError(null)
         setContainer((prev) => {
@@ -219,12 +234,20 @@ export default function Explorer(props: {
         })
         // Empty list is a valid state — rendered as an empty table, not an error.
       })
-      .catch((err: unknown) => fail(err, 'containers'))
-      .finally(() => setLoadingContainers(false))
+      .catch((err: unknown) => {
+        if (seq !== containerSeq.current) return
+        fail(err, 'containers')
+      })
+      .finally(() => {
+        if (seq !== containerSeq.current) return
+        setLoadingContainers(false)
+      })
   }
 
   // Initial load per account.
   useEffect(() => {
+    containerSeq.current += 1
+    blobSeq.current += 1
     setContainers([])
     const initial = account?.containerName ?? null
     setContainer(initial)
@@ -273,25 +296,28 @@ export default function Explorer(props: {
   // Blob listing.
   useEffect(() => {
     if (!accountId || !container) return
+    const seq = ++blobSeq.current
     let cancelled = false
     setLoadingList(true)
+    // A fresh selection clears a previous account's auth error; repeat
+    // failures for the same selection coalesce in fail().
     setError(null)
     window.api.storage
       .listBlobs({ accountId, container, prefix: navPrefix || undefined })
       .then((res) => {
-        if (!cancelled) {
+        if (!cancelled && seq === blobSeq.current) {
           setBlobs(res)
           setSelection(new Set())
         }
       })
       .catch((err: unknown) => {
-        if (!cancelled) {
+        if (!cancelled && seq === blobSeq.current) {
           fail(err, 'blobs')
           setBlobs(null)
         }
       })
       .finally(() => {
-        if (!cancelled) setLoadingList(false)
+        if (!cancelled && seq === blobSeq.current) setLoadingList(false)
       })
     return () => {
       cancelled = true
@@ -301,18 +327,24 @@ export default function Explorer(props: {
   function reloadBlobs(): void {
     const curContainer = containerRef.current
     if (!accountId || !curContainer) return
+    const seq = ++blobSeq.current
     const curPrefix = navPrefixRef.current
     setLoadingList(true)
     setError(null)
     window.api.storage
       .listBlobs({ accountId, container: curContainer, prefix: curPrefix || undefined })
       .then((res) => {
+        if (seq !== blobSeq.current) return
         setBlobs(res)
         setError(null)
         setSelection(new Set())
       })
-      .catch((err: unknown) => fail(err, 'blobs'))
-      .finally(() => setLoadingList(false))
+      .catch((err: unknown) => {
+        if (seq === blobSeq.current) fail(err, 'blobs')
+      })
+      .finally(() => {
+        if (seq === blobSeq.current) setLoadingList(false)
+      })
   }
 
   /* ---------- prefix history ---------- */

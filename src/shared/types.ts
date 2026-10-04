@@ -244,12 +244,7 @@ export interface TransferConfigure {
   maxParallel?: number
 }
 
-export interface UploadEnqueueArgs {
-  accountId: string
-  container: string
-  prefix?: string
-}
-
+/* ---------- Activity ---------- */
 export type ActivityStatus = 'success' | 'failed'
 export type ActivityKind = 'transfer' | 'container' | 'folder' | 'blob' | 'connection'
 
