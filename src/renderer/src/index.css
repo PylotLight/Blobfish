@@ -93,6 +93,39 @@ code {
   box-shadow: 0 0 10px var(--mint);
 }
 
+.shell.sidebar-collapsed .sidebar,
+.shell.sidebar-collapsed .sidebar-resizer {
+  display: none;
+}
+
+.sidebar-collapse-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 14px;
+  padding: 4px 8px;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-expand-btn {
+  position: absolute;
+  top: 22px;
+  left: 0;
+  z-index: 30;
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-left: none;
+  border-radius: 0 10px 10px 0;
+  color: var(--muted);
+  font-size: 14px;
+  padding: 8px 7px 8px 5px;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-expand-btn:hover {
+  color: var(--text);
+}
+
 .traffic-spacer {
   height: 52px;
   display: none;
@@ -115,9 +148,11 @@ code {
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35), 0 0 18px rgba(126, 226, 168, 0.18);
+  /* The generated logo already carries its own rounded tile, border and
+   * glow — keep the frame chrome-free so it doesn't read as a double border. */
+  background: transparent;
+  border: none;
+  box-shadow: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -130,6 +165,7 @@ code {
   height: 100%;
   object-fit: cover;
   display: block;
+  border-radius: 12px;
 }
 
 .brand-details {
@@ -1604,6 +1640,11 @@ textarea.secret-input {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
+  flex-wrap: wrap;
+}
+
+.setting-row.inline .setting-label {
+  flex: 1 1 220px;
 }
 
 .setting-row.stacked {
@@ -1626,10 +1667,28 @@ textarea.secret-input {
   font-weight: 400;
 }
 
-.slider-inline {
+.setting-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+input[type='range'].slider-inline {
   width: 220px;
-  flex-shrink: 0;
-  accent-color: var(--mint);
+  max-width: 100%;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 560px) {
+  .setting-row.inline {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  input[type='range'].slider-inline {
+    width: 100%;
+  }
 }
 
 .custom-picker-row {
@@ -1726,9 +1785,11 @@ textarea.secret-input {
   width: 92px;
   height: 92px;
   border-radius: 26px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 36px rgba(126, 226, 168, 0.25);
+  /* Same as the sidebar frame: the artwork already includes its tile and
+   * border, so no extra ring here. */
+  background: transparent;
+  border: none;
+  box-shadow: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1741,6 +1802,7 @@ textarea.secret-input {
   height: 100%;
   object-fit: cover;
   display: block;
+  border-radius: 26px;
 }
 
 .empty-hero h2 {
@@ -2145,6 +2207,39 @@ li.done .wiz-num {
 .settings-btn:hover {
   color: var(--text);
   background: var(--panel);
+}
+
+.side-foot-row {
+  display: flex;
+  gap: 8px;
+}
+
+.side-foot-row .settings-btn {
+  flex: 1;
+  min-width: 0;
+}
+
+.quit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 38px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  color: var(--muted);
+  opacity: 0.55;
+  font-size: 15px;
+  cursor: pointer;
+  transition: color 0.13s ease, background 0.13s ease, opacity 0.13s ease, border-color 0.13s ease;
+}
+
+.quit-btn:hover {
+  opacity: 1;
+  color: var(--danger);
+  background: var(--panel);
+  border-color: var(--border);
 }
 
 /* ---------- Dialogs (confirm / prompt) ---------- */

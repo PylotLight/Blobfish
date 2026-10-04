@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { APP_NAME, APP_TAGLINE } from '../../shared/config'
 import type { AccountSummary, StorageContainer, SysInfo } from '../../shared/types'
 import logoUrl from './assets/logo.png'
@@ -33,6 +33,13 @@ export default function App(): React.JSX.Element {
     return 340
   })
   const [isDraggingSidebar, setIsDraggingSidebar] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('blobfish.sidebarCollapsed') === '1'
+    } catch {
+      return false
+    }
+  })
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [containersCache, setContainersCache] = useState<Record<string, StorageContainer[]>>({})
@@ -68,19 +75,48 @@ export default function App(): React.JSX.Element {
   }, [refreshAccounts])
 
   // Persist prefs + apply native vibrancy (macOS only; harmless elsewhere).
+  // Persist prefs + apply native vibrancy (macOS only; harmless elsewhere).
+  // Transfer tuning is debounced — slider drags would otherwise spam IPC.
   useEffect(() => {
     savePrefs(prefs)
     if (platform === 'darwin') {
       window.api.glass.set(prefs.vibrancy ? 'fullscreen-ui' : null).catch(console.error)
     }
-    window.api.transfers
-      .configure({ uploadConcurrency: prefs.uploadConcurrency, maxParallel: prefs.maxParallel })
-      .catch(console.error)
+    const timer = window.setTimeout(() => {
+      window.api.transfers
+        .configure({ uploadConcurrency: prefs.uploadConcurrency, maxParallel: prefs.maxParallel })
+        .catch(console.error)
+    }, 250)
+    return () => window.clearTimeout(timer)
   }, [prefs, platform])
 
   // Drag-to-resize sidebar width
   useEffect(() => {
-    if (!isDraggingSidebar) return
+    try {
+      localStorage.setItem('blobfish.sidebarCollapsed', sidebarCollapsed ? '1' : '0')
+    } catch {
+      // Storage blocked — collapse state just won't persist.
+    }
+  }, [sidebarCollapsed])
+
+  // ⌘B / Ctrl+B toggles the sidebar; Esc re-opens nothing, it just closes menus.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault()
+        setSidebarCollapsed((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // Drag-to-resize sidebar width. The live width is mirrored to a ref so
+  // mouse-up persists the final value, not the stale closure at drag start.
+  const sidebarWidthRef = useRef(sidebarWidth)
+  sidebarWidthRef.current = sidebarWidth
+  useEffect(() => {
+    if (!isDraggingSidebar || sidebarCollapsed) return
     const handleMouseMove = (e: MouseEvent) => {
       const maxW = Math.min(640, Math.floor(window.innerWidth * 0.55))
       const newWidth = Math.max(260, Math.min(maxW, e.clientX))
@@ -88,7 +124,11 @@ export default function App(): React.JSX.Element {
     }
     const handleMouseUp = () => {
       setIsDraggingSidebar(false)
-      localStorage.setItem('blobfish.sidebarWidth', String(sidebarWidth))
+      try {
+        localStorage.setItem('blobfish.sidebarWidth', String(sidebarWidthRef.current))
+      } catch {
+        // Storage blocked — width just won't persist.
+      }
     }
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mouseup', handleMouseUp)
@@ -100,7 +140,7 @@ export default function App(): React.JSX.Element {
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
     }
-  }, [isDraggingSidebar, sidebarWidth])
+  }, [isDraggingSidebar, sidebarCollapsed])
 
   function updatePrefs(next: Prefs): void {
     // Reset to defaults keeps one obvious escape hatch if a theme misbehaves.
@@ -108,18 +148,29 @@ export default function App(): React.JSX.Element {
   }
 
   const ensureContainers = useCallback((accountId: string) => {
+    // Guard against duplicate in-flight fetches: expanding a row and the
+    // explorer mounting for the same account used to fire listContainers
+    // twice, which — off VPN — meant duplicate 403 activity entries.
+    let shouldFetch = false
     setContainersCache((prev) => {
       if (prev[accountId]) return prev
-      void window.api.storage
-        .listContainers(accountId)
-        .then((cs) => setContainersCache((p) => ({ ...p, [accountId]: cs })))
-        .catch(() => setContainersCache((p) => ({ ...p, [accountId]: [] })))
-        .finally(() =>
-          setLoadingContainers((p) => ({ ...p, [accountId]: false }))
-        )
-      setLoadingContainers((p) => ({ ...p, [accountId]: true }))
+      shouldFetch = true
       return prev
     })
+    if (!shouldFetch) return
+    setLoadingContainers((prev) => {
+      if (prev[accountId]) {
+        shouldFetch = false
+        return prev
+      }
+      return { ...prev, [accountId]: true }
+    })
+    if (!shouldFetch) return
+    void window.api.storage
+      .listContainers(accountId)
+      .then((cs) => setContainersCache((p) => ({ ...p, [accountId]: cs })))
+      .catch(() => setContainersCache((p) => ({ ...p, [accountId]: [] })))
+      .finally(() => setLoadingContainers((p) => ({ ...p, [accountId]: false })))
   }, [])
 
   function toggleExpand(accountId: string): void {
@@ -350,7 +401,7 @@ export default function App(): React.JSX.Element {
 
   return (
     <div
-      className="shell"
+      className={`shell${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}
       data-platform={platform ?? 'unknown'}
       data-theme={prefs.theme}
       data-accent={prefs.accent}
@@ -358,7 +409,11 @@ export default function App(): React.JSX.Element {
       data-motion={prefs.motion}
       style={accentVars(prefs) as React.CSSProperties}
     >
-      <aside className="sidebar" style={{ width: `${sidebarWidth}px` }}>
+      <aside
+        className="sidebar"
+        style={sidebarCollapsed ? undefined : { width: `${sidebarWidth}px` }}
+        aria-hidden={sidebarCollapsed}
+      >
         <div className="traffic-spacer" aria-hidden />
         <div className="brand">
           <div className="brand-logo-frame">
@@ -371,6 +426,14 @@ export default function App(): React.JSX.Element {
             </div>
             <p className="brand-tagline">{APP_TAGLINE}</p>
           </div>
+          <button
+            className="mini-btn sidebar-collapse-btn"
+            onClick={() => setSidebarCollapsed(true)}
+            title="Collapse sidebar (⌘B)"
+            aria-label="Collapse sidebar"
+          >
+            ⟨
+          </button>
         </div>
 
         <button className="btn mint attach-cta" onClick={() => setShowWizard(true)}>
@@ -424,9 +487,19 @@ export default function App(): React.JSX.Element {
         </div>
 
         <div className="side-foot">
-          <button className="settings-btn" onClick={() => setShowSettings(true)}>
-            <span aria-hidden>⚙</span> Settings
-          </button>
+          <div className="side-foot-row">
+            <button className="settings-btn" onClick={() => setShowSettings(true)}>
+              <span aria-hidden>⚙</span> Settings
+            </button>
+            <button
+              className="quit-btn"
+              onClick={() => window.api.app.quit()}
+              title="Quit Blobfish"
+              aria-label="Quit Blobfish"
+            >
+              <span aria-hidden>⏻</span>
+            </button>
+          </div>
           <span className="status-sub">
             {accounts.length} {accounts.length === 1 ? 'connection' : 'connections'} · OS Keychain encrypted{appVersion ? ` · v${appVersion}` : ''}
           </span>
@@ -447,6 +520,16 @@ export default function App(): React.JSX.Element {
       />
 
       <div className="content no-topbar">
+        {sidebarCollapsed && (
+          <button
+            className="sidebar-expand-btn"
+            onClick={() => setSidebarCollapsed(false)}
+            title="Expand sidebar (⌘B)"
+            aria-label="Expand sidebar"
+          >
+            ⟩
+          </button>
+        )}
         <main className="view">
           {showSettings ? (
             <SettingsView

@@ -262,7 +262,9 @@ export function SettingsView(props: {
           <h4>Transfers</h4>
           <div className="setting-row inline">
             <div className="setting-label">
-              Upload connections per file: <code>{prefs.uploadConcurrency}</code>
+              <span className="setting-title-row">
+                Upload connections per file: <code>{prefs.uploadConcurrency}</code>
+              </span>
               <span className="muted small setting-hint">More saturate fast links; fewer are kinder to small networks and Azurite.</span>
             </div>
             <input
@@ -277,7 +279,9 @@ export function SettingsView(props: {
           </div>
           <div className="setting-row inline">
             <div className="setting-label">
-              Simultaneous transfers: <code>{prefs.maxParallel}</code>
+              <span className="setting-title-row">
+                Simultaneous transfers: <code>{prefs.maxParallel}</code>
+              </span>
               <span className="muted small setting-hint">Downloads stream on a single connection each.</span>
             </div>
             <input
