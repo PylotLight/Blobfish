@@ -1,17 +1,16 @@
 # Blobfish
 
 A fast, native Azure Blob Storage explorer — a lighter replacement for Azure Storage
-Explorer. Built from the [bun-electron-app starter template](https://github.com/PylotLight/bun-electron-app)
-(Bun + Electron + React + Vite + TypeScript).
+Explorer. Bun + Electron + React + Vite + TypeScript.
 
-> Status: day 0. Template identity applied, builds clean. Explorer features land next —
-> see the roadmap.
+> Status: working explorer (accounts, browse, CRUD, transfers, previews, Azurite).
+> See [docs/roadmap.md](docs/roadmap.md) for the full review and what's next.
 
 ## Why
 
 Azure Storage Explorer is itself Electron-based but heavy and sluggish for large
-containers. Blobfish aims for: instant startup, virtualized blob lists that stay smooth
-at 100k+ items, background transfers that live in the tray, and first-class support for
+containers. Blobfish aims for: instant startup, predictable blob lists, background
+transfers that live in the tray, and first-class support for
 local Azurite development.
 
 ## Install
@@ -41,6 +40,17 @@ brew install --cask blobfish --no-quarantine
 ```
 Linux isn't packaged in releases yet; run from source below.
 
+**npm / Bun (convenience):**
+
+```bash
+bunx blobfish
+```
+
+This downloads the npm package (including Electron, ~100 MB on first run) and
+launches the built app. It requires a published `out/` build in the package;
+for the signed, auto-updated-feeling install prefer Homebrew or a GitHub
+release asset above.
+
 ## Quickstart
 
 ```bash
@@ -49,21 +59,28 @@ bun run dev
 bun run build && bun run start
 ```
 
+Shortcuts: `⌘F` / `Ctrl+F` focuses search, `⌘B` / `Ctrl+B` collapses or expands
+the sidebar. Repeated auth failures (e.g. selecting a container while off VPN)
+collapse into a single "Access denied (403)" banner and one activity entry.
+
 Template docs (architecture, bridge rules, vibrancy, troubleshooting) live in `docs/`
 and apply as-is. Cutting a release: `bun run release` — see
 [docs/releasing.md](docs/releasing.md).
 
 ## Roadmap
 
-- [ ] **Accounts** — connection strings, SAS tokens, Entra ID (device code); stored in the
-  OS keychain via `safeStorage`, never on disk in plaintext
-- [ ] **Browse** — containers → virtualized blob list, prefix navigation, search,
-  sorting, blob properties + metadata
-- [ ] **Transfer** — parallel block-blob upload/download with progress, pause/resume,
-  background completion in the tray
-- [ ] **Preview** — text/image preview in-app, external open for the rest
-- [ ] **Azurite** — one-click local emulator profile for development
-- [ ] **Polish** — branded tray icons, expiry-aware SAS warnings, transfer history
+- [x] **Accounts** — connection strings, SAS URLs, account key + custom endpoint;
+  secrets in the OS keychain via `safeStorage`, never on disk in plaintext
+- [x] **Browse** — containers → blob hierarchy, prefix navigation, search,
+  sorting, breadcrumb + back/forward, Quick Access pins, collapsible sidebar
+- [x] **Transfer** — parallel block-blob upload/download with progress dock,
+  cancel/retry, background completion in the tray
+- [x] **Preview** — range-based text/CSV preview tabs in-app
+- [x] **Azurite** — one-click local emulator profile for development
+- [x] **Polish** — themes/accents/density/motion settings, tray icons,
+  expiry-aware SAS warnings, transfer + activity history
+- [ ] **Scale** — virtualized lists, server-side paging indicators, short-TTL
+  blob-list cache (see [docs/roadmap.md](docs/roadmap.md) §1.2/§3)
 
-Planned SDK: `@azure/storage-blob` in main, chunked transfers in a utility worker,
-all UI through the existing typed `window.api` bridge.
+All UI goes through the typed `window.api` bridge; Azure SDK calls stay in
+`src/main`.
