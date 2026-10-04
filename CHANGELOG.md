@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-10-04
+
+### Added
+
+- **(preview)** Range-based text/CSV file previews ([e6f4791](https://github.com/PylotLight/Blobfish/commit/e6f479158d8f0a941bed5f90a6de6b47db23dabe))
+- **(explorer)** Tabbed previews, click-to-select, context menu, flat pinned containers ([97f44db](https://github.com/PylotLight/Blobfish/commit/97f44db803660f756584b4f4356fab12ab475cb1))
+- **(ui)** Collapsible sidebar, quit button, settings width fix, single-frame logo ([a97caf9](https://github.com/PylotLight/Blobfish/commit/a97caf93e216f74413fffcfcdde0e5d093312f3f))
+- **(cli)** Npm/bunx launcher for Blobfish ([efd5edd](https://github.com/PylotLight/Blobfish/commit/efd5edd1ecaf0d4b493f61cd02c316ea883dc0c4))
+
+### Documentation
+
+- Refresh status, shortcuts, npm install, roadmap ([0b38d5b](https://github.com/PylotLight/Blobfish/commit/0b38d5be5017847ba25a8fbe81153b174dd2f939))
+
+### Fixed
+
+- **(sas)** Scope-aware container clients, pin containers, resizable grid, sas autofill ([dcd901c](https://github.com/PylotLight/Blobfish/commit/dcd901c2ac314269946b44130f6b81c8c8b5f4ca))
+- **(ui)** Single-root breadcrumb for scoped containers, row-count preview footer, readable context menu ([6d57139](https://github.com/PylotLight/Blobfish/commit/6d57139fc47ef76965d92c4b38e27b1644978a35))
+- **(errors)** One 403 for one outage, deduped activity, stale-request guards ([90e3257](https://github.com/PylotLight/Blobfish/commit/90e32571d82e28d1e6866dbab54bc97e7a6c6fc9))
+
 ## [0.1.1] - 2026-10-03
 
 ### Fixed
@@ -42,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Blobfish identity on starter template (config, package, readme) ([9718d04](https://github.com/PylotLight/Blobfish/commit/9718d04614759cf98264fabd561785edc44b67a8))
 - Add app build/icon assets ([d4780b7](https://github.com/PylotLight/Blobfish/commit/d4780b7d445fc77be83edf8161ff639de448e3cb))
 
+[0.1.2]: https://github.com/PylotLight/Blobfish/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/PylotLight/Blobfish/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/PylotLight/Blobfish/releases/tag/v0.1.0
 
