@@ -48,9 +48,10 @@ Linux isn't packaged in releases yet; run from source below.
 bunx blobfish
 ```
 
-This downloads the npm package (including Electron, ~100 MB on first run) and
-launches the built app. It requires a published `out/` build in the package;
-for the signed, auto-updated-feeling install prefer Homebrew or a GitHub
+This downloads the npm package and launches the built app. On first run the
+launcher fetches a pinned Electron via your own runner (`bunx`/`npx`, ~100 MB,
+cached afterwards) — no separate install step. It requires a published `out/`
+build in the package; for the signed install prefer Homebrew or a GitHub
 release asset above.
 
 ## Quickstart

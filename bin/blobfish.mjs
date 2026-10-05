@@ -2,15 +2,16 @@
 // `bunx blobfish` / `npx blobfish` launcher.
 //
 // This package ships the built Electron main process under `out/` plus this
-// shim. The shim resolves the Electron binary from the installed `electron`
-// dependency and launches the app — no global install needed.
+// shim. The shim launches the app with an Electron binary, resolved in order:
+//   1. the `electron` dependency (source checkouts), or
+//   2. an on-demand `electron@<pinned>` fetched via bunx/npx (~100 MB, cached).
 //
 // Primary distribution remains the signed GitHub artifacts + Homebrew cask
 // (see README); npm is a convenience path for folks who already live in
-// Bun/Node. First run downloads Electron (~100 MB) via the `electron`
-// dependency — expected, not a bug.
-import { spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
+// Bun/Node. `electron` must stay in devDependencies — electron-builder
+// refuses to package otherwise — hence the on-demand fallback.
+import { spawnSync } from 'node:child_process'
+import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -27,19 +28,35 @@ if (!existsSync(main)) {
   process.exit(1)
 }
 
-let electronBin
+const args = [main, ...process.argv.slice(2)]
+
+// 1. Electron alongside the package (dev/source installs).
 try {
-  electronBin = createRequire(import.meta.url)('electron')
+  const electronBin = createRequire(import.meta.url)('electron')
+  const child = spawnSync(electronBin, args, { stdio: 'inherit' })
+  process.exit(child.status ?? 1)
 } catch {
-  console.error('blobfish: the `electron` dependency is missing. Reinstall with `bun install`.')
-  process.exit(1)
+  // Not installed here — fall through to the on-demand fetch below.
 }
 
-const child = spawn(electronBin, [main, ...process.argv.slice(2)], {
-  detached: true,
-  stdio: 'inherit'
-})
-child.on('error', (err) => {
-  console.error(`blobfish: failed to launch Electron: ${err.message}`)
+// 2. Fetch a pinned Electron via the caller's own runner (cached after first run).
+let pinned = 'electron'
+try {
+  const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+  const range = pkg.devDependencies?.electron
+  if (typeof range === 'string' && range.length > 0) pinned = `electron@${range}`
+} catch {
+  // Unpinned fallback is fine — any recent Electron runs the built app.
+}
+
+const runner = process.versions.bun ? 'bunx' : 'npx'
+const runnerArgs = process.versions.bun ? [pinned, ...args] : ['--yes', pinned, ...args]
+const child = spawnSync(runner, runnerArgs, { stdio: 'inherit' })
+if (child.error) {
+  console.error(
+    `blobfish: could not launch Electron (${child.error.message}).\n` +
+      `Install it once with \`${runner} ${pinned} --version\`, then retry.`
+  )
   process.exit(1)
-})
+}
+process.exit(child.status ?? 1)

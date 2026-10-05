@@ -89,6 +89,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
+    "electron": "^44.5.1",
     "electron-builder": "^26.0.0",
     "electron-vite": "^5.0.0",
     "typescript": "~5.9.2",
@@ -97,7 +98,6 @@
   "dependencies": {
     "@azure/storage-blob": "^12.34.0",
     "@azure/storage-file-datalake": "^12.31.0",
-    "electron": "^44.5.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   }
