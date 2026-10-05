@@ -3,9 +3,9 @@
 cask "blobfish" do
   arch arm: "arm64", intel: "x64"
 
-  version "0.1.1"
-  sha256 arm:   "84b6679403a2637c289797c80cadc9706ed821e600613ded04159393d575dca0",
-         intel: "bc113857caf237992fa44414670a39ad033bb057ec9912ce480bd72be587d63c"
+  version "0.1.2"
+  sha256 arm:   "f00fe465fed2cfbc97c5769de3f2af3bba80c2ed76cee1fec076cbf4c252d819",
+         intel: "aedc5b1dd346ea7f143d3bb6cccf80141bf215fe1db5401d700c5851b25ce578"
 
   url "https://github.com/PylotLight/Blobfish/releases/download/v#{version}/Blobfish-#{version}-mac-#{arch}.zip"
   name "Blobfish"
