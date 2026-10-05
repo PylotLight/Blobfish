@@ -19,8 +19,8 @@ cask "blobfish" do
   caveats <<~EOS
     Blobfish is unsigned. If macOS reports it is "damaged", run:
       xattr -cr /Applications/Blobfish.app
-    Or reinstall without the quarantine flag:
-      brew reinstall --cask --no-quarantine blobfish
+    (Homebrew removed the --no-quarantine flag in v6, so clearing the
+    quarantine flag manually is now required.)
   EOS
 
   zap trash: [

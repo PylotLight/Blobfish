@@ -32,11 +32,13 @@ not a bad build. Click Cancel (don't trash it), then clear the quarantine flag:
 xattr -cr /Applications/Blobfish.app
 ```
 
-and open again (right-click → Open on first launch). Or skip the quarantine
-entirely with Homebrew:
+and open again (right-click → Open on first launch). If Gatekeeper still blocks
+it, install normally then clear the flag yourself (Homebrew removed its
+`--no-quarantine` option in v6, so this is now the only path):
 
 ```bash
-brew install --cask blobfish --no-quarantine
+brew install --cask blobfish
+xattr -cr /Applications/Blobfish.app
 ```
 Linux isn't packaged in releases yet; run from source below.
 

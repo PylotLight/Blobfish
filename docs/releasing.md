@@ -66,10 +66,10 @@ fills in real values.
 Artifacts ship unsigned for now: macOS Gatekeeper quarantines the download, and
 on recent macOS (26/Tahoe especially) the first open can show
 "“Blobfish” is damaged and can’t be opened" instead of the usual unsigned-app
-warning. It means unsigned + quarantined, not a corrupt build. Workarounds:
+warning. It means unsigned + quarantined, not a corrupt build. Workaround:
 click Cancel, then `xattr -cr /Applications/Blobfish.app` and open again
-(right-click → Open on first launch), or `brew install --cask blobfish
---no-quarantine` to skip the quarantine flag entirely.
+(right-click → Open on first launch). Homebrew deprecated and then removed
+its `--no-quarantine` flag (v5/v6), so manual `xattr` is now the only path.
 
 To sign and notarize later, add these secrets and electron-builder picks them
 up automatically — no workflow changes needed (the `mac` target already sets
