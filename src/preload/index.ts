@@ -77,6 +77,9 @@ const api = {
       ipcRenderer.invoke('accounts:pin', id, pinned),
     pinContainer: (id: string, container: string): Promise<AccountSummary> =>
       ipcRenderer.invoke('accounts:pin-container', id, container),
+    copySecret: (id: string): Promise<boolean> => ipcRenderer.invoke('accounts:copy-secret', id),
+    exportSecret: (id: string): Promise<{ saved: boolean; path?: string }> =>
+      ipcRenderer.invoke('accounts:export-secret', id),
     azuriteTemplate: (): Promise<string> => ipcRenderer.invoke('accounts:azurite-template')
   },
   storage: {
@@ -128,6 +131,8 @@ const api = {
       ipcRenderer.invoke('activity:delete-file', args),
     revealFile: (localPath: string): Promise<boolean> =>
       ipcRenderer.invoke('activity:reveal-file', localPath),
+    openFile: (localPath: string): Promise<{ success: boolean; message: string }> =>
+      ipcRenderer.invoke('activity:open-file', localPath),
     onUpdate: (cb: (entries: ActivityEntry[]) => void): (() => void) => {
       const handler = (_event: IpcRendererEvent, entries: ActivityEntry[]): void => cb(entries)
       ipcRenderer.on('activity:changed', handler)

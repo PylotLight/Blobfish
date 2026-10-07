@@ -1,5 +1,6 @@
-import { app, ipcMain, Notification, shell, type IpcMainInvokeEvent } from 'electron'
+import { app, clipboard, dialog, ipcMain, Notification, shell, type IpcMainInvokeEvent } from 'electron'
 import * as os from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { getGlassState, getMainWindow, setGlassVibrancy, showWindow } from './window'
 import type {
   AccountCreateInput,
@@ -26,6 +27,7 @@ import type {
 } from '../shared/types'
 import {
   addAccount,
+  decryptSecret,
   encryptionAvailable,
   listAccounts,
   pinContainerAttachment,
@@ -33,7 +35,7 @@ import {
   setPinned,
   updateAccount
 } from './accounts'
-import { clearActivities, deleteDownloadedFile, listActivities } from './activity'
+import { clearActivities, deleteDownloadedFile, listActivities, logActivity } from './activity'
 import {
   azuriteConnectionString,
   createContainer,
@@ -179,6 +181,49 @@ export function registerIpc(): void {
   )
   ipcMain.handle('accounts:azurite-template', (): string => azuriteConnectionString())
   ipcMain.handle(
+    'accounts:copy-secret',
+    (_event: IpcMainInvokeEvent, id: string): boolean => {
+      const { profile, secret } = decryptSecret(id)
+      clipboard.writeText(secret)
+      logActivity({
+        kind: 'connection',
+        text: `Copied secret for '${profile.name}' to clipboard`,
+        status: 'success'
+      })
+      return true
+    }
+  )
+  ipcMain.handle(
+    'accounts:export-secret',
+    async (
+      _event: IpcMainInvokeEvent,
+      id: string
+    ): Promise<{ saved: boolean; path?: string }> => {
+      const { profile, secret } = decryptSecret(id)
+      const safeName = profile.name.replace(/[^\w.-]+/g, '_').slice(0, 80) || 'connection'
+      const win = getMainWindow()
+      const saveOpts = {
+        title: `Export secret for ${profile.name}`,
+        defaultPath: `${safeName}-secret.txt`,
+        filters: [
+          { name: 'Text', extensions: ['txt'] },
+          { name: 'All files', extensions: ['*'] }
+        ]
+      }
+      const res = win
+        ? await dialog.showSaveDialog(win, saveOpts)
+        : await dialog.showSaveDialog(saveOpts)
+      if (res.canceled || !res.filePath) return { saved: false }
+      writeFileSync(res.filePath, secret, 'utf8')
+      logActivity({
+        kind: 'connection',
+        text: `Exported secret for '${profile.name}' to file`,
+        status: 'success'
+      })
+      return { saved: true, path: res.filePath }
+    }
+  )
+  ipcMain.handle(
     'storage:list-containers',
     (_event: IpcMainInvokeEvent, accountId: string): Promise<StorageContainer[]> =>
       listContainers(accountId)
@@ -269,6 +314,18 @@ export function registerIpc(): void {
     (_event: IpcMainInvokeEvent, localPath: string): boolean => {
       shell.showItemInFolder(localPath)
       return true
+    }
+  )
+  ipcMain.handle(
+    'activity:open-file',
+    async (
+      _event: IpcMainInvokeEvent,
+      localPath: string
+    ): Promise<{ success: boolean; message: string }> => {
+      if (!localPath) return { success: false, message: 'File path unknown.' }
+      const err = await shell.openPath(localPath)
+      if (err) return { success: false, message: err }
+      return { success: true, message: 'Opened.' }
     }
   )
 }

@@ -53,6 +53,8 @@ export default function App(): React.JSX.Element {
   const [quickOpen, setQuickOpen] = useState(true)
   const [allOpen, setAllOpen] = useState(true)
   const [attachedOpen, setAttachedOpen] = useState(true)
+  const [copiedSecretId, setCopiedSecretId] = useState<string | null>(null)
+  const [secretError, setSecretError] = useState<string | null>(null)
 
   const refreshAccounts = useCallback(() => {
     window.api.accounts
@@ -247,6 +249,31 @@ export default function App(): React.JSX.Element {
     }
   }
 
+  function copySecret(id: string): void {
+    // Secret never enters renderer JS — main decrypts and writes clipboard directly.
+    setSecretError(null)
+    window.api.accounts
+      .copySecret(id)
+      .then(() => {
+        setCopiedSecretId(id)
+        window.setTimeout(() => setCopiedSecretId((cur) => (cur === id ? null : cur)), 1600)
+      })
+      .catch((err: unknown) => {
+        console.error(err)
+        setSecretError(err instanceof Error ? err.message : String(err))
+      })
+  }
+
+  function exportSecret(id: string): void {
+    setSecretError(null)
+    window.api.accounts
+      .exportSecret(id)
+      .catch((err: unknown) => {
+        console.error(err)
+        setSecretError(err instanceof Error ? err.message : String(err))
+      })
+  }
+
   function accountRow(a: AccountSummary): React.JSX.Element {
     const isActive = a.id === selectedId
     const isOpen = expanded[a.id] ?? false
@@ -361,6 +388,20 @@ export default function App(): React.JSX.Element {
             </button>
             <button
               className="mini-btn"
+              title="Copy connection secret (SAS URL / connection string) to clipboard"
+              onClick={() => copySecret(a.id)}
+            >
+              {copiedSecretId === a.id ? '✓' : '⧉'}
+            </button>
+            <button
+              className="mini-btn"
+              title="Export connection secret to a .txt file"
+              onClick={() => exportSecret(a.id)}
+            >
+              ⤓
+            </button>
+            <button
+              className="mini-btn"
               title="Rename"
               onClick={() => {
                 setRenamingId(a.id)
@@ -441,6 +482,9 @@ export default function App(): React.JSX.Element {
         </button>
         {encAvailable === false && (
           <p className="error-text small">Keychain encryption unavailable — attach disabled.</p>
+        )}
+        {secretError && (
+          <p className="error-text small">Secret action failed: {secretError}</p>
         )}
 
         <div className="tree-scroll">
