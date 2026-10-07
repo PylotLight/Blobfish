@@ -1,6 +1,6 @@
 {
   "name": "blobfish",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Fast native Azure Blob Storage explorer (Bun + Electron)",
   "license": "MIT",
   "author": "PylotLight <lochois@gmail.com>",

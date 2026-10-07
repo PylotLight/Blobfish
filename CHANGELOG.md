@@ -5,7 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.2] - 2026-10-04
+## [0.2.0] - 2026-10-07
+
+### Added
+
+- **(accounts)** Copy/export connection secret per connection ([9933d5c](https://github.com/PylotLight/Blobfish/commit/9933d5c2f6ee76bf193c8a83f36fce0ba03a8853))
+- **(transfers)** Open/reveal downloaded files from dock ([ca92eb5](https://github.com/PylotLight/Blobfish/commit/ca92eb53a3c5e6cf40d26a61af5d62ea19de75ff))
+- **(preview)** Sortable and filterable CSV columns ([634528a](https://github.com/PylotLight/Blobfish/commit/634528ab4c1caeddcb9d62c852c1ada4649e5cb4))
+
+### Fixed
+
+- **(transfers)** Download selected files flat, not parent dir ([7ac904f](https://github.com/PylotLight/Blobfish/commit/7ac904f6476b067f3c88eb3f46efd90ca5d6306e))
+
+## [0.1.2] - 2026-10-05
 
 ### Added
 
@@ -17,12 +29,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation
 
 - Refresh status, shortcuts, npm install, roadmap ([0b38d5b](https://github.com/PylotLight/Blobfish/commit/0b38d5be5017847ba25a8fbe81153b174dd2f939))
+- Homebrew removed --no-quarantine, manual xattr is the only path ([d458e98](https://github.com/PylotLight/Blobfish/commit/d458e982f9f8edc63f07652b995165ee06d54bc2))
 
 ### Fixed
 
 - **(sas)** Scope-aware container clients, pin containers, resizable grid, sas autofill ([dcd901c](https://github.com/PylotLight/Blobfish/commit/dcd901c2ac314269946b44130f6b81c8c8b5f4ca))
 - **(ui)** Single-root breadcrumb for scoped containers, row-count preview footer, readable context menu ([6d57139](https://github.com/PylotLight/Blobfish/commit/6d57139fc47ef76965d92c4b38e27b1644978a35))
 - **(errors)** One 403 for one outage, deduped activity, stale-request guards ([90e3257](https://github.com/PylotLight/Blobfish/commit/90e32571d82e28d1e6866dbab54bc97e7a6c6fc9))
+- **(cli)** Keep electron in devDependencies, fetch it on demand in launcher ([3119e10](https://github.com/PylotLight/Blobfish/commit/3119e10893b2c5d58359c0013a2e0abc0337a6fa))
 
 ## [0.1.1] - 2026-10-03
 
@@ -61,6 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Blobfish identity on starter template (config, package, readme) ([9718d04](https://github.com/PylotLight/Blobfish/commit/9718d04614759cf98264fabd561785edc44b67a8))
 - Add app build/icon assets ([d4780b7](https://github.com/PylotLight/Blobfish/commit/d4780b7d445fc77be83edf8161ff639de448e3cb))
 
+[0.2.0]: https://github.com/PylotLight/Blobfish/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/PylotLight/Blobfish/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/PylotLight/Blobfish/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/PylotLight/Blobfish/releases/tag/v0.1.0
