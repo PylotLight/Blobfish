@@ -2679,6 +2679,7 @@ li.done .wiz-num {
   display: flex;
   gap: 2px;
   flex-shrink: 0;
+  align-items: center;
 }
 
 .t-done {
@@ -3664,6 +3665,60 @@ th.wide {
 
 .csv-table tbody tr:hover td {
   background: rgba(126, 226, 168, 0.05);
+}
+
+.csv-sort {
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  max-width: 100%;
+}
+
+.csv-sort:hover .csv-sort-label {
+  text-decoration: underline;
+}
+
+.csv-sort-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.csv-sort-arrow {
+  opacity: 0.75;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.csv-filter {
+  display: block;
+  margin-top: 6px;
+  width: 130px;
+  max-width: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 400;
+  padding: 4px 8px;
+}
+
+.csv-filter::placeholder {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.activity-file-actions {
+  gap: 12px;
+  margin-top: 4px;
 }
 
 .text-view {

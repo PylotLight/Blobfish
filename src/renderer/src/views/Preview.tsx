@@ -43,6 +43,16 @@ export default function PreviewDialog(props: {
   const [error, setError] = useState<string | null>(null)
   const [view, setView] = useState<'table' | 'raw'>('table')
   const [pretty, setPretty] = useState(true)
+  const [sortCol, setSortCol] = useState<number | null>(null)
+  const [sortDir, setSortDir] = useState<1 | -1>(1)
+  const [colFilters, setColFilters] = useState<string[]>([])
+
+  // Fresh file → fresh filters/sort.
+  useEffect(() => {
+    setSortCol(null)
+    setSortDir(1)
+    setColFilters([])
+  }, [accountId, container, name])
 
   useEffect(() => {
     if (props.inline) return
@@ -135,9 +145,55 @@ export default function PreviewDialog(props: {
   const rowCount = rows.length
   const header = rows[0] ?? []
   const body = rows.slice(1)
-  const renderedBody = body.slice(0, PREVIEW_RENDER_LINES)
-  const hiddenRows = body.length - renderedBody.length
-  const colCount = Math.max(header.length, ...renderedBody.slice(0, 20).map((r) => r.length), 1)
+  const colCount = Math.max(header.length, ...body.slice(0, 20).map((r) => r.length), 1)
+
+  function toggleSort(ci: number): void {
+    if (sortCol !== ci) {
+      setSortCol(ci)
+      setSortDir(1)
+    } else if (sortDir === 1) {
+      setSortDir(-1)
+    } else {
+      setSortCol(null)
+      setSortDir(1)
+    }
+  }
+
+  function setColFilter(ci: number, value: string): void {
+    setColFilters((prev) => {
+      const next = [...prev]
+      while (next.length <= ci) next.push('')
+      next[ci] = value
+      return next
+    })
+  }
+
+  const filteredBody = useMemo(() => {
+    const active = Array.from({ length: colCount }, (_, ci) => (colFilters[ci] ?? '').trim().toLowerCase())
+    const hasFilter = active.some((f) => f !== '')
+    let out = hasFilter
+      ? body.filter((r) => active.every((f, ci) => f === '' || (r[ci] ?? '').toLowerCase().includes(f)))
+      : [...body]
+    if (sortCol !== null) {
+      const ci = sortCol
+      out = [...out].sort((a, b) => {
+        const av = a[ci] ?? ''
+        const bv = b[ci] ?? ''
+        const an = parseFloat(av)
+        const bn = parseFloat(bv)
+        let cmp: number
+        if (av !== '' && bv !== '' && !Number.isNaN(an) && !Number.isNaN(bn)) cmp = an - bn
+        else cmp = av.localeCompare(bv)
+        return cmp * sortDir
+      })
+    }
+    return out
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, colFilters, sortCol, sortDir, colCount])
+
+  const isFiltered = filteredBody.length !== body.length
+  const renderedBody = filteredBody.slice(0, PREVIEW_RENDER_LINES)
+  const hiddenRows = filteredBody.length - renderedBody.length
 
   const rawLines = view === 'raw' ? (pretty && prettyJson ? prettyJson : text).split('\n') : []
   const renderedLines = rawLines.slice(0, PREVIEW_RENDER_LINES)
@@ -235,12 +291,40 @@ export default function PreviewDialog(props: {
             </div>
           ) : view === 'table' && csv ? (
             <div className="csv-wrap" role="region" aria-label="CSV preview" tabIndex={0}>
+              {isFiltered && (
+                <p className="muted small preview-more-note">
+                  Showing {filteredBody.length} of {body.length} rows — filters apply to loaded rows only.
+                </p>
+              )}
               <table className="csv-table">
                 <thead>
                   <tr>
-                    {header.map((h, i) => (
-                      <th key={i}>{h === '' ? `col${i + 1}` : h}</th>
-                    ))}
+                    {Array.from({ length: colCount }, (_, i) => {
+                      const h = header[i] ?? ''
+                      const label = h === '' ? `col${i + 1}` : h
+                      return (
+                        <th key={i}>
+                          <button
+                            className="csv-sort"
+                            onClick={() => toggleSort(i)}
+                            title={sortCol === i ? `Sorted ${sortDir === 1 ? 'ascending' : 'descending'} — click to ${sortDir === 1 ? 'reverse' : 'clear'}` : `Sort by ${label}`}
+                          >
+                            <span className="csv-sort-label" title={label}>{label}</span>
+                            <span className="csv-sort-arrow" aria-hidden>
+                              {sortCol === i ? (sortDir === 1 ? ' ↑' : ' ↓') : ''}
+                            </span>
+                          </button>
+                          <input
+                            className="csv-filter"
+                            value={colFilters[i] ?? ''}
+                            onChange={(e) => setColFilter(i, e.target.value)}
+                            placeholder="Filter…"
+                            aria-label={`Filter ${label}`}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </th>
+                      )
+                    })}
                   </tr>
                 </thead>
                 <tbody>
