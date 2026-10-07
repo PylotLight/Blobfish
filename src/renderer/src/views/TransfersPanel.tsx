@@ -58,6 +58,24 @@ function TransferRow(props: { t: TransferInfo }): React.JSX.Element {
         </div>
       </div>
       <span className="t-actions">
+        {t.status === 'completed' && t.localPath && (
+          <>
+            <button
+              className="mini-btn"
+              title="Open with the default app"
+              onClick={() => void window.api.activity.openFile(t.localPath ?? '').catch(console.error)}
+            >
+              Open
+            </button>
+            <button
+              className="mini-btn"
+              title="Show in folder (Finder / Explorer)"
+              onClick={() => void window.api.activity.revealFile(t.localPath ?? '').catch(console.error)}
+            >
+              Reveal
+            </button>
+          </>
+        )}
         {(t.status === 'active' || t.status === 'queued') && (
           <button
             className="mini-btn"
@@ -97,6 +115,22 @@ function ActivityRow(props: { entry: ActivityEntry }): React.JSX.Element {
             .filter(Boolean)
             .join(' · ')}
         </div>
+        {entry.localPath && (
+          <div className="row activity-file-actions">
+            <button
+              className="linklike small"
+              onClick={() => void window.api.activity.openFile(entry.localPath ?? '').catch(console.error)}
+            >
+              Open file
+            </button>
+            <button
+              className="linklike small"
+              onClick={() => void window.api.activity.revealFile(entry.localPath ?? '').catch(console.error)}
+            >
+              Show in folder
+            </button>
+          </div>
+        )}
       </div>
     </li>
   )
