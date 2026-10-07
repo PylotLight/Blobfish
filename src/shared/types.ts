@@ -220,6 +220,8 @@ export interface TransferInfo {
   totalBytes: number
   doneBytes: number
   status: TransferStatus
+  /** Local filesystem path (download destination / upload source). */
+  localPath?: string
   /** Exponential moving average, bytes/sec. */
   speedBps?: number
   etaSec?: number

@@ -8,7 +8,6 @@ import { getMainWindow } from './window'
 import {
   blobContainerClientFromSecret,
   dataLakeFileSystemClientFromSecret,
-  expandFiles,
   friendlyError,
   isDfsEndpoint
 } from './azure'
@@ -104,6 +103,7 @@ function toInfo(t: ActiveTransfer): TransferInfo {
         ? remaining / t.speedBps
         : undefined,
     error: t.error,
+    localPath: t.spec.localPath,
     // Blob uploads stripe across N block connections; downloads and
     // DataLake paths report per-file progress on their own stream count.
     concurrency: t.spec.direction === 'upload' ? uploadConcurrency : 1,
@@ -305,6 +305,29 @@ async function runDfsDownload(t: ActiveTransfer): Promise<void> {
 
 /* ---------------- public ops ---------------- */
 
+/** Collision-safe destination: `report.csv` → `report (2).csv` when taken. */
+function uniqueDownloadPath(destDir: string, rel: string, used: Set<string>): string {
+  const clean = rel.replace(/^\/+/, '') || 'download'
+  let candidate = join(destDir, clean)
+  if (!used.has(candidate)) {
+    used.add(candidate)
+    return candidate
+  }
+  const slash = clean.lastIndexOf('/')
+  const dir = slash === -1 ? '' : clean.slice(0, slash + 1)
+  const file = slash === -1 ? clean : clean.slice(slash + 1)
+  const dot = file.lastIndexOf('.')
+  const stem = dot > 0 ? file.slice(0, dot) : file
+  const ext = dot > 0 ? file.slice(dot) : ''
+  let n = 2
+  while (used.has(candidate)) {
+    candidate = join(destDir, `${dir}${stem} (${n})${ext}`)
+    n += 1
+  }
+  used.add(candidate)
+  return candidate
+}
+
 export async function enqueueUpload(
   accountId: string,
   container: string,
@@ -352,13 +375,58 @@ export async function enqueueDownload(
   if (picked.canceled || picked.filePaths.length === 0) return []
   const destDir = picked.filePaths[0]!
   const { profile, secret } = decryptSecret(accountId)
-  const files = await expandFiles(profile.endpoint, secret, container, names)
-  const targets: Array<{ name: string; size?: number }> =
-    files.length > 0 ? files : names.filter((n) => !n.endsWith('/')).map((name) => ({ name }))
+  const dfs = isDfsEndpoint(profile.endpoint)
+  // Explicitly picked files download flat (basename only) — selecting files
+  // must never recreate parent dirs or pull in unpicked siblings. Selected
+  // folders expand to the files beneath them, preserved relative to the
+  // selected folder.
+  const targets: Array<{ name: string; size?: number; rel: string }> = []
+  const seenBlobs = new Set<string>()
+  const pushFile = (name: string, size: number | undefined, rel: string): void => {
+    if (!name || name.endsWith('/') || seenBlobs.has(name)) return
+    seenBlobs.add(name)
+    pushFileRaw(name, size, rel)
+  }
+  const pushFileRaw = (name: string, size: number | undefined, rel: string): void => {
+    targets.push({ name, size, rel: rel === '' ? basename(name) : rel })
+  }
+  for (const n of names.filter((x) => !x.endsWith('/'))) {
+    pushFileRaw(n, undefined, basename(n))
+    seenBlobs.add(n)
+  }
+  const folders = names.filter((n) => n.endsWith('/'))
+  if (dfs) {
+    const fs = dataLakeFileSystemClientFromSecret(secret, container)
+    for (const f of folders) {
+      const trimmed = f.replace(/\/$/, '')
+      for await (const p of fs.listPaths({
+        path: trimmed === '' ? undefined : trimmed,
+        recursive: true
+      })) {
+        if (p.isDirectory || !p.name) continue
+        const rel =
+          trimmed === '' || p.name === trimmed
+            ? basename(p.name)
+            : p.name.startsWith(`${trimmed}/`)
+              ? p.name.slice(trimmed.length + 1)
+              : basename(p.name)
+        pushFile(p.name, p.contentLength, rel)
+      }
+    }
+  } else {
+    const client = blobContainerClientFromSecret(secret, container)
+    for (const f of folders) {
+      for await (const b of client.listBlobsFlat({ prefix: f })) {
+        if (b.name.endsWith('/')) continue // folder marker, not a file
+        const rel = b.name === f || !b.name.startsWith(f) ? basename(b.name) : b.name.slice(f.length)
+        pushFile(b.name, b.properties?.contentLength, rel)
+      }
+    }
+  }
+  if (targets.length === 0) throw new Error('No files to download — the selected folder is empty.')
+  const usedPaths = new Set<string>()
   const ids: string[] = []
   for (const f of targets) {
-    // Preserve folder structure relative to the common root for multi-picks.
-    const rel = f.name.includes('/') ? f.name.slice(f.name.indexOf('/') + 1) : basename(f.name)
     ids.push(
       enqueue({
         direction: 'download',
@@ -366,9 +434,9 @@ export async function enqueueDownload(
         accountName: profile.name,
         container,
         name: f.name,
-        localPath: join(destDir, rel || basename(f.name)),
+        localPath: uniqueDownloadPath(destDir, f.rel, usedPaths),
         totalBytes: f.size ?? 0,
-        dfs: isDfsEndpoint(profile.endpoint)
+        dfs
       })
     )
   }
