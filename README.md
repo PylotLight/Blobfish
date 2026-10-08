@@ -6,6 +6,10 @@ Explorer. Bun + Electron + React + Vite + TypeScript.
 > Status: working explorer (accounts, browse, CRUD, transfers, previews, Azurite).
 > See [docs/roadmap.md](docs/roadmap.md) for the full review and what's next.
 
+![Blobfish browsing fictional Northwind Demo files in the product-assets container](docs/screenshots/explorer-synthetic-data.png)
+
+*Example screenshot using fictional data only; no live Azure account or credentials are used.*
+
 ## Why
 
 Azure Storage Explorer is itself Electron-based but heavy and sluggish for large
