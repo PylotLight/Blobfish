@@ -48,6 +48,8 @@ export default function PreviewDialog(props: {
   const [colFilters, setColFilters] = useState<string[]>([])
   /** Manual column widths (px) — undefined entries fall back to auto-size. */
   const [colWidths, setColWidths] = useState<Array<number | undefined>>([])
+  /** Which column's options popover is open (filter icon). */
+  const [openCol, setOpenCol] = useState<number | null>(null)
 
   // Fresh file → fresh filters/sort/widths.
   useEffect(() => {
@@ -55,7 +57,28 @@ export default function PreviewDialog(props: {
     setSortDir(1)
     setColFilters([])
     setColWidths([])
+    setOpenCol(null)
   }, [accountId, container, name])
+
+  // Outside-click / Escape dismisses the column options popover.
+  useEffect(() => {
+    if (openCol === null) return
+    const onDown = (e: PointerEvent): void => {
+      const el = e.target as HTMLElement | null
+      if (el?.closest('.csv-pop') ?? false) return
+      if (el?.closest('.csv-opt-btn') ?? false) return
+      setOpenCol(null)
+    }
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setOpenCol(null)
+    }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [openCol])
 
   useEffect(() => {
     if (props.inline) return
@@ -370,26 +393,82 @@ export default function PreviewDialog(props: {
                       const h = header[i] ?? ''
                       const label = h === '' ? `col${i + 1}` : h
                       const num = colMeta.numeric[i] ?? false
+                      const active = (colFilters[i] ?? '').trim() !== '' || sortCol === i
                       return (
                         <th key={i} className={num ? 'num' : undefined}>
-                          <button
-                            className="csv-sort"
-                            onClick={() => toggleSort(i)}
-                            title={sortCol === i ? `Sorted ${sortDir === 1 ? 'ascending' : 'descending'} — click to ${sortDir === 1 ? 'reverse' : 'clear'}` : `Sort by ${label}`}
-                          >
-                            <span className="csv-sort-label" title={label}>{label}</span>
-                            <span className="csv-sort-arrow" aria-hidden>
-                              {sortCol === i ? (sortDir === 1 ? ' ↑' : ' ↓') : ''}
-                            </span>
-                          </button>
-                          <input
-                            className="csv-filter"
-                            value={colFilters[i] ?? ''}
-                            onChange={(e) => setColFilter(i, e.target.value)}
-                            placeholder="Filter…"
-                            aria-label={`Filter ${label}`}
-                            onClick={(e) => e.stopPropagation()}
-                          />
+                          <div className="csv-head-row">
+                            <button
+                              className="csv-sort"
+                              onClick={() => toggleSort(i)}
+                              title={sortCol === i ? `Sorted ${sortDir === 1 ? 'ascending' : 'descending'} — click to ${sortDir === 1 ? 'reverse' : 'clear'}` : `Sort by ${label}`}
+                            >
+                              <span className="csv-sort-label" title={label}>{label}</span>
+                              <span className="csv-sort-arrow" aria-hidden>
+                                {sortCol === i ? (sortDir === 1 ? ' ↑' : ' ↓') : ''}
+                              </span>
+                            </button>
+                            <button
+                              className={`csv-opt-btn${active ? ' active' : ''}${openCol === i ? ' open' : ''}`}
+                              onClick={() => setOpenCol(openCol === i ? null : i)}
+                              title={`Filter and sort options for ${label}`}
+                              aria-label={`Filter and sort options for ${label}`}
+                              aria-expanded={openCol === i}
+                            >
+                              ▼
+                            </button>
+                          </div>
+                          {openCol === i && (
+                            <div className="csv-pop" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                className={`csv-pop-item${sortCol === i && sortDir === 1 ? ' selected' : ''}`}
+                                onClick={() => {
+                                  setSortCol(i)
+                                  setSortDir(1)
+                                  setOpenCol(null)
+                                }}
+                              >
+                                ↑ Sort ascending
+                              </button>
+                              <button
+                                className={`csv-pop-item${sortCol === i && sortDir === -1 ? ' selected' : ''}`}
+                                onClick={() => {
+                                  setSortCol(i)
+                                  setSortDir(-1)
+                                  setOpenCol(null)
+                                }}
+                              >
+                                ↓ Sort descending
+                              </button>
+                              {sortCol === i && (
+                                <button
+                                  className="csv-pop-item"
+                                  onClick={() => {
+                                    setSortCol(null)
+                                    setSortDir(1)
+                                  }}
+                                >
+                                  Clear sort
+                                </button>
+                              )}
+                              <div className="csv-pop-sep" aria-hidden />
+                              <input
+                                className="csv-pop-filter"
+                                value={colFilters[i] ?? ''}
+                                onChange={(e) => setColFilter(i, e.target.value)}
+                                placeholder={`Filter ${label}…`}
+                                aria-label={`Filter ${label}`}
+                                autoFocus
+                              />
+                              {(colFilters[i] ?? '').trim() !== '' && (
+                                <button
+                                  className="csv-pop-item"
+                                  onClick={() => setColFilter(i, '')}
+                                >
+                                  Clear filter
+                                </button>
+                              )}
+                            </div>
+                          )}
                           <span
                             className="csv-resizer"
                             onMouseDown={(e) => startCsvResize(e, i)}
