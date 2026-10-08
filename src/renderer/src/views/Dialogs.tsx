@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { StorageBlobItem } from '../../../shared/types'
 import { stripIpcWrapper } from './errors'
 
 function useDismiss(onCancel: () => void): void {
@@ -111,6 +112,162 @@ export function ConfirmDialog(props: {
   )
 }
 
+/** Folder picker — browse prefixes inside a container to choose a destination.
+ *  Submitting `''` means the container root. Stays open on failure so the
+ *  user can pick elsewhere (self-move guards, collisions). */
+export function FolderPickerDialog(props: {
+  title: string
+  accountId: string
+  container: string
+  confirmLabel?: string
+  onCancel: () => void
+  onSubmit: (destPrefix: string) => Promise<void>
+}): React.JSX.Element {
+  const [prefix, setPrefix] = useState('')
+  const [folders, setFolders] = useState<StorageBlobItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const seq = useRef(0)
+  useDismiss(props.onCancel)
+
+  useEffect(() => {
+    const id = ++seq.current
+    setLoading(true)
+    setError(null)
+    window.api.storage
+      .listBlobs({ accountId: props.accountId, container: props.container, prefix: prefix || undefined })
+      .then((res) => {
+        if (id !== seq.current) return
+        setFolders(res.items.filter((i) => i.isPrefix))
+      })
+      .catch((err: unknown) => {
+        if (id !== seq.current) return
+        setError(stripIpcWrapper(err instanceof Error ? err.message : String(err)))
+      })
+      .finally(() => {
+        if (id === seq.current) setLoading(false)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefix, props.accountId, props.container])
+
+  const crumbs = prefix === '' ? [] : prefix.split('/').filter(Boolean)
+
+  function go(next: string): void {
+    setError(null)
+    setPrefix(next)
+  }
+
+  async function create(): Promise<void> {
+    const leaf = newName.trim().replace(/^\/+|\/+$/g, '')
+    if (leaf === '' || leaf.includes('/') || creating) return
+    setCreating(true)
+    setError(null)
+    try {
+      await window.api.storage.createFolder({
+        accountId: props.accountId,
+        container: props.container,
+        prefix: prefix || undefined,
+        folderName: leaf
+      })
+      setNewName('')
+      // Enter the new folder so it can be picked immediately.
+      go(prefix ? `${prefix}/${leaf}` : leaf)
+    } catch (err) {
+      setError(stripIpcWrapper(err instanceof Error ? err.message : String(err)))
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  async function submit(): Promise<void> {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await props.onSubmit(prefix)
+      props.onCancel()
+    } catch (err) {
+      setError(stripIpcWrapper(err instanceof Error ? err.message : String(err)))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={props.onCancel}>
+      <div
+        className="modal glass strong dialog fade-in"
+        role="dialog"
+        aria-label={props.title}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3>{props.title}</h3>
+        <nav className="pick-crumb" aria-label="Destination path">
+          <button className="linklike small" onClick={() => go('')} title={props.container}>
+            {props.container}
+          </button>
+          {crumbs.map((seg, i) => (
+            <span key={i}>
+              <span className="sep"> / </span>
+              <button className="linklike small" onClick={() => go(crumbs.slice(0, i + 1).join('/'))}>
+                {seg}
+              </button>
+            </span>
+          ))}
+        </nav>
+        <div className="pick-list" role="listbox" aria-label="Folders">
+          {loading ? (
+            <div className="pick-empty muted small">Loading…</div>
+          ) : folders.length === 0 ? (
+            <div className="pick-empty muted small">No subfolders — pick this folder or create one below.</div>
+          ) : (
+            folders.map((f) => (
+              <button key={f.name} className="pick-row" role="option" aria-selected={false} onClick={() => go(f.name)} title={f.name}>
+                <span className="file-ico folder" aria-hidden />
+                <span>{f.leaf}</span>
+              </button>
+            ))
+          )}
+        </div>
+        <form
+          className="pick-new"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void create()
+          }}
+        >
+          <input
+            className="grow"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="New folder name…"
+            aria-label="New folder name"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <button type="submit" className="btn ghost small" disabled={newName.trim() === '' || creating}>
+            {creating ? 'Creating…' : 'Create'}
+          </button>
+        </form>
+        <p className="muted small pick-dest">
+          Destination: <code>{prefix === '' ? `${props.container} (root)` : prefix}</code>
+        </p>
+        {error && <p className="error-text">{error}</p>}
+        <div className="row end">
+          <button className="btn ghost" onClick={props.onCancel} disabled={busy}>
+            Cancel
+          </button>
+          <button className="btn mint" onClick={() => void submit()} disabled={busy}>
+            {busy ? 'Working…' : (props.confirmLabel ?? 'Select')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 /** Validated text input — replaces `window.prompt` everywhere. */
 export function PromptDialog(props: {
   title: string

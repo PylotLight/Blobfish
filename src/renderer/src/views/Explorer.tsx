@@ -6,7 +6,7 @@ import type {
   StorageContainer
 } from '../../../shared/types'
 import type { SelectionTarget } from '../App'
-import { ConfirmDialog, PromptDialog } from './Dialogs'
+import { ConfirmDialog, FolderPickerDialog, PromptDialog } from './Dialogs'
 import PreviewDialog from './Preview'
 import { formatBytes } from '../../../shared/format'
 import { parseStorageError, type ExplorerError } from './errors'
@@ -190,6 +190,7 @@ export default function Explorer(props: {
 
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [prompt, setPrompt] = useState<PromptState | null>(null)
+  const [moveCopy, setMoveCopy] = useState<{ mode: 'move' | 'copy'; names: string[] } | null>(null)
   // Tabbed previews (ASE-style): browse tab + one tab per open file.
   const [previewTabs, setPreviewTabs] = useState<PreviewTab[]>([])
   const [activeTab, setActiveTab] = useState<string | null>(null)
@@ -274,6 +275,7 @@ export default function Explorer(props: {
     setPreviewTabs([])
     setActiveTab(null)
     setCtx(null)
+    setMoveCopy(null)
     resetNav()
     if (!accountId) return
     loadContainers(accountId, account?.containerName ?? props.target?.container ?? undefined)
@@ -740,53 +742,49 @@ export default function Explorer(props: {
 
   function onMoveOrCopy(mode: 'move' | 'copy'): void {
     if (!accountId || !container || selection.size === 0) return
-    const sel = [...selection]
-    const verb = mode === 'move' ? 'Move' : 'Copy'
-    const past = verb === 'Move' ? 'Moved' : 'Copied'
-    setPrompt({
-      title: `${verb} ${sel.length} item${sel.length === 1 ? '' : 's'}`,
-      label: 'Destination folder',
-      placeholder: 'archive/2026',
-      hint: 'Folder path inside this container — created if missing. Empty = container root.',
-      confirmLabel: verb,
-      validate: (v) => (v.includes('\\') ? 'Folder cannot contain backslashes.' : null),
-      submit: async (v) => {
-        const dest = v
-          .split('/')
-          .map((s) => s.trim())
-          .filter(Boolean)
-          .join('/')
-        await run(mode, async () => {
-          const count =
-            mode === 'move'
-              ? await window.api.storage.moveBlobs({
-                  accountId,
-                  container,
-                  names: sel,
-                  destPrefix: dest || undefined
-                })
-              : await window.api.storage.copyBlobs({
-                  accountId,
-                  container,
-                  names: sel,
-                  destPrefix: dest || undefined
-                })
-          if (mode === 'move') {
-            // Close previews of blobs that no longer exist at their old path.
-            const removed = new Set(
-              previewTabs
-                .filter((t) => t.container === container && isSelectedPath(t.name, sel))
-                .map((t) => t.key)
-            )
-            if (removed.size > 0) {
-              setPreviewTabs((prev) => prev.filter((t) => !removed.has(t.key)))
-              setActiveTab((cur) => (cur && removed.has(cur) ? null : cur))
-            }
-          }
-          return `${past} ${count} item${count === 1 ? '' : 's'}${dest ? ` to "${dest}"` : ' to container root'}`
-        })
+    setMoveCopy({ mode, names: [...selection] })
+  }
+
+  /** Runs the picked move/copy. Throws on failure so the picker stays open. */
+  async function submitMoveCopy(dest: string): Promise<void> {
+    const job = moveCopy
+    if (!accountId || !container || !job) return
+    const { mode, names: sel } = job
+    const past = mode === 'move' ? 'Moved' : 'Copied'
+    setBusy(mode)
+    setActionError(null)
+    try {
+      const count =
+        mode === 'move'
+          ? await window.api.storage.moveBlobs({
+              accountId,
+              container,
+              names: sel,
+              destPrefix: dest || undefined
+            })
+          : await window.api.storage.copyBlobs({
+              accountId,
+              container,
+              names: sel,
+              destPrefix: dest || undefined
+            })
+      if (mode === 'move') {
+        // Close previews of blobs that no longer exist at their old path.
+        const removed = new Set(
+          previewTabs
+            .filter((t) => t.container === container && isSelectedPath(t.name, sel))
+            .map((t) => t.key)
+        )
+        if (removed.size > 0) {
+          setPreviewTabs((prev) => prev.filter((t) => !removed.has(t.key)))
+          setActiveTab((cur) => (cur && removed.has(cur) ? null : cur))
+        }
       }
-    })
+      flash(`${past} ${count} item${count === 1 ? '' : 's'}${dest ? ` to "${dest}"` : ' to container root'}`)
+      reloadBlobs()
+    } finally {
+      setBusy(null)
+    }
   }
 
   /* ---------- render ---------- */
@@ -1439,6 +1437,16 @@ export default function Explorer(props: {
           validate={prompt.validate}
           onCancel={() => setPrompt(null)}
           onSubmit={prompt.submit}
+        />
+      )}
+      {moveCopy && accountId && (
+        <FolderPickerDialog
+          title={`${moveCopy.mode === 'move' ? 'Move' : 'Copy'} ${moveCopy.names.length} item${moveCopy.names.length === 1 ? '' : 's'}`}
+          accountId={accountId}
+          container={container ?? ''}
+          confirmLabel={moveCopy.mode === 'move' ? 'Move here' : 'Copy here'}
+          onCancel={() => setMoveCopy(null)}
+          onSubmit={submitMoveCopy}
         />
       )}
       {notice && <div className="toast glass strong toast-in">{notice}</div>}
