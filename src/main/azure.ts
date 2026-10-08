@@ -472,6 +472,16 @@ export async function expandFiles(
   return out
 }
 
+/** Flat file names a delete/dry-run selection expands to (folders → contents). */
+export async function expandBlobNames(
+  accountId: string,
+  container: string,
+  names: string[]
+): Promise<string[]> {
+  const { profile, secret } = decryptSecret(accountId)
+  return (await expandFiles(profile.endpoint, secret, container, names)).map((f) => f.name)
+}
+
 export async function deleteNames(
   accountId: string,
   container: string,
@@ -482,15 +492,18 @@ export async function deleteNames(
   const { profile, secret } = decryptSecret(accountId)
   try {
     let count: number
+    let removed: string[]
     if (isDfsEndpoint(profile.endpoint)) {
       const fs = dataLakeFileSystemClientFromSecret(secret, container)
       // Directories first (recursive), then files.
       for (const n of names.filter((x) => x.endsWith('/'))) {
         await fs.getDirectoryClient(n.replace(/\/$/, '')).delete(true)
       }
+      removed = []
       count = 0
       for (const f of await expandFiles(profile.endpoint, secret, container, names)) {
         await fs.getFileClient(f.name).delete()
+        removed.push(f.name)
         count += 1
       }
     } else {
@@ -501,11 +514,14 @@ export async function deleteNames(
       await Promise.all(
         names.filter((n) => n.endsWith('/')).map((n) => client.deleteBlob(n).catch(() => {}))
       )
+      removed = [...flat, ...names.filter((n) => n.endsWith('/'))]
       count = flat.length
     }
+    const shown = removed.slice(0, 8).join(', ')
     logActivity({
       kind: 'blob',
       text: `Deleted ${count} item${count === 1 ? '' : 's'} from '${container}'`,
+      detail: removed.length > 0 ? `${shown}${removed.length > 8 ? ` (+${removed.length - 8} more)` : ''}` : undefined,
       status: 'success',
       durationMs: Date.now() - started
     })

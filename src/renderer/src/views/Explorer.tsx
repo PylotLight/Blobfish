@@ -705,24 +705,36 @@ export default function Explorer(props: {
       flash('Restore deleted blobs first — deleting them again removes them permanently.')
       return
     }
-    const n = selection.size
-    setConfirm({
-      title: `Delete ${n} item${n === 1 ? '' : 's'}?`,
-      body: 'Blobs are permanently deleted. Folders delete everything beneath them.',
-      items: [...selection],
-      confirmLabel: 'Delete',
-      run: async () => {
-        await run('delete', async () => {
-          const count = await window.api.storage.deleteBlobs({
-            accountId,
-            container,
-            names: [...selection]
-          })
-          dropTabsForNames(container, [...selection])
-          return `Deleted ${count} item${count === 1 ? '' : 's'}`
+    // Expand folders first so the confirm shows the true blast radius —
+    // what you see is exactly what will be deleted.
+    const sel = [...selection]
+    setBusy('delete')
+    setActionError(null)
+    window.api.storage
+      .expandBlobs({ accountId, container, names: sel })
+      .then((flat) => {
+        const files = flat.filter((n) => !n.endsWith('/'))
+        const targets = files.length > 0 ? files : sel
+        setConfirm({
+          title: `Delete ${targets.length} item${targets.length === 1 ? '' : 's'}?`,
+          body: 'Blobs are permanently deleted. Folders delete everything beneath them.',
+          items: targets,
+          confirmLabel: 'Delete',
+          run: async () => {
+            await run('delete', async () => {
+              const count = await window.api.storage.deleteBlobs({
+                accountId,
+                container,
+                names: sel
+              })
+              dropTabsForNames(container, sel)
+              return `Deleted ${count} item${count === 1 ? '' : 's'}`
+            })
+          }
         })
-      }
-    })
+      })
+      .catch((err: unknown) => fail(err, 'action'))
+      .finally(() => setBusy(null))
   }
 
   function onRename(): void {

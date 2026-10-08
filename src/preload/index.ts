@@ -101,6 +101,8 @@ const api = {
       ipcRenderer.invoke('storage:create-folder', args),
     deleteBlobs: (args: DeleteBlobsArgs): Promise<number> =>
       ipcRenderer.invoke('storage:delete-blobs', args),
+    expandBlobs: (args: DeleteBlobsArgs): Promise<string[]> =>
+      ipcRenderer.invoke('storage:expand-blobs', args),
     copyBlobs: (args: CopyBlobsArgs): Promise<number> =>
       ipcRenderer.invoke('storage:copy-blobs', args),
     moveBlobs: (args: MoveBlobsArgs): Promise<number> =>

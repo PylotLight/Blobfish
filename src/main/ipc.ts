@@ -49,6 +49,7 @@ import {
   createFolder,
   deleteContainer,
   deleteNames,
+  expandBlobNames,
   listBlobVersions,
   listBlobs,
   listContainers,
@@ -263,6 +264,11 @@ export function registerIpc(): void {
     'storage:delete-blobs',
     (_event: IpcMainInvokeEvent, args: DeleteBlobsArgs): Promise<number> =>
       deleteNames(args.accountId, args.container, args.names)
+  )
+  ipcMain.handle(
+    'storage:expand-blobs',
+    (_event: IpcMainInvokeEvent, args: DeleteBlobsArgs): Promise<string[]> =>
+      expandBlobNames(args.accountId, args.container, args.names)
   )
   ipcMain.handle(
     'storage:copy-blobs',
