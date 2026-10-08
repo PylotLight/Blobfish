@@ -137,25 +137,17 @@ function withSas(blobUrl: string, secret: string): string {
 export async function listContainers(accountId: string): Promise<StorageContainer[]> {
   const { profile, secret } = decryptSecret(accountId)
   // Container-scoped attachments cannot enumerate the account — return the
-  // attached container as a singleton (verified to exist).
+  // attached container as a singleton without probing it. A getProperties
+  // probe 403s on list-only SAS tokens even though blob listing works fine,
+  // which cried wolf in the activity dock; the blob listing itself is the
+  // arbiter of access and its failures surface in the blob view.
   if (profile.kind !== 'account' && profile.containerName) {
-    try {
-      if (isDfsEndpoint(profile.endpoint)) {
-        const fs = dataLakeFileSystemClientFromSecret(secret, profile.containerName)
-        await fs.getProperties()
-      } else {
-        const container = blobContainerClientFromSecret(secret, profile.containerName)
-        await container.getProperties()
-      }
-    } catch (err) {
-      const friendly = friendlyError(err, `Cannot access container "${profile.containerName}"`)
-      logActivity({
-        kind: 'connection',
-        text: `Access container '${profile.containerName}' in '${profile.name}' failed`,
-        detail: friendly.message,
-        status: 'failed'
-      })
-      throw friendly
+    // Still validates a container SAS against the attached container
+    // (throws on mismatch) — it just performs no network call.
+    if (isDfsEndpoint(profile.endpoint)) {
+      dataLakeFileSystemClientFromSecret(secret, profile.containerName)
+    } else {
+      blobContainerClientFromSecret(secret, profile.containerName)
     }
     return [{ name: profile.containerName }]
   }
