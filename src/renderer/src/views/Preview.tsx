@@ -46,12 +46,15 @@ export default function PreviewDialog(props: {
   const [sortCol, setSortCol] = useState<number | null>(null)
   const [sortDir, setSortDir] = useState<1 | -1>(1)
   const [colFilters, setColFilters] = useState<string[]>([])
+  /** Manual column widths (px) — undefined entries fall back to auto-size. */
+  const [colWidths, setColWidths] = useState<Array<number | undefined>>([])
 
-  // Fresh file → fresh filters/sort.
+  // Fresh file → fresh filters/sort/widths.
   useEffect(() => {
     setSortCol(null)
     setSortDir(1)
     setColFilters([])
+    setColWidths([])
   }, [accountId, container, name])
 
   useEffect(() => {
@@ -166,6 +169,65 @@ export default function PreviewDialog(props: {
       next[ci] = value
       return next
     })
+  }
+
+  /** Content-based widths + numeric detection over a sample of loaded rows. */
+  const colMeta = useMemo(() => {
+    const widths: number[] = []
+    const numeric: boolean[] = []
+    const sample = body.slice(0, 100)
+    for (let ci = 0; ci < colCount; ci++) {
+      let maxLen = (header[ci] ?? '').length
+      let num = 0
+      let denom = 0
+      for (const r of sample) {
+        const v = r[ci] ?? ''
+        if (v.length > maxLen) maxLen = v.length
+        const t = v.trim()
+        if (t !== '') {
+          denom += 1
+          if (!Number.isNaN(Number(t))) num += 1
+        }
+      }
+      numeric.push(denom > 0 && num / denom >= 0.8)
+      widths.push(Math.min(420, Math.max(96, Math.ceil(maxLen * 7.6 + 30))))
+    }
+    return { widths, numeric }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, colCount])
+
+  function widthOf(ci: number): number {
+    return colWidths[ci] ?? colMeta.widths[ci] ?? 150
+  }
+
+  function startCsvResize(e: React.MouseEvent, ci: number): void {
+    e.preventDefault()
+    e.stopPropagation()
+    const startX = e.clientX
+    const startW = widthOf(ci)
+    const onMove = (ev: MouseEvent): void => {
+      const next = Math.min(600, Math.max(64, startW + ev.clientX - startX))
+      setColWidths((prev) => {
+        const arr = [...prev]
+        while (arr.length <= ci) arr.push(undefined)
+        arr[ci] = next
+        return arr
+      })
+    }
+    const onUp = (): void => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  function resetCsvWidth(ci: number): void {
+    setColWidths((prev) => prev.map((w, i) => (i === ci ? undefined : w)))
   }
 
   const filteredBody = useMemo(() => {
@@ -297,13 +359,19 @@ export default function PreviewDialog(props: {
                 </p>
               )}
               <table className="csv-table">
+                <colgroup>
+                  {Array.from({ length: colCount }, (_, i) => (
+                    <col key={i} style={{ width: `${widthOf(i)}px` }} />
+                  ))}
+                </colgroup>
                 <thead>
                   <tr>
                     {Array.from({ length: colCount }, (_, i) => {
                       const h = header[i] ?? ''
                       const label = h === '' ? `col${i + 1}` : h
+                      const num = colMeta.numeric[i] ?? false
                       return (
-                        <th key={i}>
+                        <th key={i} className={num ? 'num' : undefined}>
                           <button
                             className="csv-sort"
                             onClick={() => toggleSort(i)}
@@ -322,6 +390,16 @@ export default function PreviewDialog(props: {
                             aria-label={`Filter ${label}`}
                             onClick={(e) => e.stopPropagation()}
                           />
+                          <span
+                            className="csv-resizer"
+                            onMouseDown={(e) => startCsvResize(e, i)}
+                            onDoubleClick={(e) => {
+                              e.stopPropagation()
+                              resetCsvWidth(i)
+                            }}
+                            title="Drag to resize · double-click for auto"
+                            aria-hidden
+                          />
                         </th>
                       )
                     })}
@@ -331,7 +409,7 @@ export default function PreviewDialog(props: {
                   {renderedBody.map((r, ri) => (
                     <tr key={ri}>
                       {Array.from({ length: colCount }, (_, ci) => (
-                        <td key={ci} title={r[ci] ?? ''}>
+                        <td key={ci} title={r[ci] ?? ''} className={colMeta.numeric[ci] ? 'num' : undefined}>
                           {r[ci] ?? ''}
                         </td>
                       ))}

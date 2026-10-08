@@ -3101,6 +3101,15 @@ th.wide {
   color: #ff8f8f;
 }
 
+/* `.glass.strong` (0,2,0) otherwise wins over `.ctx-menu` (0,1,0) and resolves
+ * to a ~10% wash — rows bleed through. Pin an opaque-enough surface so the
+ * menu stays readable with or without backdrop-filter support. */
+.ctx-menu.glass.strong {
+  background: rgba(24, 29, 40, 0.97);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+}
+
 .ctx-sep {
   height: 1px;
   background: var(--border);
@@ -3621,12 +3630,16 @@ th.wide {
 .csv-wrap {
   overflow: auto;
   max-height: 56vh;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.18);
 }
 
 .csv-table {
   width: max-content;
   min-width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
@@ -3636,27 +3649,37 @@ th.wide {
   top: 0;
   z-index: 2;
   text-align: left;
-  background: rgba(20, 25, 34, 0.97);
+  vertical-align: top;
+  background: rgba(24, 30, 41, 0.98);
   color: var(--text);
   font-weight: 650;
-  padding: 9px 12px;
-  border-bottom: 1px solid var(--border);
+  padding: 10px 12px 10px;
+  border-bottom: 2px solid rgba(126, 226, 168, 0.22);
   border-right: 1px solid rgba(255, 255, 255, 0.06);
   white-space: nowrap;
-  max-width: 420px;
+  max-width: 600px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .csv-table tbody td {
-  padding: 7px 12px;
+  padding: 8px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   border-right: 1px solid rgba(255, 255, 255, 0.04);
   white-space: nowrap;
-  max-width: 420px;
+  max-width: 600px;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--text);
+}
+
+.csv-table td.num,
+.csv-table th.num {
+  text-align: right;
+}
+
+.csv-table th.num .csv-sort {
+  justify-content: flex-end;
 }
 
 .csv-table tbody tr:nth-child(even) td {
@@ -3672,13 +3695,18 @@ th.wide {
   border: 0;
   color: inherit;
   font: inherit;
-  font-weight: 650;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
   padding: 0;
-  display: inline-flex;
+  display: flex;
   gap: 4px;
   align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+  width: 100%;
   max-width: 100%;
+  overflow: hidden;
 }
 
 .csv-sort:hover .csv-sort-label {
@@ -3689,6 +3717,7 @@ th.wide {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 
 .csv-sort-arrow {
@@ -3700,20 +3729,35 @@ th.wide {
 .csv-filter {
   display: block;
   margin-top: 6px;
-  width: 130px;
-  max-width: 100%;
-  background: rgba(0, 0, 0, 0.3);
+  width: 100%;
+  height: 30px;
+  background: rgba(0, 0, 0, 0.35);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--text);
   font-size: 12px;
   font-weight: 400;
-  padding: 4px 8px;
+  padding: 4px 10px;
 }
 
 .csv-filter::placeholder {
   color: var(--muted);
   opacity: 0.7;
+}
+
+.csv-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  z-index: 3;
+  border-radius: 4px;
+}
+
+.csv-resizer:hover {
+  background: rgba(126, 226, 168, 0.35);
 }
 
 .activity-file-actions {
