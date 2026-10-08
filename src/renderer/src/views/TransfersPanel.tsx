@@ -74,6 +74,17 @@ function TransferRow(props: { t: TransferInfo }): React.JSX.Element {
             >
               Reveal
             </button>
+            <button
+              className="mini-btn danger-x"
+              title="Delete downloaded file (moves to trash)"
+              onClick={() =>
+                void window.api.activity
+                  .deleteFile({ id: t.id, localPath: t.localPath ?? '' })
+                  .catch(console.error)
+              }
+            >
+              Delete
+            </button>
           </>
         )}
         {(t.status === 'active' || t.status === 'queued') && (
@@ -115,7 +126,7 @@ function ActivityRow(props: { entry: ActivityEntry }): React.JSX.Element {
             .filter(Boolean)
             .join(' · ')}
         </div>
-        {entry.localPath && (
+        {entry.localPath && !entry.fileDeleted && (
           <div className="row activity-file-actions">
             <button
               className="linklike small"
@@ -129,8 +140,15 @@ function ActivityRow(props: { entry: ActivityEntry }): React.JSX.Element {
             >
               Show in folder
             </button>
+            <button
+              className="linklike small"
+              onClick={() => void window.api.activity.deleteFile({ id: entry.id }).catch(console.error)}
+            >
+              Delete file
+            </button>
           </div>
         )}
+        {entry.fileDeleted && <div className="muted small">Downloaded file deleted.</div>}
       </div>
     </li>
   )
