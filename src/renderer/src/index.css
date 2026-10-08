@@ -1336,30 +1336,11 @@ textarea.secret-input {
 }
 
 .tree-actions {
-  position: absolute;
-  right: 6px;
-  top: 50%;
-  transform: translateY(-50%);
   display: flex;
   align-items: center;
   gap: 2px;
-  opacity: 0;
-  pointer-events: none;
-  background: rgba(18, 22, 30, 0.92);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  padding: 2px 4px;
-  border-radius: 8px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
-  border: 1px solid var(--border);
-  transition: opacity 0.15s ease;
-  z-index: 5;
-}
-
-.tree-row:hover .tree-actions,
-.tree-row:focus-within .tree-actions {
-  opacity: 1;
-  pointer-events: auto;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .mini-btn {
@@ -2350,8 +2331,29 @@ li.done .wiz-num {
 }
 
 .home-cta {
-  width: 100%;
-  margin-bottom: 8px;
+  margin-bottom: 0;
+  -webkit-app-region: no-drag;
+}
+
+.side-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  -webkit-app-region: no-drag;
+}
+
+.side-actions .btn {
+  flex: 1;
+  min-width: 0;
+  padding-left: 8px;
+  padding-right: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.side-actions .attach-cta {
+  margin-top: 0;
 }
 
 .dialog {

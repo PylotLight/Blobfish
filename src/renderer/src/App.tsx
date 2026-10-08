@@ -501,12 +501,14 @@ export default function App(): React.JSX.Element {
           </button>
         </div>
 
-        <button className={`btn ghost home-cta${selectedId === null ? ' active-opt' : ''}`} onClick={goHome}>
-          ⌂ Home
-        </button>
-        <button className="btn mint attach-cta" onClick={() => setShowWizard(true)}>
-          + New connection
-        </button>
+        <div className="side-actions">
+          <button className={`btn ghost home-cta${selectedId === null ? ' active-opt' : ''}`} onClick={goHome}>
+            ⌂ Home
+          </button>
+          <button className="btn mint attach-cta" onClick={() => setShowWizard(true)}>
+            + New connection
+          </button>
+        </div>
         {encAvailable === false && (
           <p className="error-text small">Keychain encryption unavailable — attach disabled.</p>
         )}
