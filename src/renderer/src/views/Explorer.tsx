@@ -66,7 +66,12 @@ export default function Explorer(props: {
   const [loadingList, setLoadingList] = useState(false)
   const [loadingContainers, setLoadingContainers] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
-  const [error, setError] = useState<ExplorerError | null>(null)
+  // Errors are tracked per view: a background container-listing 403 (SAS
+  // without account-level list permission) must not cover a working blob
+  // listing, and vice versa. Action errors (CRUD/uploads) show in both.
+  const [containersError, setContainersError] = useState<ExplorerError | null>(null)
+  const [blobError, setBlobError] = useState<ExplorerError | null>(null)
+  const [actionError, setActionError] = useState<ExplorerError | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>(1)
@@ -195,14 +200,19 @@ export default function Explorer(props: {
 
   function fail(err: unknown, context: 'containers' | 'blobs' | 'action' = 'action'): void {
     // Inline banner + activity dock carry the error — no extra toast needed.
-    // Coalesce repeated auth failures (sidebar prefetch + container listing +
-    // blob listing all 403 off VPN): first one wins until the selection
-    // changes, so one outage reads as one error, not three.
+    // Each view owns its slot, so a stale container-listing 403 never covers
+    // a working blob listing (container-scoped SAS without account-level
+    // list permission) and vice versa.
     const next = parseStorageError(err, context)
-    setError((prev) => {
-      if (prev && prev.kind === 'auth' && next.kind === 'auth') return prev
-      return next
-    })
+    if (context === 'containers') setContainersError(next)
+    else if (context === 'blobs') setBlobError(next)
+    else setActionError(next)
+  }
+
+  function clearAllErrors(): void {
+    setContainersError(null)
+    setBlobError(null)
+    setActionError(null)
   }
 
   function resetNav(): void {
@@ -216,13 +226,13 @@ export default function Explorer(props: {
   const loadContainers = (id: string, highlight?: string | null) => {
     const seq = ++containerSeq.current
     setLoadingContainers(true)
-    setError(null)
+    setContainersError(null)
     window.api.storage
       .listContainers(id)
       .then((cs) => {
         if (seq !== containerSeq.current) return
         setContainers(cs)
-        setError(null)
+        setContainersError(null)
         setContainer((prev) => {
           let chosen: string | null = null
           if (highlight && cs.some((c) => c.name === highlight)) chosen = highlight
@@ -255,7 +265,7 @@ export default function Explorer(props: {
     props.onContainerChange?.(initial)
     setBlobs(null)
     setFilter('')
-    setError(null)
+    clearAllErrors()
     setPreviewTabs([])
     setActiveTab(null)
     setCtx(null)
@@ -299,14 +309,14 @@ export default function Explorer(props: {
     const seq = ++blobSeq.current
     let cancelled = false
     setLoadingList(true)
-    // A fresh selection clears a previous account's auth error; repeat
-    // failures for the same selection coalesce in fail().
-    setError(null)
+    // A fresh selection clears that view's previous auth error.
+    setBlobError(null)
     window.api.storage
       .listBlobs({ accountId, container, prefix: navPrefix || undefined })
       .then((res) => {
         if (!cancelled && seq === blobSeq.current) {
           setBlobs(res)
+          setBlobError(null)
           setSelection(new Set())
         }
       })
@@ -330,13 +340,13 @@ export default function Explorer(props: {
     const seq = ++blobSeq.current
     const curPrefix = navPrefixRef.current
     setLoadingList(true)
-    setError(null)
+    setBlobError(null)
     window.api.storage
       .listBlobs({ accountId, container: curContainer, prefix: curPrefix || undefined })
       .then((res) => {
         if (seq !== blobSeq.current) return
         setBlobs(res)
-        setError(null)
+        setBlobError(null)
         setSelection(new Set())
       })
       .catch((err: unknown) => {
@@ -538,7 +548,7 @@ export default function Explorer(props: {
 
   async function run(label: string, fn: () => Promise<string | void>): Promise<void> {
     setBusy(label)
-    setError(null)
+    setActionError(null)
     try {
       const msg = await fn()
       if (msg) flash(msg)
@@ -635,7 +645,7 @@ export default function Explorer(props: {
   function onUpload(): void {
     if (!accountId || !container) return
     setBusy('upload')
-    setError(null)
+    setActionError(null)
     window.api.transfers
       .upload({ accountId, container, prefix: blobs?.prefix || undefined })
       .catch((err: unknown) => fail(err, 'action'))
@@ -645,7 +655,7 @@ export default function Explorer(props: {
   function onDownload(): void {
     if (!accountId || !container || selection.size === 0) return
     setBusy('download')
-    setError(null)
+    setActionError(null)
     window.api.transfers
       .download({ accountId, container, names: [...selection] })
       .catch((err: unknown) => fail(err, 'action'))
@@ -655,7 +665,7 @@ export default function Explorer(props: {
   function onPreviewDownload(containerName: string, name: string): void {
     if (!accountId || !containerName) return
     setBusy('download')
-    setError(null)
+    setActionError(null)
     window.api.transfers
       .download({ accountId, container: containerName, names: [name] })
       .catch((err: unknown) => fail(err, 'action'))
@@ -776,13 +786,25 @@ export default function Explorer(props: {
 
   function retryCurrent(): void {
     if (!accountId) return
+    setActionError(null)
     if (!containerRef.current) loadContainers(accountId)
     else reloadBlobs()
   }
 
-  const errorCallout = error ? (
-    <ErrorCallout error={error} onRetry={retryCurrent} onDismiss={() => setError(null)} />
-  ) : null
+  function dismissVisible(view: 'containers' | 'blobs'): void {
+    setActionError(null)
+    if (view === 'containers') setContainersError(null)
+    else setBlobError(null)
+  }
+
+  function errorCalloutFor(view: 'containers' | 'blobs'): React.JSX.Element | null {
+    const slot = view === 'containers' ? containersError : blobError
+    const visible = actionError ?? slot
+    if (!visible) return null
+    return (
+      <ErrorCallout error={visible} onRetry={retryCurrent} onDismiss={() => dismissVisible(view)} />
+    )
+  }
 
   const activePreview = activeTab !== null ? (previewTabs.find((t) => t.key === activeTab) ?? null) : null
 
@@ -979,7 +1001,8 @@ export default function Explorer(props: {
 
   // ----- account level: container directory -----
   if (!container) {
-    const showEmpty = !loadingContainers && !error && visibleContainers.length === 0
+    const viewError = actionError ?? containersError
+    const showEmpty = !loadingContainers && !viewError && visibleContainers.length === 0
     return (
       <div className="explorer explorer-panel fade-in">
         <header className="explorer-toolbar">
@@ -1014,7 +1037,7 @@ export default function Explorer(props: {
 
         <div className="explorer-body-scroll">
           {(container || crumbs.length > 0) && addressStrip}
-          {errorCallout}
+          {errorCalloutFor('containers')}
           {loadingContainers ? (
             <ul className="skeleton">
               {Array.from({ length: 8 }, (_, i) => (
@@ -1066,7 +1089,7 @@ export default function Explorer(props: {
                 </tr>
               </thead>
               <tbody>
-                {error && visibleContainers.length === 0 ? (
+                {viewError && visibleContainers.length === 0 ? (
                   <tr>
                     <td colSpan={scoped ? 2 : 3} className="muted table-unavailable">
                       Container listing unavailable — fix the error above, then retry.
@@ -1141,7 +1164,10 @@ export default function Explorer(props: {
   }
 
   // ----- container level: blob browser -----
-  const showBlobEmpty = !loadingList && !error && visibleBlobs.length === 0
+  // Only blob/action errors surface here — a container-listing 403 (SAS
+  // without account-level list) must not cover working blob data.
+  const blobViewError = actionError ?? blobError
+  const showBlobEmpty = !loadingList && !blobViewError && visibleBlobs.length === 0
   return (
     <div className="explorer explorer-panel fade-in">
       <header className="explorer-toolbar">
@@ -1195,7 +1221,7 @@ export default function Explorer(props: {
 
       <div className="explorer-body-scroll" onContextMenu={(e) => openCtx(e, null, [])}>
         {addressStrip}
-        {errorCallout}
+        {errorCalloutFor('blobs')}
         {loadingList ? (
           <ul className="skeleton">
             {Array.from({ length: 8 }, (_, i) => (
@@ -1266,7 +1292,7 @@ export default function Explorer(props: {
               </tr>
             </thead>
             <tbody>
-              {!error && (blobs?.prefix ?? navPrefix) !== '' && (
+              {!blobViewError && (blobs?.prefix ?? navPrefix) !== '' && (
                 <tr className="row-in parent-row clickable" onClick={goUp} title="Up to parent folder">
                   <td className="check-col" />
                   <td className="name-col">
@@ -1280,7 +1306,7 @@ export default function Explorer(props: {
                   <td className="muted">—</td>
                 </tr>
               )}
-              {error && visibleBlobs.length === 0 ? (
+              {blobViewError && visibleBlobs.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="muted table-unavailable">
                     Blob listing unavailable — fix the error above, then retry.
