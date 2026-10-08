@@ -35,6 +35,17 @@ function TransferRow(props: { t: TransferInfo }): React.JSX.Element {
   const { t } = props
   const pct = t.totalBytes > 0 ? Math.min(100, (t.doneBytes / t.totalBytes) * 100) : 0
   const indeterminate = t.status === 'active' && t.totalBytes === 0
+  const [gone, setGone] = useState(false)
+
+  async function deleteDownloaded(): Promise<void> {
+    try {
+      const res = await window.api.activity.deleteFile({ id: t.id, localPath: t.localPath ?? '' })
+      if (res.success) setGone(true)
+      else console.error(res.message)
+    } catch (err) {
+      console.error(err)
+    }
+  }
   return (
     <li className={`transfer${t.status === 'failed' ? ' failed' : ''}`}>
       <span className={`t-dir ${t.direction}`} aria-hidden>
@@ -58,7 +69,7 @@ function TransferRow(props: { t: TransferInfo }): React.JSX.Element {
         </div>
       </div>
       <span className="t-actions">
-        {t.status === 'completed' && t.localPath && (
+        {t.status === 'completed' && t.direction === 'download' && t.localPath && !gone && (
           <>
             <button
               className="mini-btn"
@@ -77,15 +88,14 @@ function TransferRow(props: { t: TransferInfo }): React.JSX.Element {
             <button
               className="mini-btn danger-x"
               title="Delete downloaded file (moves to trash)"
-              onClick={() =>
-                void window.api.activity
-                  .deleteFile({ id: t.id, localPath: t.localPath ?? '' })
-                  .catch(console.error)
-              }
+              onClick={() => void deleteDownloaded()}
             >
               Delete
             </button>
           </>
+        )}
+        {t.status === 'completed' && t.direction === 'download' && gone && (
+          <span className="muted small">Deleted</span>
         )}
         {(t.status === 'active' || t.status === 'queued') && (
           <button
@@ -126,7 +136,7 @@ function ActivityRow(props: { entry: ActivityEntry }): React.JSX.Element {
             .filter(Boolean)
             .join(' · ')}
         </div>
-        {entry.localPath && !entry.fileDeleted && (
+        {entry.localPath && !entry.fileDeleted && entry.transferDirection === 'download' && (
           <div className="row activity-file-actions">
             <button
               className="linklike small"
