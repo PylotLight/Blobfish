@@ -585,6 +585,17 @@ async function expandBlobFolder(
   return { files, markers }
 }
 
+/** List-based existence check. getProperties needs read permission, which
+ *  list/write-only SAS tokens lack; a prefix listing only needs list. Names
+ *  return in lexicographic order, so we can stop at the first non-match. */
+async function blobExists(client: ContainerClient, name: string): Promise<boolean> {
+  for await (const b of client.listBlobsFlat({ prefix: name })) {
+    if (b.name === name) return true
+    if (b.name > name && !b.name.startsWith(name)) break
+  }
+  return false
+}
+
 /**
  * Plan sources → destinations. Explicit files land by basename; files under
  * selected folders keep their path relative to the selected folder. Refuses
@@ -627,15 +638,7 @@ async function planBlobCopy(
   const conflicts: string[] = []
   await Promise.all(
     jobs.map(async (j) => {
-      try {
-        await client.getBlobClient(j.dest).getProperties()
-        conflicts.push(j.dest)
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        // Anything but "not found" means something is there (or unreadable)
-        // — never silently overwrite it.
-        if (!/404|BlobNotFound|PathNotFound|not found/i.test(msg)) conflicts.push(j.dest)
-      }
+      if (await blobExists(client, j.dest)) conflicts.push(j.dest)
     })
   )
   if (conflicts.length > 0) {
