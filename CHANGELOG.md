@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-10-08
+
+### Added
+
+- **(preview)** Resizable CSV columns with content autosize, table polish ([3651c10](https://github.com/PylotLight/Blobfish/commit/3651c1081034f5b66ac9712221b52b7b73429852))
+- **(preview)** Excel-style column options popover ([01de085](https://github.com/PylotLight/Blobfish/commit/01de085f1d4f8c325bdfd1e1950c0bf29acc95a9))
+- **(blobs)** Move/clone blobs into a folder ([46aa5c9](https://github.com/PylotLight/Blobfish/commit/46aa5c9a88cd8726379ffba1eedb536743ffb70e))
+- **(blobs)** Visual folder picker for move/copy destination ([221fd7a](https://github.com/PylotLight/Blobfish/commit/221fd7a03ca1ac01166aff4dd0817e697a7a8d3e))
+- **(ui)** Dashboard home on launch ([e49b5d0](https://github.com/PylotLight/Blobfish/commit/e49b5d012d35c8eec29d59bdc1004a1e1ab2c833))
+- **(transfers)** Inline delete for downloaded files ([ec34762](https://github.com/PylotLight/Blobfish/commit/ec347626c27eb00f4c68af77f94b7f69283d4f47))
+- **(blobs)** Deleted view with undelete plus version history restore ([4565842](https://github.com/PylotLight/Blobfish/commit/4565842dd0b98395c321847c67c871393eabe106))
+- **(transfers)** File completed transfers to activity, single feed ([c8688dc](https://github.com/PylotLight/Blobfish/commit/c8688dc6972f868a73fafd7c2425092b1e555662))
+
+### Fixed
+
+- **(ui)** Compact horizontal home hero, wider page ([28ab01b](https://github.com/PylotLight/Blobfish/commit/28ab01bffdeb032436576cd639593cbccce19f6d))
+- **(blobs)** List-based collision check for move/copy ([ac8e0ec](https://github.com/PylotLight/Blobfish/commit/ac8e0ec6a585f995ce73491c02724e273b34aba2))
+- **(blobs)** Replace-existing option, provable conflicts, batch dupes ([e961aed](https://github.com/PylotLight/Blobfish/commit/e961aedfa2b473f0237fb9d6578002dd3e8f5aec))
+- **(blobs)** Delete confirm previews blast radius, audit names ([d6df06d](https://github.com/PylotLight/Blobfish/commit/d6df06daaca31386d104b776c6028c9a96bad5b0))
+- **(ui)** Clickable home button, inline row actions, compact sidebar actions ([a05c670](https://github.com/PylotLight/Blobfish/commit/a05c67099651448960cb0a9914bf4ad702be4ed4))
+- **(transfers)** Delete feedback on transfer rows, download-only file actions ([b4850ac](https://github.com/PylotLight/Blobfish/commit/b4850ac7ed34c92d58b77f2347b95ca5ff9ea872))
+- **(ui)** Hover row actions, roomier new-connection button ([7ef5a24](https://github.com/PylotLight/Blobfish/commit/7ef5a240ca23c55432940a56aa1ef57bc843c013))
+- **(ui)** Row actions in overflow menu, never over names ([febe6ba](https://github.com/PylotLight/Blobfish/commit/febe6baf75649af84da034245a0f8863a2b91bab))
+
 ## [0.2.1] - 2026-10-08
 
 ### Fixed
@@ -83,6 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Blobfish identity on starter template (config, package, readme) ([9718d04](https://github.com/PylotLight/Blobfish/commit/9718d04614759cf98264fabd561785edc44b67a8))
 - Add app build/icon assets ([d4780b7](https://github.com/PylotLight/Blobfish/commit/d4780b7d445fc77be83edf8161ff639de448e3cb))
 
+[0.2.2]: https://github.com/PylotLight/Blobfish/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/PylotLight/Blobfish/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/PylotLight/Blobfish/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/PylotLight/Blobfish/compare/v0.1.1...v0.1.2
