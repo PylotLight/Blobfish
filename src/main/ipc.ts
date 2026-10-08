@@ -260,12 +260,12 @@ export function registerIpc(): void {
   ipcMain.handle(
     'storage:copy-blobs',
     (_event: IpcMainInvokeEvent, args: CopyBlobsArgs): Promise<number> =>
-      copyBlobs(args.accountId, args.container, args.names, args.destPrefix)
+      copyBlobs(args.accountId, args.container, args.names, args.destPrefix, args.overwrite)
   )
   ipcMain.handle(
     'storage:move-blobs',
     (_event: IpcMainInvokeEvent, args: MoveBlobsArgs): Promise<number> =>
-      moveBlobs(args.accountId, args.container, args.names, args.destPrefix)
+      moveBlobs(args.accountId, args.container, args.names, args.destPrefix, args.overwrite)
   )
   ipcMain.handle(
     'storage:rename-blob',

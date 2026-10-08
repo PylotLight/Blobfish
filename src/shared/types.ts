@@ -133,6 +133,8 @@ export interface CopyBlobsArgs {
   names: string[]
   /** Destination folder inside the container (no leading/trailing slash). */
   destPrefix?: string
+  /** Overwrite blobs that already exist at the destination. */
+  overwrite?: boolean
 }
 
 export type MoveBlobsArgs = CopyBlobsArgs

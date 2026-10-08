@@ -3,6 +3,7 @@ import { DataLakeFileSystemClient, DataLakeServiceClient } from '@azure/storage-
 import { basename } from 'node:path'
 import { decryptSecret } from './accounts'
 import { logActivity } from './activity'
+import { formatBytes } from '../shared/format'
 import type { ListBlobsResult, StorageBlobItem, StorageContainer } from '../shared/types'
 
 export function isDfsEndpoint(endpoint: string): boolean {
@@ -588,12 +589,12 @@ async function expandBlobFolder(
 /** List-based existence check. getProperties needs read permission, which
  *  list/write-only SAS tokens lack; a prefix listing only needs list. Names
  *  return in lexicographic order, so we can stop at the first non-match. */
-async function blobExists(client: ContainerClient, name: string): Promise<boolean> {
+async function blobExists(client: ContainerClient, name: string): Promise<{ exists: boolean; size?: number }> {
   for await (const b of client.listBlobsFlat({ prefix: name })) {
-    if (b.name === name) return true
+    if (b.name === name) return { exists: true, size: b.properties?.contentLength }
     if (b.name > name && !b.name.startsWith(name)) break
   }
-  return false
+  return { exists: false }
 }
 
 /**
@@ -605,7 +606,8 @@ async function blobExists(client: ContainerClient, name: string): Promise<boolea
 async function planBlobCopy(
   client: ContainerClient,
   names: string[],
-  destPrefix: string
+  destPrefix: string,
+  overwrite: boolean
 ): Promise<{ jobs: CopyPlan[]; markers: string[] }> {
   if (names.length === 0) throw new Error('Nothing selected.')
   const folders = names.filter((n) => n.endsWith('/'))
@@ -617,11 +619,22 @@ async function planBlobCopy(
   }
   const jobs: CopyPlan[] = []
   const seen = new Set<string>()
+  const destSeen = new Map<string, string>()
+  const addJob = (src: string, dest: string): void => {
+    if (dest === src) return // no-op
+    const clash = destSeen.get(dest)
+    if (clash !== undefined && clash !== src) {
+      throw new Error(
+        `Two selected items map to the same destination ("${dest}"). Move/copy them separately.`
+      )
+    }
+    destSeen.set(dest, src)
+    jobs.push({ src, dest })
+  }
   for (const n of names.filter((x) => !x.endsWith('/'))) {
     if (seen.has(n)) continue
     seen.add(n)
-    const dest = destPrefix ? `${destPrefix}/${basename(n)}` : basename(n)
-    if (dest !== n) jobs.push({ src: n, dest })
+    addJob(n, destPrefix ? `${destPrefix}/${basename(n)}` : basename(n))
   }
   const { files, markers } = await expandBlobFolder(client, folders)
   for (const f of files) {
@@ -631,22 +644,24 @@ async function planBlobCopy(
       .filter((fd) => f.name.startsWith(fd))
       .sort((a, b) => b.length - a.length)[0]!
     const rel = f.name.slice(parent.length)
-    const dest = destPrefix ? `${destPrefix}/${rel}` : rel
-    if (dest !== f.name) jobs.push({ src: f.name, dest })
+    addJob(f.name, destPrefix ? `${destPrefix}/${rel}` : rel)
   }
   if (jobs.length === 0) throw new Error('Selected blobs are already in that folder.')
-  const conflicts: string[] = []
-  await Promise.all(
-    jobs.map(async (j) => {
-      if (await blobExists(client, j.dest)) conflicts.push(j.dest)
-    })
-  )
-  if (conflicts.length > 0) {
-    const shown = conflicts.slice(0, 5).join(', ')
-    throw new Error(
-      `Destination already exists (${conflicts.length}): ${shown}${conflicts.length > 5 ? '…' : ''} ` +
-        'Pick a different folder or remove the existing blobs first.'
+  if (!overwrite) {
+    const conflicts: string[] = []
+    await Promise.all(
+      jobs.map(async (j) => {
+        const found = await blobExists(client, j.dest)
+        if (found.exists) conflicts.push(`${j.dest} (${formatBytes(found.size)})`)
+      })
     )
+    if (conflicts.length > 0) {
+      const shown = conflicts.slice(0, 5).join(', ')
+      throw new Error(
+        `Destination already exists (${conflicts.length}): ${shown}${conflicts.length > 5 ? '…' : ''} ` +
+          'Tick “Replace existing” to overwrite, or pick a different folder.'
+      )
+    }
   }
   return { jobs, markers }
 }
@@ -668,7 +683,8 @@ export async function copyBlobs(
   accountId: string,
   container: string,
   names: string[],
-  destPrefixRaw?: string
+  destPrefixRaw?: string,
+  overwrite = false
 ): Promise<number> {
   const destPrefix = cleanDestPrefix(destPrefixRaw)
   const started = Date.now()
@@ -678,7 +694,7 @@ export async function copyBlobs(
   }
   const client = blobContainerClientFromSecret(secret, container)
   try {
-    const { jobs } = await planBlobCopy(client, names, destPrefix)
+    const { jobs } = await planBlobCopy(client, names, destPrefix, overwrite)
     await runBlobCopy(client, secret, jobs)
     logActivity({
       kind: 'blob',
@@ -698,7 +714,8 @@ export async function moveBlobs(
   accountId: string,
   container: string,
   names: string[],
-  destPrefixRaw?: string
+  destPrefixRaw?: string,
+  overwrite = false
 ): Promise<number> {
   const destPrefix = cleanDestPrefix(destPrefixRaw)
   const started = Date.now()
@@ -708,7 +725,7 @@ export async function moveBlobs(
   }
   const client = blobContainerClientFromSecret(secret, container)
   try {
-    const { jobs, markers } = await planBlobCopy(client, names, destPrefix)
+    const { jobs, markers } = await planBlobCopy(client, names, destPrefix, overwrite)
     await runBlobCopy(client, secret, jobs)
     // Sources are deleted only after every copy succeeded.
     await Promise.all([...new Set(jobs.map((j) => j.src))].map((n) => client.deleteBlob(n)))

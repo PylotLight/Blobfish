@@ -2440,6 +2440,16 @@ li.done .wiz-num {
   word-break: break-all;
 }
 
+.pick-check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
 /* ---------- Settings ---------- */
 
 .settings-modal {

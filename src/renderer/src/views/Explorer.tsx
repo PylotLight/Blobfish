@@ -746,7 +746,7 @@ export default function Explorer(props: {
   }
 
   /** Runs the picked move/copy. Throws on failure so the picker stays open. */
-  async function submitMoveCopy(dest: string): Promise<void> {
+  async function submitMoveCopy(dest: string, overwrite: boolean): Promise<void> {
     const job = moveCopy
     if (!accountId || !container || !job) return
     const { mode, names: sel } = job
@@ -760,13 +760,15 @@ export default function Explorer(props: {
               accountId,
               container,
               names: sel,
-              destPrefix: dest || undefined
+              destPrefix: dest || undefined,
+              overwrite
             })
           : await window.api.storage.copyBlobs({
               accountId,
               container,
               names: sel,
-              destPrefix: dest || undefined
+              destPrefix: dest || undefined,
+              overwrite
             })
       if (mode === 'move') {
         // Close previews of blobs that no longer exist at their old path.

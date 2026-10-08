@@ -121,9 +121,10 @@ export function FolderPickerDialog(props: {
   container: string
   confirmLabel?: string
   onCancel: () => void
-  onSubmit: (destPrefix: string) => Promise<void>
+  onSubmit: (destPrefix: string, overwrite: boolean) => Promise<void>
 }): React.JSX.Element {
   const [prefix, setPrefix] = useState('')
+  const [overwrite, setOverwrite] = useState(false)
   const [folders, setFolders] = useState<StorageBlobItem[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -187,7 +188,7 @@ export function FolderPickerDialog(props: {
     setBusy(true)
     setError(null)
     try {
-      await props.onSubmit(prefix)
+      await props.onSubmit(prefix, overwrite)
       props.onCancel()
     } catch (err) {
       setError(stripIpcWrapper(err instanceof Error ? err.message : String(err)))
@@ -255,6 +256,14 @@ export function FolderPickerDialog(props: {
         <p className="muted small pick-dest">
           Destination: <code>{prefix === '' ? `${props.container} (root)` : prefix}</code>
         </p>
+        <label className="pick-check">
+          <input
+            type="checkbox"
+            checked={overwrite}
+            onChange={(e) => setOverwrite(e.target.checked)}
+          />
+          <span>Replace blobs that already exist</span>
+        </label>
         {error && <p className="error-text">{error}</p>}
         <div className="row end">
           <button className="btn ghost" onClick={props.onCancel} disabled={busy}>
