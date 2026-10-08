@@ -43,6 +43,7 @@ export default function App(): React.JSX.Element {
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [containersCache, setContainersCache] = useState<Record<string, StorageContainer[]>>({})
+  const [containersFailed, setContainersFailed] = useState<Record<string, boolean>>({})
   const [loadingContainers, setLoadingContainers] = useState<Record<string, boolean>>({})
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -170,8 +171,17 @@ export default function App(): React.JSX.Element {
     if (!shouldFetch) return
     void window.api.storage
       .listContainers(accountId)
-      .then((cs) => setContainersCache((p) => ({ ...p, [accountId]: cs })))
-      .catch(() => setContainersCache((p) => ({ ...p, [accountId]: [] })))
+      .then((cs) => {
+        setContainersCache((p) => ({ ...p, [accountId]: cs }))
+        setContainersFailed((p) => ({ ...p, [accountId]: false }))
+      })
+      .catch(() => {
+        // A failed listing (e.g. 403 — SAS without account-level list) is
+        // cached as a failure, not an empty account, so the sidebar says
+        // so instead of the misleading "No containers."
+        setContainersCache((p) => ({ ...p, [accountId]: [] }))
+        setContainersFailed((p) => ({ ...p, [accountId]: true }))
+      })
       .finally(() => setLoadingContainers((p) => ({ ...p, [accountId]: false })))
   }, [])
 
@@ -196,6 +206,11 @@ export default function App(): React.JSX.Element {
 
   function invalidateContainers(accountId: string): void {
     setContainersCache((prev) => {
+      const next = { ...prev }
+      delete next[accountId]
+      return next
+    })
+    setContainersFailed((prev) => {
       const next = { ...prev }
       delete next[accountId]
       return next
@@ -279,12 +294,17 @@ export default function App(): React.JSX.Element {
     const isOpen = expanded[a.id] ?? false
     const cached = containersCache[a.id]
     const loading = loadingContainers[a.id] ?? false
+    const listFailed = containersFailed[a.id] ?? false
     const canManageContainers = a.kind === 'account' && !a.containerName
     const isScopedContainer = a.kind !== 'account'
     const leaves = (
       <>
         {loading && <li className="tree-loading">Loading…</li>}
-        {!loading && cached?.length === 0 && <li className="tree-loading">No containers.</li>}
+        {!loading && cached?.length === 0 && (
+          <li className="tree-loading">
+            {listFailed ? 'Cannot list containers — SAS may lack permission.' : 'No containers.'}
+          </li>
+        )}
         {cached?.map((c) => (
           <li key={c.name} className="tree-leaf-row">
             <button
@@ -623,6 +643,11 @@ export default function App(): React.JSX.Element {
             const id = detachFor.id
             await window.api.accounts.remove(id)
             setContainersCache((p) => {
+              const next = { ...p }
+              delete next[id]
+              return next
+            })
+            setContainersFailed((p) => {
               const next = { ...p }
               delete next[id]
               return next

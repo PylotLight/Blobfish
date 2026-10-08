@@ -60,11 +60,16 @@ export function parseStorageError(err: unknown, context: 'containers' | 'blobs' 
         : context === 'blobs'
           ? 'listing blobs'
           : 'completing that action'
+    const scopeHint =
+      context === 'containers'
+        ? ' If this SAS only grants a specific container, re-attach it as ‘Blob container or directory’ instead of ‘Storage account or service’.'
+        : ''
     return {
       title: 'Access denied (403)',
       message:
         `This connection's key or SAS token lacks permission for ${action}, or it has expired. ` +
-        'Update the connection credentials, then retry.',
+        'Update the connection credentials, then retry.' +
+        scopeHint,
       technical,
       kind: 'auth',
       unauthorized: true
