@@ -293,6 +293,24 @@ export default function App(): React.JSX.Element {
       })
   }
 
+  const [rowMenu, setRowMenu] = useState<{ x: number; y: number; account: AccountSummary } | null>(null)
+
+  function openRowMenu(e: React.MouseEvent, a: AccountSummary): void {
+    e.preventDefault()
+    e.stopPropagation()
+    setRowMenu({ x: e.clientX, y: e.clientY, account: a })
+  }
+
+  // Escape closes the row menu.
+  useEffect(() => {
+    if (!rowMenu) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setRowMenu(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [rowMenu])
+
   function accountRow(a: AccountSummary): React.JSX.Element {
     const isActive = a.id === selectedId
     const isOpen = expanded[a.id] ?? false
@@ -412,34 +430,11 @@ export default function App(): React.JSX.Element {
             </button>
             <button
               className="mini-btn"
-              title="Copy connection secret (SAS URL / connection string) to clipboard"
-              onClick={() => copySecret(a.id)}
+              title="More actions"
+              aria-label={`Actions for ${a.name}`}
+              onClick={(e) => openRowMenu(e, a)}
             >
-              {copiedSecretId === a.id ? '✓' : '⧉'}
-            </button>
-            <button
-              className="mini-btn"
-              title="Export connection secret to a .txt file"
-              onClick={() => exportSecret(a.id)}
-            >
-              ⤓
-            </button>
-            <button
-              className="mini-btn"
-              title="Rename"
-              onClick={() => {
-                setRenamingId(a.id)
-                setRenameValue(a.name)
-              }}
-            >
-              ✎
-            </button>
-            <button
-              className="mini-btn danger-x"
-              title="Detach (deletes stored secret)"
-              onClick={() => setDetachFor(a)}
-            >
-              ✕
+              ⋯
             </button>
           </span>
         </div>
@@ -670,6 +665,60 @@ export default function App(): React.JSX.Element {
             refreshAccounts()
           }}
         />
+      )}
+
+      {rowMenu && (
+        <>
+          <div className="ctx-overlay" onClick={() => setRowMenu(null)} />
+          <div
+            className="ctx-menu glass strong"
+            role="menu"
+            aria-label={`Actions for ${rowMenu.account.name}`}
+            style={{
+              left: `${Math.min(rowMenu.x, window.innerWidth - 240)}px`,
+              top: `${Math.min(rowMenu.y, window.innerHeight - 280)}px`
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              role="menuitem"
+              onClick={() => copySecret(rowMenu.account.id)}
+              title="Copy the SAS URL / connection string to the clipboard"
+            >
+              {copiedSecretId === rowMenu.account.id ? '✓ Copied to clipboard' : '⧉ Copy connection secret'}
+            </button>
+            <button
+              role="menuitem"
+              onClick={() => {
+                setRowMenu(null)
+                exportSecret(rowMenu.account.id)
+              }}
+            >
+              ⤓ Export secret to file…
+            </button>
+            <button
+              role="menuitem"
+              onClick={() => {
+                setRowMenu(null)
+                setRenamingId(rowMenu.account.id)
+                setRenameValue(rowMenu.account.name)
+              }}
+            >
+              ✎ Rename…
+            </button>
+            <div className="ctx-sep" aria-hidden />
+            <button
+              role="menuitem"
+              className="danger"
+              onClick={() => {
+                setRowMenu(null)
+                setDetachFor(rowMenu.account)
+              }}
+            >
+              ✕ Detach…
+            </button>
+          </div>
+        </>
       )}
 
       {createFor && (
