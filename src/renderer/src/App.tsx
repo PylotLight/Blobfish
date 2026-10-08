@@ -3,6 +3,7 @@ import { APP_NAME, APP_TAGLINE } from '../../shared/config'
 import type { AccountSummary, StorageContainer, SysInfo } from '../../shared/types'
 import logoUrl from './assets/logo.png'
 import Explorer from './views/Explorer'
+import HomeView from './views/Home'
 import ConnectWizard from './views/ConnectWizard'
 import TransfersPanel from './views/TransfersPanel'
 import { ConfirmDialog, PromptDialog } from './views/Dialogs'
@@ -62,10 +63,8 @@ export default function App(): React.JSX.Element {
       .list()
       .then((list) => {
         setAccounts(list)
-        setSelectedId((prev) => {
-          if (prev && list.some((a) => a.id === prev)) return prev
-          return list[0]?.id ?? null
-        })
+        // Launch (and removals) land on the dashboard — never auto-pick.
+        setSelectedId((prev) => (prev && list.some((a) => a.id === prev) ? prev : null))
       })
       .catch(console.error)
   }, [])
@@ -202,6 +201,11 @@ export default function App(): React.JSX.Element {
       container ?? (a && a.kind !== 'account' ? (a.containerName ?? null) : null)
     setSelectedId(accountId)
     setTarget((t) => ({ accountId, container: resolved, tick: (t?.tick ?? 0) + 1 }))
+  }
+
+  function goHome(): void {
+    setSelectedId(null)
+    setTarget(null)
   }
 
   function invalidateContainers(accountId: string): void {
@@ -497,6 +501,9 @@ export default function App(): React.JSX.Element {
           </button>
         </div>
 
+        <button className={`btn ghost home-cta${selectedId === null ? ' active-opt' : ''}`} onClick={goHome}>
+          ⌂ Home
+        </button>
         <button className="btn mint attach-cta" onClick={() => setShowWizard(true)}>
           + New connection
         </button>
@@ -602,9 +609,9 @@ export default function App(): React.JSX.Element {
               onChange={updatePrefs}
               onBack={() => setShowSettings(false)}
             />
-          ) : (
+          ) : selected ? (
             <Explorer
-              key={selected?.id ?? 'none'}
+              key={selected.id}
               account={selected}
               target={target?.accountId === selected?.id ? target : null}
               onOpenContainer={(c) => {
@@ -613,6 +620,12 @@ export default function App(): React.JSX.Element {
               onChanged={refreshAccounts}
               onContainersChanged={invalidateContainers}
               onNewConnection={() => setShowWizard(true)}
+            />
+          ) : (
+            <HomeView
+              accounts={accounts}
+              onNewConnection={() => setShowWizard(true)}
+              onSelect={(id) => selectAccount(id)}
             />
           )}
         </main>
