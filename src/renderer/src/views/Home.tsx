@@ -38,28 +38,30 @@ export default function HomeView(props: {
   return (
     <div className="home fade-in">
       <section className="card home-hero">
-        <div className="hero-logo-frame">
+        <div className="hero-logo-frame home-logo">
           <img src={logoUrl} alt="Blobfish" className="hero-logo-img" />
         </div>
-        <h2>Welcome to {APP_NAME}</h2>
-        <p className="muted">{APP_TAGLINE}</p>
-        <div className="home-stats">
-          <span className="pill conn-pill">
-            {props.accounts.length} {props.accounts.length === 1 ? 'connection' : 'connections'}
-          </span>
-          {pinned.length > 0 && <span className="pill conn-pill">★ {pinned.length} pinned</span>}
+        <div className="home-hero-text">
+          <h2>Welcome to {APP_NAME}</h2>
+          <p className="muted">{APP_TAGLINE}</p>
+          <div className="home-stats">
+            <span className="pill conn-pill">
+              {props.accounts.length} {props.accounts.length === 1 ? 'connection' : 'connections'}
+            </span>
+            {pinned.length > 0 && <span className="pill conn-pill">★ {pinned.length} pinned</span>}
+          </div>
+          {props.accounts.length === 0 && (
+            <p className="muted small home-hint">
+              Connect with a connection string, SAS URL, or account key to get started.
+              Credentials stay encrypted in your OS keychain.
+            </p>
+          )}
         </div>
         <div className="home-cta-row">
           <button className="btn mint" onClick={props.onNewConnection}>
             + New connection
           </button>
         </div>
-        {props.accounts.length === 0 && (
-          <p className="muted small home-hint">
-            Connect with a connection string, SAS URL, or account key to get started.
-            Credentials stay encrypted in your OS keychain.
-          </p>
-        )}
       </section>
 
       {props.accounts.length > 0 && (
