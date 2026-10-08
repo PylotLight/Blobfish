@@ -6,7 +6,7 @@ import type {
   StorageContainer
 } from '../../../shared/types'
 import type { SelectionTarget } from '../App'
-import { ConfirmDialog, FolderPickerDialog, PromptDialog } from './Dialogs'
+import { ConfirmDialog, FolderPickerDialog, PromptDialog, VersionHistoryDialog } from './Dialogs'
 import PreviewDialog from './Preview'
 import { formatBytes } from '../../../shared/format'
 import { parseStorageError, type ExplorerError } from './errors'
@@ -191,6 +191,10 @@ export default function Explorer(props: {
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [prompt, setPrompt] = useState<PromptState | null>(null)
   const [moveCopy, setMoveCopy] = useState<{ mode: 'move' | 'copy'; names: string[] } | null>(null)
+  const [historyFor, setHistoryFor] = useState<{ container: string; name: string } | null>(null)
+  const [showDeleted, setShowDeleted] = useState(false)
+  const showDeletedRef = useRef(showDeleted)
+  showDeletedRef.current = showDeleted
   // Tabbed previews (ASE-style): browse tab + one tab per open file.
   const [previewTabs, setPreviewTabs] = useState<PreviewTab[]>([])
   const [activeTab, setActiveTab] = useState<string | null>(null)
@@ -276,6 +280,9 @@ export default function Explorer(props: {
     setActiveTab(null)
     setCtx(null)
     setMoveCopy(null)
+    setHistoryFor(null)
+    setShowDeleted(false)
+    showDeletedRef.current = false
     resetNav()
     if (!accountId) return
     loadContainers(accountId, account?.containerName ?? props.target?.container ?? undefined)
@@ -319,7 +326,7 @@ export default function Explorer(props: {
     // A fresh selection clears that view's previous auth error.
     setBlobError(null)
     window.api.storage
-      .listBlobs({ accountId, container, prefix: navPrefix || undefined })
+      .listBlobs({ accountId, container, prefix: navPrefix || undefined, includeDeleted: showDeleted || undefined })
       .then((res) => {
         if (!cancelled && seq === blobSeq.current) {
           setBlobs(res)
@@ -339,17 +346,18 @@ export default function Explorer(props: {
     return () => {
       cancelled = true
     }
-  }, [accountId, container, navPrefix])
+  }, [accountId, container, navPrefix, showDeleted])
 
   function reloadBlobs(): void {
     const curContainer = containerRef.current
     if (!accountId || !curContainer) return
     const seq = ++blobSeq.current
     const curPrefix = navPrefixRef.current
+    const curDeleted = showDeletedRef.current
     setLoadingList(true)
     setBlobError(null)
     window.api.storage
-      .listBlobs({ accountId, container: curContainer, prefix: curPrefix || undefined })
+      .listBlobs({ accountId, container: curContainer, prefix: curPrefix || undefined, includeDeleted: curDeleted || undefined })
       .then((res) => {
         if (seq !== blobSeq.current) return
         setBlobs(res)
@@ -411,6 +419,7 @@ export default function Explorer(props: {
 
   const scoped = Boolean(account?.containerName)
   const warn = sasWarning(account?.sasExpiry)
+  const isDfs = (account?.endpoint.includes('.dfs.') ?? false) === true
 
   const visibleBlobs = useMemo(() => {
     const items = blobs?.items ?? []
@@ -427,6 +436,11 @@ export default function Explorer(props: {
     })
     return sorted
   }, [blobs, filter, sortKey, sortDir])
+
+  const deletedKeys = useMemo(
+    () => new Set(visibleBlobs.filter((b) => b.deleted).map(keyOf)),
+    [visibleBlobs]
+  )
 
   const visibleContainers = useMemo(() => {
     const q = filter.trim().toLowerCase()
@@ -519,6 +533,8 @@ export default function Explorer(props: {
   function openRow(item: StorageBlobItem): void {
     if (item.isPrefix) {
       go(blobs && blobs.prefix ? `${blobs.prefix}/${item.leaf}` : item.name)
+    } else if (item.deleted) {
+      flash('That blob is deleted — restore it first.')
     } else {
       openPreviewTab(item.name, item.size)
     }
@@ -661,6 +677,10 @@ export default function Explorer(props: {
 
   function onDownload(): void {
     if (!accountId || !container || selection.size === 0) return
+    if ([...selection].some((k) => deletedKeys.has(k))) {
+      flash('Restore deleted blobs before downloading, or deselect them.')
+      return
+    }
     setBusy('download')
     setActionError(null)
     window.api.transfers
@@ -681,6 +701,10 @@ export default function Explorer(props: {
 
   function onDelete(): void {
     if (!accountId || !container || selection.size === 0) return
+    if ([...selection].some((k) => deletedKeys.has(k))) {
+      flash('Restore deleted blobs first — deleting them again removes them permanently.')
+      return
+    }
     const n = selection.size
     setConfirm({
       title: `Delete ${n} item${n === 1 ? '' : 's'}?`,
@@ -704,7 +728,7 @@ export default function Explorer(props: {
   function onRename(): void {
     if (!accountId || !container) return
     const picked = [...selection].filter((k) => !k.endsWith('/'))
-    if (picked.length !== 1) return
+    if (picked.length !== 1 || deletedKeys.has(picked[0]!)) return
     const src = picked[0]!
     const currentLeaf = src.includes('/') ? src.slice(src.lastIndexOf('/') + 1) : src
     setPrompt({
@@ -789,6 +813,16 @@ export default function Explorer(props: {
     }
   }
 
+  function onRestore(): void {
+    if (!accountId || !container) return
+    const names = [...selection].filter((k) => !k.endsWith('/') && deletedKeys.has(k))
+    if (names.length === 0) return
+    void run('restore', async () => {
+      const count = await window.api.storage.undeleteBlobs({ accountId, container, names })
+      return `Restored ${count} item${count === 1 ? '' : 's'}`
+    })
+  }
+
   /* ---------- render ---------- */
 
   if (!account) {
@@ -813,10 +847,12 @@ export default function Explorer(props: {
   }
 
   const selectedFiles = [...selection].filter((k) => !k.endsWith('/'))
-  const canRename = selectedFiles.length === 1 && selection.size === 1
-  // Exactly one file selected → eligible for in-app preview.
+  const hasDeletedSel = [...selection].some((k) => deletedKeys.has(k))
+  const canRename =
+    selectedFiles.length === 1 && selection.size === 1 && !hasDeletedSel
+  // Exactly one live file selected → eligible for in-app preview.
   const previewFile =
-    selection.size === 1 && selectedFiles.length === 1
+    selection.size === 1 && selectedFiles.length === 1 && !hasDeletedSel
       ? (visibleBlobs.find((b) => !b.isPrefix && keyOf(b) === selectedFiles[0]) ?? null)
       : null
 
@@ -951,6 +987,22 @@ export default function Explorer(props: {
               Download{ctx.keys.length > 1 ? ` (${ctx.keys.length})` : ''}
             </button>
             <button role="menuitem" onClick={() => copyPaths(ctx.keys)}>Copy path</button>
+            {ctx.keys.length === 1 && !ctx.keys[0]!.endsWith('/') && !deletedKeys.has(ctx.keys[0]!) && !isDfs && (
+              <button
+                role="menuitem"
+                onClick={() => {
+                  const cur = containerRef.current
+                  const key = ctx.keys[0]!
+                  setCtx(null)
+                  if (cur) setHistoryFor({ container: cur, name: key })
+                }}
+              >
+                Version history…
+              </button>
+            )}
+            {ctx.keys.some((k) => deletedKeys.has(k)) && (
+              <button role="menuitem" onClick={() => { setCtx(null); onRestore() }}>Restore</button>
+            )}
             {ctx.keys.length === 1 && !ctx.keys[0]!.endsWith('/') && (
               <button role="menuitem" onClick={() => { setCtx(null); onRename() }}>Rename…</button>
             )}
@@ -1004,15 +1056,17 @@ export default function Explorer(props: {
   const actionBar = (
     <div className="actionbar" role="toolbar" aria-label="Blob actions">
       <Action icon="↑" label="Upload" primary onClick={onUpload} disabled={!container || busy !== null} working={busy === 'upload'} workingLabel="Uploading…" />
-      <Action icon="↓" label={`Download${selection.size > 0 ? ` (${selection.size})` : ''}`} onClick={onDownload} disabled={selection.size === 0 || busy !== null} />
+      <Action icon="↓" label={`Download${selection.size > 0 ? ` (${selection.size})` : ''}`} onClick={onDownload} disabled={selection.size === 0 || hasDeletedSel || busy !== null} />
       <Action icon="+" label="New folder" onClick={onNewFolder} disabled={!container || busy !== null} />
       <Action icon="☑" label="Select all" onClick={() => toggleAll(visibleBlobs.map(keyOf))} disabled={visibleBlobs.length === 0} />
+      <Action icon="◍" label="Deleted" primary={showDeleted} onClick={() => setShowDeleted((v) => !v)} disabled={isDfs || !container || busy !== null} />
       <span className="action-sep" aria-hidden />
       <Action icon="👁" label="Preview" onClick={() => previewFile && openPreviewTab(previewFile.name, previewFile.size)} disabled={!previewFile || busy !== null} />
       <Action icon="✎" label="Rename" onClick={onRename} disabled={!canRename || busy !== null} />
-      <Action icon="⇄" label="Move to…" onClick={() => onMoveOrCopy('move')} disabled={selection.size === 0 || busy !== null} />
-      <Action icon="⧉" label="Copy to…" onClick={() => onMoveOrCopy('copy')} disabled={selection.size === 0 || busy !== null} />
-      <Action icon="✕" label={`Delete${selection.size > 0 ? ` (${selection.size})` : ''}`} danger onClick={onDelete} disabled={selection.size === 0 || busy !== null} />
+      <Action icon="↩" label={`Restore${selection.size > 0 && hasDeletedSel ? ` (${selection.size})` : ''}`} onClick={onRestore} disabled={!hasDeletedSel || busy !== null} />
+      <Action icon="⇄" label="Move to…" onClick={() => onMoveOrCopy('move')} disabled={selection.size === 0 || hasDeletedSel || busy !== null} />
+      <Action icon="⧉" label="Copy to…" onClick={() => onMoveOrCopy('copy')} disabled={selection.size === 0 || hasDeletedSel || busy !== null} />
+      <Action icon="✕" label={`Delete${selection.size > 0 ? ` (${selection.size})` : ''}`} danger onClick={onDelete} disabled={selection.size === 0 || hasDeletedSel || busy !== null} />
     </div>
   )
 
@@ -1379,12 +1433,12 @@ export default function Explorer(props: {
                   return (
                     <tr
                       key={key}
-                      className={`row-in clickable${selection.has(key) ? ' selected' : ''}`}
+                      className={`row-in clickable${selection.has(key) ? ' selected' : ''}${item.deleted ? ' deleted' : ''}`}
                       style={{ animationDelay: `${Math.min(i, 10) * 12}ms` }}
                       onClick={(e) => selectRow(e, key, orderedKeys)}
                       onDoubleClick={() => openRow(item)}
                       onContextMenu={(e) => openCtx(e, key, orderedKeys)}
-                      title={item.isPrefix ? 'Open folder' : 'Double-click to preview · right-click for actions'}
+                      title={item.isPrefix ? 'Open folder' : item.deleted ? 'Deleted — restore to use' : 'Double-click to preview · right-click for actions'}
                     >
                       <td className="check-col" onClick={(e) => e.stopPropagation()}>
                         <input
@@ -1399,6 +1453,7 @@ export default function Explorer(props: {
                         <span className="file-row" title={item.name}>
                           <span className={`file-ico ${item.isPrefix ? 'folder' : 'file'}`} aria-hidden />
                           {item.leaf}
+                          {item.deleted && <span className="pill warn row-badge">deleted</span>}
                         </span>
                       </td>
                       <td className="num">{item.isPrefix ? '—' : formatBytes(item.size)}</td>
@@ -1449,6 +1504,15 @@ export default function Explorer(props: {
           confirmLabel={moveCopy.mode === 'move' ? 'Move here' : 'Copy here'}
           onCancel={() => setMoveCopy(null)}
           onSubmit={submitMoveCopy}
+        />
+      )}
+      {historyFor && accountId && (
+        <VersionHistoryDialog
+          accountId={accountId}
+          container={historyFor.container}
+          name={historyFor.name}
+          onCancel={() => setHistoryFor(null)}
+          onRestored={() => reloadBlobs()}
         />
       )}
       {notice && <div className="toast glass strong toast-in">{notice}</div>}

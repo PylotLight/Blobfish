@@ -7,6 +7,7 @@ import type {
   AccountSummary,
   AccountUpdateInput,
   ActivityEntry,
+  BlobVersionInfo,
   ContainerActionArgs,
   CopyBlobsArgs,
   CreateFolderArgs,
@@ -15,15 +16,18 @@ import type {
   GlassState,
   ListBlobsArgs,
   ListBlobsResult,
+  ListVersionsArgs,
   MoveBlobsArgs,
   PreviewArgs,
   PreviewResult,
   RenameBlobArgs,
   RenameContainerArgs,
+  RestoreVersionArgs,
   StorageContainer,
   SysInfo,
   TransferConfigure,
   TransfersSnapshot,
+  UndeleteBlobsArgs,
   UploadEnqueueArgs,
   VibrancyName
 } from '../shared/types'
@@ -45,11 +49,14 @@ import {
   createFolder,
   deleteContainer,
   deleteNames,
+  listBlobVersions,
   listBlobs,
   listContainers,
   moveBlobs,
   renameBlob,
-  renameContainer
+  renameContainer,
+  restoreVersion,
+  undeleteBlobs
 } from './azure'
 import { previewBlob } from './preview'
 import {
@@ -235,7 +242,7 @@ export function registerIpc(): void {
   ipcMain.handle(
     'storage:list-blobs',
     (_event: IpcMainInvokeEvent, args: ListBlobsArgs): Promise<ListBlobsResult> =>
-      listBlobs(args.accountId, args.container, args.prefix, args.pageSize)
+      listBlobs(args.accountId, args.container, args.prefix, args.pageSize, args.includeDeleted)
   )
   ipcMain.handle(
     'storage:create-container',
@@ -266,6 +273,21 @@ export function registerIpc(): void {
     'storage:move-blobs',
     (_event: IpcMainInvokeEvent, args: MoveBlobsArgs): Promise<number> =>
       moveBlobs(args.accountId, args.container, args.names, args.destPrefix, args.overwrite)
+  )
+  ipcMain.handle(
+    'storage:list-versions',
+    (_event: IpcMainInvokeEvent, args: ListVersionsArgs): Promise<BlobVersionInfo[]> =>
+      listBlobVersions(args.accountId, args.container, args.name)
+  )
+  ipcMain.handle(
+    'storage:undelete-blobs',
+    (_event: IpcMainInvokeEvent, args: UndeleteBlobsArgs): Promise<number> =>
+      undeleteBlobs(args.accountId, args.container, args.names)
+  )
+  ipcMain.handle(
+    'storage:restore-version',
+    (_event: IpcMainInvokeEvent, args: RestoreVersionArgs): Promise<void> =>
+      restoreVersion(args.accountId, args.container, args.name, args.versionId, args.snapshot)
   )
   ipcMain.handle(
     'storage:rename-blob',

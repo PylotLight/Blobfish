@@ -4,7 +4,7 @@ import { basename } from 'node:path'
 import { decryptSecret } from './accounts'
 import { logActivity } from './activity'
 import { formatBytes } from '../shared/format'
-import type { ListBlobsResult, StorageBlobItem, StorageContainer } from '../shared/types'
+import type { BlobVersionInfo, ListBlobsResult, StorageBlobItem, StorageContainer } from '../shared/types'
 
 export function isDfsEndpoint(endpoint: string): boolean {
   return endpoint.includes('.dfs.')
@@ -190,7 +190,8 @@ export async function listBlobs(
   accountId: string,
   containerArg?: string,
   prefixArg?: string,
-  pageSize = 5000
+  pageSize = 5000,
+  includeDeleted = false
 ): Promise<ListBlobsResult> {
   const { profile, secret } = decryptSecret(accountId)
   const container = (containerArg ?? profile.containerName ?? '').trim()
@@ -202,6 +203,9 @@ export async function listBlobs(
 
   try {
     if (isDfsEndpoint(profile.endpoint)) {
+      if (includeDeleted) {
+        throw new Error('Showing deleted blobs is not supported for ADLS Gen2 attachments yet.')
+      }
       const fs = dataLakeFileSystemClientFromSecret(secret, container)
       const items: StorageBlobItem[] = []
       const seen = new Set<string>()
@@ -237,7 +241,7 @@ export async function listBlobs(
 
     const client = blobContainerClientFromSecret(secret, container)
     const items: StorageBlobItem[] = []
-    const iter = client.listBlobsByHierarchy('/', { prefix: listingPrefix })
+    const iter = client.listBlobsByHierarchy('/', { prefix: listingPrefix, includeDeleted })
     for await (const entry of iter) {
       if (entry.kind === 'prefix') {
         const full = entry.name.replace(/\/$/, '')
@@ -257,7 +261,8 @@ export async function listBlobs(
           isPrefix: false,
           size: entry.properties?.contentLength,
           lastModified: entry.properties?.lastModified?.toISOString(),
-          contentType: entry.properties?.contentType
+          contentType: entry.properties?.contentType,
+          deleted: entry.deleted || undefined
         })
       }
       if (items.length >= Math.min(pageSize, 5000)) break
@@ -741,6 +746,119 @@ export async function moveBlobs(
     const message = err instanceof Error ? err.message : 'Move failed'
     logActivity({ kind: 'blob', text: `Move to '${destPrefix || container}' failed`, detail: message, status: 'failed' })
     throw friendlyError(err, 'Failed to move')
+  }
+}
+
+/* ---------------- versions & soft-deleted ---------------- */
+
+export async function listBlobVersions(
+  accountId: string,
+  container: string,
+  name: string
+): Promise<BlobVersionInfo[]> {
+  const clean = name.trim()
+  if (clean === '') throw new Error('No blob selected.')
+  const { profile, secret } = decryptSecret(accountId)
+  if (isDfsEndpoint(profile.endpoint)) {
+    throw new Error('Version history is not supported for ADLS Gen2 attachments yet.')
+  }
+  const client = blobContainerClientFromSecret(secret, container)
+  try {
+    const out: BlobVersionInfo[] = []
+    for await (const b of client.listBlobsFlat({
+      prefix: clean,
+      includeVersions: true,
+      includeSnapshots: true
+    })) {
+      // Prefix matches siblings (`report` vs `report-final`) — exact only.
+      if (b.name !== clean) continue
+      out.push({
+        name: clean,
+        versionId: b.versionId,
+        snapshot: b.snapshot || undefined,
+        lastModified: b.properties?.lastModified?.toISOString(),
+        size: b.properties?.contentLength,
+        isCurrent: b.isCurrentVersion ?? (b.versionId === undefined && !b.snapshot)
+      })
+    }
+    out.sort(
+      (a, b) => Number(b.isCurrent) - Number(a.isCurrent) || (b.lastModified ?? '').localeCompare(a.lastModified ?? '')
+    )
+    return out
+  } catch (err) {
+    const friendly = friendlyError(err, `Failed to list versions of "${clean}"`)
+    logActivity({
+      kind: 'connection',
+      text: `List versions of '${clean}' failed`,
+      detail: friendly.message,
+      status: 'failed'
+    })
+    throw friendly
+  }
+}
+
+export async function undeleteBlobs(accountId: string, container: string, names: string[]): Promise<number> {
+  const files = names.filter((n) => !n.endsWith('/'))
+  if (files.length === 0) throw new Error('Nothing selected to restore.')
+  const started = Date.now()
+  const { profile, secret } = decryptSecret(accountId)
+  if (isDfsEndpoint(profile.endpoint)) {
+    throw new Error('Restore is not supported for ADLS Gen2 attachments yet.')
+  }
+  const client = blobContainerClientFromSecret(secret, container)
+  try {
+    await Promise.all(files.map((n) => client.getBlobClient(n).undelete()))
+    logActivity({
+      kind: 'blob',
+      text: `Restored ${files.length} item${files.length === 1 ? '' : 's'} in '${container}'`,
+      status: 'success',
+      durationMs: Date.now() - started
+    })
+    return files.length
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Restore failed'
+    logActivity({ kind: 'blob', text: `Restore in '${container}' failed`, detail: message, status: 'failed' })
+    throw friendlyError(err, 'Failed to restore')
+  }
+}
+
+export async function restoreVersion(
+  accountId: string,
+  container: string,
+  name: string,
+  versionId?: string,
+  snapshot?: string
+): Promise<void> {
+  const clean = name.trim()
+  if (clean === '') throw new Error('No blob selected.')
+  const started = Date.now()
+  const { profile, secret } = decryptSecret(accountId)
+  if (isDfsEndpoint(profile.endpoint)) {
+    throw new Error('Restore is not supported for ADLS Gen2 attachments yet.')
+  }
+  const client = blobContainerClientFromSecret(secret, container)
+  try {
+    const selector = versionId
+      ? `versionId=${encodeURIComponent(versionId)}`
+      : snapshot
+        ? `snapshot=${encodeURIComponent(snapshot)}`
+        : null
+    if (!selector) throw new Error('Select a version or snapshot to restore.')
+    let srcUrl = `${client.getBlobClient(clean).url}?${selector}`
+    if (!isConnectionStringSecret(secret) && secret.includes('?')) {
+      srcUrl += `&${secret.slice(secret.indexOf('?') + 1)}`
+    }
+    await client.getBlockBlobClient(clean).syncCopyFromURL(srcUrl)
+    logActivity({
+      kind: 'blob',
+      text: `Restored '${clean}' from ${versionId ? 'version' : 'snapshot'} in '${container}'`,
+      status: 'success',
+      durationMs: Date.now() - started
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Restore failed'
+    logActivity({ kind: 'blob', text: `Restore '${clean}' failed`, detail: message, status: 'failed' })
+    throw friendlyError(err, `Failed to restore "${basename(clean)}"`)
   }
 }
 

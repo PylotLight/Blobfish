@@ -4030,6 +4030,52 @@ th.wide {
   margin-top: 4px;
 }
 
+/* ---------- Version history ---------- */
+
+.version-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.25);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.version-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 13.5px;
+}
+
+.version-row:last-child {
+  border-bottom: 0;
+}
+
+.version-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.version-badge {
+  margin-left: 8px;
+}
+
+.blob-table tr.deleted td {
+  opacity: 0.55;
+}
+
+.row-badge {
+  margin-left: 8px;
+}
+
 .text-view {
   padding: 10px 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;

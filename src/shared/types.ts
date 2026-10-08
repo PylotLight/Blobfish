@@ -96,6 +96,8 @@ export interface StorageBlobItem {
   size?: number
   lastModified?: string
   contentType?: string
+  /** Soft-deleted (retained by the account's retention policy). */
+  deleted?: boolean
 }
 
 export interface ListBlobsArgs {
@@ -103,6 +105,8 @@ export interface ListBlobsArgs {
   container?: string
   prefix?: string
   pageSize?: number
+  /** Include soft-deleted blobs (blob storage only). */
+  includeDeleted?: boolean
 }
 
 export interface ListBlobsResult {
@@ -158,6 +162,39 @@ export interface RenameContainerArgs {
   accountId: string
   source: string
   dest: string
+}
+
+export interface BlobVersionInfo {
+  /** Full blob name. */
+  name: string
+  versionId?: string
+  snapshot?: string
+  lastModified?: string
+  size?: number
+  isCurrent: boolean
+}
+
+export interface ListVersionsArgs {
+  accountId: string
+  container: string
+  /** Full blob name. */
+  name: string
+}
+
+export interface RestoreVersionArgs {
+  accountId: string
+  container: string
+  /** Full blob name to restore over. */
+  name: string
+  versionId?: string
+  snapshot?: string
+}
+
+export interface UndeleteBlobsArgs {
+  accountId: string
+  container: string
+  /** Soft-deleted blob names to restore. */
+  names: string[]
 }
 
 /* ---------- Preview (range-based, never downloads the whole blob) ---------- */

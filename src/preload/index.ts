@@ -4,6 +4,7 @@ import type {
   AccountSummary,
   AccountUpdateInput,
   ActivityEntry,
+  BlobVersionInfo,
   ContainerActionArgs,
   CopyBlobsArgs,
   CreateFolderArgs,
@@ -12,15 +13,18 @@ import type {
   GlassState,
   ListBlobsArgs,
   ListBlobsResult,
+  ListVersionsArgs,
   MoveBlobsArgs,
   PreviewArgs,
   PreviewResult,
   RenameBlobArgs,
   RenameContainerArgs,
+  RestoreVersionArgs,
   StorageContainer,
   SysInfo,
   TransferConfigure,
   TransfersSnapshot,
+  UndeleteBlobsArgs,
   UploadEnqueueArgs,
   VibrancyName
 } from '../shared/types'
@@ -106,7 +110,13 @@ const api = {
     renameContainer: (args: RenameContainerArgs): Promise<string> =>
       ipcRenderer.invoke('storage:rename-container', args),
     preview: (args: PreviewArgs): Promise<PreviewResult> =>
-      ipcRenderer.invoke('storage:preview', args)
+      ipcRenderer.invoke('storage:preview', args),
+    listVersions: (args: ListVersionsArgs): Promise<BlobVersionInfo[]> =>
+      ipcRenderer.invoke('storage:list-versions', args),
+    undeleteBlobs: (args: UndeleteBlobsArgs): Promise<number> =>
+      ipcRenderer.invoke('storage:undelete-blobs', args),
+    restoreVersion: (args: RestoreVersionArgs): Promise<void> =>
+      ipcRenderer.invoke('storage:restore-version', args)
   },
   transfers: {
     list: (): Promise<TransfersSnapshot> => ipcRenderer.invoke('transfers:list'),

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import type { StorageBlobItem } from '../../../shared/types'
+import type { BlobVersionInfo, StorageBlobItem } from '../../../shared/types'
+import { formatBytes } from '../../../shared/format'
 import { stripIpcWrapper } from './errors'
 
 function useDismiss(onCancel: () => void): void {
@@ -348,6 +349,160 @@ export function PromptDialog(props: {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+/** Version history — versions/snapshots of one blob with restore. Restoring
+ *  copies the old content over the current blob (destructive to current). */
+export function VersionHistoryDialog(props: {
+  accountId: string
+  container: string
+  name: string
+  onCancel: () => void
+  onRestored: () => void
+}): React.JSX.Element {
+  const [versions, setVersions] = useState<BlobVersionInfo[] | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [confirmKey, setConfirmKey] = useState<string | null>(null)
+  const [restoring, setRestoring] = useState(false)
+  useDismiss(props.onCancel)
+
+  const leaf = props.name.includes('/') ? props.name.slice(props.name.lastIndexOf('/') + 1) : props.name
+
+  function rowKey(v: BlobVersionInfo): string {
+    if (v.versionId) return `v:${v.versionId}`
+    if (v.snapshot) return `s:${v.snapshot}`
+    return 'current'
+  }
+
+  function load(): void {
+    setLoading(true)
+    setError(null)
+    window.api.storage
+      .listVersions({ accountId: props.accountId, container: props.container, name: props.name })
+      .then(setVersions)
+      .catch((err: unknown) => {
+        setError(stripIpcWrapper(err instanceof Error ? err.message : String(err)))
+      })
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(load, [props.accountId, props.container, props.name])
+
+  async function restore(v: BlobVersionInfo): Promise<void> {
+    if (v.isCurrent || restoring) return
+    setRestoring(true)
+    setError(null)
+    try {
+      await window.api.storage.restoreVersion({
+        accountId: props.accountId,
+        container: props.container,
+        name: props.name,
+        versionId: v.versionId,
+        snapshot: v.snapshot
+      })
+      setConfirmKey(null)
+      props.onRestored()
+      load()
+    } catch (err) {
+      setError(stripIpcWrapper(err instanceof Error ? err.message : String(err)))
+    } finally {
+      setRestoring(false)
+    }
+  }
+
+  function kindLabel(v: BlobVersionInfo): string {
+    if (v.isCurrent) return 'Current'
+    if (v.versionId) return 'Version'
+    if (v.snapshot) return 'Snapshot'
+    return 'Copy'
+  }
+
+  const onlyCurrent = versions !== null && versions.every((v) => v.isCurrent)
+
+  return (
+    <div className="modal-backdrop" onClick={props.onCancel}>
+      <div
+        className="modal glass strong dialog fade-in"
+        role="dialog"
+        aria-label={`Version history for ${leaf}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3>Version history</h3>
+        <p className="muted small" title={props.name}>
+          {props.name}
+        </p>
+        {loading ? (
+          <p className="muted small">Loading…</p>
+        ) : error ? (
+          <div className="preview-error">
+            <p className="error-text">{error}</p>
+            <button className="btn ghost small" onClick={load}>
+              Retry
+            </button>
+          </div>
+        ) : versions !== null && versions.length === 0 ? (
+          <p className="muted small">No versions found.</p>
+        ) : (
+          <>
+            {onlyCurrent && (
+              <p className="muted small">
+                Only the current copy exists — enable blob versioning on the storage account to keep history.
+              </p>
+            )}
+            <ul className="version-list">
+              {(versions ?? []).map((v) => {
+                const key = rowKey(v)
+                return (
+                  <li key={key} className="version-row">
+                    <div className="version-main">
+                      <strong>
+                        {kindLabel(v)}
+                        {v.isCurrent && <span className="pill conn-pill version-badge">current</span>}
+                      </strong>
+                      <span className="muted small">
+                        {[v.lastModified ? new Date(v.lastModified).toLocaleString() : null, formatBytes(v.size)]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
+                    </div>
+                    {!v.isCurrent &&
+                      (confirmKey === key ? (
+                        <span className="row">
+                          <button
+                            className="btn danger small"
+                            disabled={restoring}
+                            onClick={() => void restore(v)}
+                          >
+                            {restoring ? 'Restoring…' : 'Confirm restore'}
+                          </button>
+                          <button className="btn ghost small" disabled={restoring} onClick={() => setConfirmKey(null)}>
+                            Cancel
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          className="btn ghost small"
+                          title="Copy this version over the current blob"
+                          onClick={() => setConfirmKey(key)}
+                        >
+                          Restore…
+                        </button>
+                      ))}
+                  </li>
+                )
+              })}
+            </ul>
+          </>
+        )}
+        <div className="row end">
+          <button className="btn ghost" onClick={props.onCancel}>
+            Close
+          </button>
+        </div>
       </div>
     </div>
   )
