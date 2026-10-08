@@ -8,12 +8,14 @@ import type {
   AccountUpdateInput,
   ActivityEntry,
   ContainerActionArgs,
+  CopyBlobsArgs,
   CreateFolderArgs,
   DeleteBlobsArgs,
   DownloadArgs,
   GlassState,
   ListBlobsArgs,
   ListBlobsResult,
+  MoveBlobsArgs,
   PreviewArgs,
   PreviewResult,
   RenameBlobArgs,
@@ -38,12 +40,14 @@ import {
 import { clearActivities, deleteDownloadedFile, listActivities, logActivity } from './activity'
 import {
   azuriteConnectionString,
+  copyBlobs,
   createContainer,
   createFolder,
   deleteContainer,
   deleteNames,
   listBlobs,
   listContainers,
+  moveBlobs,
   renameBlob,
   renameContainer
 } from './azure'
@@ -252,6 +256,16 @@ export function registerIpc(): void {
     'storage:delete-blobs',
     (_event: IpcMainInvokeEvent, args: DeleteBlobsArgs): Promise<number> =>
       deleteNames(args.accountId, args.container, args.names)
+  )
+  ipcMain.handle(
+    'storage:copy-blobs',
+    (_event: IpcMainInvokeEvent, args: CopyBlobsArgs): Promise<number> =>
+      copyBlobs(args.accountId, args.container, args.names, args.destPrefix)
+  )
+  ipcMain.handle(
+    'storage:move-blobs',
+    (_event: IpcMainInvokeEvent, args: MoveBlobsArgs): Promise<number> =>
+      moveBlobs(args.accountId, args.container, args.names, args.destPrefix)
   )
   ipcMain.handle(
     'storage:rename-blob',

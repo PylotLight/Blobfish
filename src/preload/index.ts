@@ -5,12 +5,14 @@ import type {
   AccountUpdateInput,
   ActivityEntry,
   ContainerActionArgs,
+  CopyBlobsArgs,
   CreateFolderArgs,
   DeleteBlobsArgs,
   DownloadArgs,
   GlassState,
   ListBlobsArgs,
   ListBlobsResult,
+  MoveBlobsArgs,
   PreviewArgs,
   PreviewResult,
   RenameBlobArgs,
@@ -95,6 +97,10 @@ const api = {
       ipcRenderer.invoke('storage:create-folder', args),
     deleteBlobs: (args: DeleteBlobsArgs): Promise<number> =>
       ipcRenderer.invoke('storage:delete-blobs', args),
+    copyBlobs: (args: CopyBlobsArgs): Promise<number> =>
+      ipcRenderer.invoke('storage:copy-blobs', args),
+    moveBlobs: (args: MoveBlobsArgs): Promise<number> =>
+      ipcRenderer.invoke('storage:move-blobs', args),
     renameBlob: (args: RenameBlobArgs): Promise<string> =>
       ipcRenderer.invoke('storage:rename-blob', args),
     renameContainer: (args: RenameContainerArgs): Promise<string> =>

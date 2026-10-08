@@ -126,6 +126,17 @@ export interface DeleteBlobsArgs {
   names: string[]
 }
 
+export interface CopyBlobsArgs {
+  accountId: string
+  container: string
+  /** Blob names (or folder prefixes ending in `/`) to copy/move. */
+  names: string[]
+  /** Destination folder inside the container (no leading/trailing slash). */
+  destPrefix?: string
+}
+
+export type MoveBlobsArgs = CopyBlobsArgs
+
 export interface CreateFolderArgs {
   accountId: string
   container: string
