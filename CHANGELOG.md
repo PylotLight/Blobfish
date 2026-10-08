@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-10-08
+
+### Fixed
+
+- **(ui)** Scope error banners per view so container 403s don't cover blobs ([1543f69](https://github.com/PylotLight/Blobfish/commit/1543f69e33f46ef65c271a4791d29a30d35ac8c0))
+- **(azure)** Skip container probe for scoped attachments ([a7b5c29](https://github.com/PylotLight/Blobfish/commit/a7b5c2975280e769f5ee44020d1f895cc4cb1034))
+- **(ui)** Honest container-list failure states ([84bf401](https://github.com/PylotLight/Blobfish/commit/84bf401bf50b0d38a09ba2201df1549083b9241f))
+
 ## [0.2.0] - 2026-10-07
 
 ### Added
@@ -75,6 +83,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Blobfish identity on starter template (config, package, readme) ([9718d04](https://github.com/PylotLight/Blobfish/commit/9718d04614759cf98264fabd561785edc44b67a8))
 - Add app build/icon assets ([d4780b7](https://github.com/PylotLight/Blobfish/commit/d4780b7d445fc77be83edf8161ff639de448e3cb))
 
+[0.2.1]: https://github.com/PylotLight/Blobfish/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/PylotLight/Blobfish/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/PylotLight/Blobfish/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/PylotLight/Blobfish/compare/v0.1.0...v0.1.1
