@@ -38,6 +38,8 @@ export function logActivity(input: {
   durationMs?: number
   localPath?: string
   transferDirection?: TransferDirection
+  accountId?: string
+  container?: string
 }): ActivityEntry {
   const now = Date.now()
   const normDetail = normalizeDetail(input.detail)
@@ -62,7 +64,9 @@ export function logActivity(input: {
     status: input.status,
     durationMs: input.durationMs,
     localPath: input.localPath,
-    transferDirection: input.transferDirection
+    transferDirection: input.transferDirection,
+    accountId: input.accountId,
+    container: input.container
   }
   entries = [entry, ...entries].slice(0, MAX_ENTRIES)
   emit()

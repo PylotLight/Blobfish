@@ -311,4 +311,6 @@ export interface ActivityEntry {
   localPath?: string
   transferDirection?: TransferDirection
   fileDeleted?: boolean
+  accountId?: string
+  container?: string
 }

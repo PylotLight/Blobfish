@@ -298,16 +298,20 @@ export default function Explorer(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.target?.tick])
 
-  // Refresh the listing when one of our queued uploads finishes.
+  // Refresh the listing when one of our queued uploads finishes. The
+  // completion arrives via the activity feed (completed transfers are
+  // filed there, not kept in the transfers list).
   // Note: downloads never alter Azure containers, so only uploads reload blobs.
-  const seenDone = useRef<Set<string>>(new Set())
+  const seenActivity = useRef<Set<string>>(new Set())
   useEffect(() => {
-    const off = window.api.transfers.onUpdate((snap) => {
+    const off = window.api.activity.onUpdate((entries) => {
       let reloadNeeded = false
-      for (const t of snap.transfers) {
-        if (t.status !== 'completed' || seenDone.current.has(t.id)) continue
-        seenDone.current.add(t.id)
-        if (t.direction === 'upload' && t.accountId === accountId && t.container === containerRef.current) {
+      for (const e of entries) {
+        if (e.status !== 'success' || e.transferDirection !== 'upload' || seenActivity.current.has(e.id)) {
+          continue
+        }
+        seenActivity.current.add(e.id)
+        if (e.accountId === accountId && e.container === containerRef.current) {
           reloadNeeded = true
         }
       }

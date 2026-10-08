@@ -213,8 +213,16 @@ async function run(t: ActiveTransfer): Promise<void> {
       status: 'success',
       durationMs: t.finishedAt - wallStart,
       localPath: t.spec.localPath,
-      transferDirection: t.spec.direction
+      transferDirection: t.spec.direction,
+      accountId: t.spec.accountId,
+      container: t.spec.container
     })
+    // Completed transfers live on in the activity feed (which carries
+    // Open/Reveal/Delete) — the transfers list keeps in-flight and
+    // retryable rows only, so nothing appears twice.
+    byId.delete(t.id)
+    const filedIdx = transfers.indexOf(t)
+    if (filedIdx !== -1) transfers.splice(filedIdx, 1)
   } catch (err) {
     if (t.controller?.signal.aborted || (err instanceof Error && err.name === 'AbortError')) {
       t.status = 'cancelled'
