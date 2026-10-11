@@ -41,6 +41,6 @@ When starting a real app from this template, touch these and nothing else:
 | `start` | Launch the built app (`electron ./out/main/index.js`) |
 | `preview` | Serve the built renderer only |
 | `clean` | Remove `out/` |
-| `typecheck` | `tsc --noEmit` over `src/`, `scripts/`, and config |
+| `typecheck` | `bun check` (Bun >= 1.4.3, pinned in `.bun-version`) over `src/`, `scripts/`, and config via `tsconfig.json` |
 | `assets` | Regenerate tray PNGs, zero dependencies |
 | `postinstall` | Runs automatically: downloads the Electron binary Bun skips |

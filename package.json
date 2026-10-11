@@ -26,7 +26,7 @@
     "start": "electron ./out/main/index.js",
     "preview": "electron-vite preview",
     "clean": "rm -rf out",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "bun check",
     "assets": "bun scripts/make-tray-icon.ts",
     "dist": "electron-builder",
     "dist:dir": "electron-builder --dir",
@@ -92,7 +92,6 @@
     "electron": "^44.5.1",
     "electron-builder": "^26.0.0",
     "electron-vite": "^5.0.0",
-    "typescript": "~5.9.2",
     "vite": "^8.3.2"
   },
   "dependencies": {
