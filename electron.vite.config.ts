@@ -10,6 +10,12 @@ export default defineConfig({
   },
   renderer: {
     root: 'src/renderer',
-    plugins: [react()]
+    plugins: [react()],
+    // electron-vite leaves the renderer unminified by default (~760 kB of JS
+    // parsed before first paint); ship it minified like Surffish does.
+    build: {
+      minify: true,
+      cssMinify: true
+    }
   }
 })

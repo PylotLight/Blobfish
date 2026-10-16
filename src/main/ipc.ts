@@ -54,6 +54,7 @@ import {
   listBlobs,
   listContainers,
   moveBlobs,
+  prewarmAzureSdk,
   renameBlob,
   renameContainer,
   restoreVersion,
@@ -98,6 +99,12 @@ function notify(title: string, body: string): boolean {
  * 3. call it from the renderer via `window.api`.
  */
 export function registerIpc(): void {
+  // Azure SDKs load lazily; warm them once the first window has painted so the
+  // first listing doesn't pay for the module load either.
+  app.once('browser-window-created', (_, win) => {
+    win.webContents.once('did-finish-load', () => setTimeout(prewarmAzureSdk, 750))
+  })
+
   ipcMain.handle('ping', () => 'pong')
 
   ipcMain.handle('sys:info', (): SysInfo => {
