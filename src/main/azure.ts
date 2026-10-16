@@ -1,10 +1,38 @@
-import { BlobServiceClient, ContainerClient } from '@azure/storage-blob'
-import { DataLakeFileSystemClient, DataLakeServiceClient } from '@azure/storage-file-datalake'
+import type * as BlobSdk from '@azure/storage-blob'
+import type { BlobServiceClient, ContainerClient } from '@azure/storage-blob'
+import type * as DataLakeSdk from '@azure/storage-file-datalake'
+import type { DataLakeFileSystemClient, DataLakeServiceClient } from '@azure/storage-file-datalake'
+import { createRequire } from 'node:module'
 import { basename } from 'node:path'
 import { decryptSecret } from './accounts'
 import { logActivity } from './activity'
 import { formatBytes } from '../shared/format'
 import type { BlobVersionInfo, ListBlobsResult, StorageBlobItem, StorageContainer } from '../shared/types'
+
+/* The Azure SDKs cost ~120-160 ms of synchronous module loading, which used to
+ * sit in front of app ready on every launch. They load on first use instead
+ * (or from prewarmAzureSdk() once the window has painted). */
+const requireSdk = createRequire(import.meta.url)
+let blobSdk: typeof BlobSdk | null = null
+let dataLakeSdk: typeof DataLakeSdk | null = null
+
+function blobApi(): typeof BlobSdk {
+  return (blobSdk ??= requireSdk('@azure/storage-blob') as typeof BlobSdk)
+}
+
+function dataLakeApi(): typeof DataLakeSdk {
+  return (dataLakeSdk ??= requireSdk('@azure/storage-file-datalake') as typeof DataLakeSdk)
+}
+
+/** Load the SDKs off the startup path so the first listing doesn't pay for them. */
+export function prewarmAzureSdk(): void {
+  try {
+    blobApi()
+    dataLakeApi()
+  } catch {
+    // A broken install surfaces on first real use with a proper error.
+  }
+}
 
 export function isDfsEndpoint(endpoint: string): boolean {
   return endpoint.includes('.dfs.')
@@ -17,17 +45,17 @@ export function isConnectionStringSecret(secret: string): boolean {
 
 export function blobServiceFromSecret(_profileEndpoint: string, secret: string): BlobServiceClient {
   if (isConnectionStringSecret(secret)) {
-    return BlobServiceClient.fromConnectionString(secret.trim())
+    return blobApi().BlobServiceClient.fromConnectionString(secret.trim())
   }
   // Full SAS URL (service or container scoped).
-  return new BlobServiceClient(secret.trim())
+  return new (blobApi().BlobServiceClient)(secret.trim())
 }
 
 export function dataLakeServiceFromSecret(secret: string): DataLakeServiceClient {
   if (isConnectionStringSecret(secret)) {
-    return DataLakeServiceClient.fromConnectionString(secret.trim())
+    return dataLakeApi().DataLakeServiceClient.fromConnectionString(secret.trim())
   }
-  return new DataLakeServiceClient(secret.trim())
+  return new (dataLakeApi().DataLakeServiceClient)(secret.trim())
 }
 
 /**
@@ -67,15 +95,15 @@ function sasContainerName(secret: string): string | undefined {
 
 export function blobContainerClientFromSecret(secret: string, container: string): ContainerClient {
   if (isConnectionStringSecret(secret)) {
-    return BlobServiceClient.fromConnectionString(secret.trim()).getContainerClient(container)
+    return blobApi().BlobServiceClient.fromConnectionString(secret.trim()).getContainerClient(container)
   }
   const trimmed = secret.trim()
   const sasContainer = sasContainerName(trimmed)
   if (!sasContainer) {
     // Service-scoped SAS — derive the container from it.
-    return new BlobServiceClient(trimmed).getContainerClient(container)
+    return new (blobApi().BlobServiceClient)(trimmed).getContainerClient(container)
   }
-  return new ContainerClient(containerUrlFromSas(trimmed, container))
+  return new (blobApi().ContainerClient)(containerUrlFromSas(trimmed, container))
 }
 
 export function dataLakeFileSystemClientFromSecret(
@@ -83,14 +111,14 @@ export function dataLakeFileSystemClientFromSecret(
   container: string
 ): DataLakeFileSystemClient {
   if (isConnectionStringSecret(secret)) {
-    return DataLakeServiceClient.fromConnectionString(secret.trim()).getFileSystemClient(container)
+    return dataLakeApi().DataLakeServiceClient.fromConnectionString(secret.trim()).getFileSystemClient(container)
   }
   const trimmed = secret.trim()
   const sasContainer = sasContainerName(trimmed)
   if (!sasContainer) {
-    return new DataLakeServiceClient(trimmed).getFileSystemClient(container)
+    return new (dataLakeApi().DataLakeServiceClient)(trimmed).getFileSystemClient(container)
   }
-  return new DataLakeFileSystemClient(containerUrlFromSas(trimmed, container))
+  return new (dataLakeApi().DataLakeFileSystemClient)(containerUrlFromSas(trimmed, container))
 }
 
 /** Friendly wrapper so renderer errors are readable, not SDK soup. */
