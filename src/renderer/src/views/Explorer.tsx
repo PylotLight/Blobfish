@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type {
   AccountSummary,
   ListBlobsResult,
@@ -9,6 +9,7 @@ import type { SelectionTarget } from '../App'
 import { ConfirmDialog, FolderPickerDialog, PromptDialog, VersionHistoryDialog } from './Dialogs'
 import PreviewDialog from './Preview'
 import { formatBytes } from '../../../shared/format'
+import { virtualWindow } from '../../../shared/virtual-window'
 import { parseStorageError, type ExplorerError } from './errors'
 import ErrorCallout from './ErrorCallout'
 import logoUrl from '../assets/logo.png'
@@ -23,6 +24,31 @@ function sasWarning(expiry?: string | null): string | null {
   if (ms <= Date.now()) return `SAS expired ${new Date(ms).toLocaleDateString()}`
   const days = Math.ceil((ms - Date.now()) / 86_400_000)
   return days <= 14 ? `SAS expires in ${days}d` : null
+}
+
+/* Big folders (5,000 rows per listing page) used to mount every row: ~40k DOM
+ * nodes, multi-second opens and ~500 ms per click. Past this many rows only the
+ * visible window (plus overscan) is rendered between two spacer rows. */
+const VIRTUAL_MIN_ROWS = 200
+const VIRTUAL_OVERSCAN = 12
+const DEFAULT_ROW_HEIGHT = 46
+
+// One shared formatter/collator: `toLocaleString`/`localeCompare` rebuild the
+// locale data on every call, which dominated sorting and row rendering.
+const dateFormat = new Intl.DateTimeFormat(undefined, {
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  second: '2-digit'
+})
+const collator = new Intl.Collator()
+
+function formatWhen(iso: string | undefined): string {
+  if (!iso) return '—'
+  const ms = Date.parse(iso)
+  return Number.isNaN(ms) ? '—' : dateFormat.format(ms)
 }
 
 function keyOf(item: StorageBlobItem): string {
@@ -433,7 +459,7 @@ export default function Explorer(props: {
     sorted.sort((a, b) => {
       if (a.isPrefix !== b.isPrefix) return a.isPrefix ? -1 : 1
       let cmp = 0
-      if (sortKey === 'name') cmp = a.leaf.localeCompare(b.leaf)
+      if (sortKey === 'name') cmp = collator.compare(a.leaf, b.leaf)
       else if (sortKey === 'size') cmp = (a.size ?? -1) - (b.size ?? -1)
       else cmp = (a.lastModified ?? '').localeCompare(b.lastModified ?? '')
       return cmp * sortDir
@@ -446,6 +472,64 @@ export default function Explorer(props: {
     [visibleBlobs]
   )
 
+  // Row order for shift-range selection, built once per listing/sort/filter
+  // (it used to be rebuilt inside every row: O(n²) per render).
+  const orderedKeys = useMemo(() => visibleBlobs.map(keyOf), [visibleBlobs])
+  const orderedKeysRef = useRef(orderedKeys)
+  orderedKeysRef.current = orderedKeys
+
+  /* ---------- virtualized blob rows ---------- */
+
+  const bodyScrollRef = useRef<HTMLDivElement>(null)
+  const topSpacerRef = useRef<HTMLTableRowElement>(null)
+  const [rowHeight, setRowHeight] = useState(DEFAULT_ROW_HEIGHT)
+  const [viewport, setViewport] = useState({ offset: 0, height: 900 })
+  const virtual = visibleBlobs.length > VIRTUAL_MIN_ROWS
+  const scrollFrame = useRef(0)
+
+  const measureViewport = useCallback((): void => {
+    const el = bodyScrollRef.current
+    const spacer = topSpacerRef.current
+    if (!el || !spacer) return
+    // Distance scrolled past the first data row (spacer sits right above it).
+    const dataTop = spacer.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop
+    const offset = Math.max(0, el.scrollTop - dataTop)
+    const height = el.clientHeight
+    setViewport((prev) => (prev.offset === offset && prev.height === height ? prev : { offset, height }))
+  }, [])
+
+  const onBodyScroll = useCallback((): void => {
+    if (scrollFrame.current) return
+    scrollFrame.current = requestAnimationFrame(() => {
+      scrollFrame.current = 0
+      measureViewport()
+    })
+  }, [measureViewport])
+
+  useEffect(() => () => cancelAnimationFrame(scrollFrame.current), [])
+
+  useEffect(() => {
+    const el = bodyScrollRef.current
+    if (!el || !virtual) return
+    const ro = new ResizeObserver(() => measureViewport())
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [virtual, measureViewport])
+
+  // Rows are single-line (nowrap), so one measured row sizes them all; density
+  // changes are picked up on the next render.
+  useLayoutEffect(() => {
+    if (!virtual) return
+    measureViewport()
+    const row = topSpacerRef.current?.nextElementSibling as HTMLElement | null
+    const h = row?.getBoundingClientRect().height ?? 0
+    if (h > 0 && Math.abs(h - rowHeight) > 0.5) setRowHeight(h)
+  })
+
+  const { start: windowStart, end: windowEnd } = virtual
+    ? virtualWindow(visibleBlobs.length, viewport.offset, viewport.height, rowHeight, VIRTUAL_OVERSCAN)
+    : { start: 0, end: visibleBlobs.length }
+
   const visibleContainers = useMemo(() => {
     const q = filter.trim().toLowerCase()
     const filtered =
@@ -454,7 +538,7 @@ export default function Explorer(props: {
     sorted.sort((a, b) =>
       sortKey === 'modified'
         ? (a.lastModified ?? '').localeCompare(b.lastModified ?? '') * sortDir
-        : a.name.localeCompare(b.name) * sortDir
+        : collator.compare(a.name, b.name) * sortDir
     )
     return sorted
   }, [containers, filter, sortKey, sortDir])
@@ -513,6 +597,19 @@ export default function Explorer(props: {
   }
 
   /* ---------- click-to-select + context menu ---------- */
+
+  // Stable callbacks for memoized rows; they read the latest handlers.
+  const rowActions = useRef({ selectRow, openRow, openCtx, toggleOne })
+  rowActions.current = { selectRow, openRow, openCtx, toggleOne }
+  const rowHandlers = useMemo<RowHandlers>(
+    () => ({
+      click: (e, key) => rowActions.current.selectRow(e, key, orderedKeysRef.current),
+      open: (item) => rowActions.current.openRow(item),
+      context: (e, key) => rowActions.current.openCtx(e, key, orderedKeysRef.current),
+      toggle: (key) => rowActions.current.toggleOne(key)
+    }),
+    []
+  )
 
   /** Single click selects; ⌘/Ctrl toggles; Shift extends a range. Double-click opens. */
   function selectRow(e: React.MouseEvent, key: string, orderedKeys: string[]): void {
@@ -1244,7 +1341,7 @@ export default function Explorer(props: {
                         </span>
                       </td>
                       <td className="muted">
-                        {c.lastModified ? new Date(c.lastModified).toLocaleString() : '—'}
+                        {formatWhen(c.lastModified)}
                       </td>
                       {!scoped && (
                         <td className="row-act" onClick={(e) => e.stopPropagation()}>
@@ -1349,7 +1446,12 @@ export default function Explorer(props: {
       <>
       {actionBar}
 
-      <div className="explorer-body-scroll" onContextMenu={(e) => openCtx(e, null, [])}>
+      <div
+        className="explorer-body-scroll"
+        ref={bodyScrollRef}
+        onScroll={virtual ? onBodyScroll : undefined}
+        onContextMenu={(e) => openCtx(e, null, [])}
+      >
         {addressStrip}
         {errorCalloutFor('blobs')}
         {loadingList ? (
@@ -1443,42 +1545,36 @@ export default function Explorer(props: {
                   </td>
                 </tr>
               ) : (
-                visibleBlobs.map((item, i) => {
-                  const key = keyOf(item)
-                  const orderedKeys = visibleBlobs.map(keyOf)
-                  return (
-                    <tr
-                      key={key}
-                      className={`row-in clickable${selection.has(key) ? ' selected' : ''}${item.deleted ? ' deleted' : ''}`}
-                      style={{ animationDelay: `${Math.min(i, 10) * 12}ms` }}
-                      onClick={(e) => selectRow(e, key, orderedKeys)}
-                      onDoubleClick={() => openRow(item)}
-                      onContextMenu={(e) => openCtx(e, key, orderedKeys)}
-                      title={item.isPrefix ? 'Open folder' : item.deleted ? 'Deleted — restore to use' : 'Double-click to preview · right-click for actions'}
-                    >
-                      <td className="check-col" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          aria-label={`Select ${item.leaf}`}
-                          checked={selection.has(key)}
-                          onChange={() => toggleOne(key)}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </td>
-                      <td className="name-col">
-                        <span className="file-row" title={item.name}>
-                          <span className={`file-ico ${item.isPrefix ? 'folder' : 'file'}`} aria-hidden />
-                          {item.leaf}
-                          {item.deleted && <span className="pill warn row-badge">deleted</span>}
-                        </span>
-                      </td>
-                      <td className="num">{item.isPrefix ? '—' : formatBytes(item.size)}</td>
-                      <td className="muted">
-                        {item.lastModified ? new Date(item.lastModified).toLocaleString() : '—'}
-                      </td>
+                <>
+                  {virtual && (
+                    <tr ref={topSpacerRef} className="virtual-spacer" aria-hidden style={{ height: windowStart * rowHeight }}>
+                      <td colSpan={4} />
                     </tr>
-                  )
-                })
+                  )}
+                  {visibleBlobs.slice(windowStart, windowEnd).map((item, n) => {
+                    const key = orderedKeys[windowStart + n]!
+                    return (
+                      <BlobRow
+                        key={key}
+                        item={item}
+                        rowKey={key}
+                        index={windowStart + n}
+                        selected={selection.has(key)}
+                        animate={!virtual}
+                        handlers={rowHandlers}
+                      />
+                    )
+                  })}
+                  {virtual && (
+                    <tr
+                      className="virtual-spacer"
+                      aria-hidden
+                      style={{ height: (visibleBlobs.length - windowEnd) * rowHeight }}
+                    >
+                      <td colSpan={4} />
+                    </tr>
+                  )}
+                </>
               )}
             </tbody>
           </table>
@@ -1535,6 +1631,54 @@ export default function Explorer(props: {
     </div>
   )
 }
+
+interface RowHandlers {
+  click: (e: React.MouseEvent, key: string) => void
+  open: (item: StorageBlobItem) => void
+  context: (e: React.MouseEvent, key: string) => void
+  toggle: (key: string) => void
+}
+
+/** One blob/folder row. Memoized: a selection change re-renders only the rows it touches. */
+const BlobRow = memo(function BlobRow(props: {
+  item: StorageBlobItem
+  rowKey: string
+  index: number
+  selected: boolean
+  animate: boolean
+  handlers: RowHandlers
+}): React.JSX.Element {
+  const { item, rowKey: key, handlers } = props
+  return (
+    <tr
+      className={`row-in${props.animate ? '' : ' no-anim'} clickable${props.selected ? ' selected' : ''}${item.deleted ? ' deleted' : ''}`}
+      style={props.animate ? { animationDelay: `${Math.min(props.index, 10) * 12}ms` } : undefined}
+      onClick={(e) => handlers.click(e, key)}
+      onDoubleClick={() => handlers.open(item)}
+      onContextMenu={(e) => handlers.context(e, key)}
+      title={item.isPrefix ? 'Open folder' : item.deleted ? 'Deleted — restore to use' : 'Double-click to preview · right-click for actions'}
+    >
+      <td className="check-col" onClick={(e) => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          aria-label={`Select ${item.leaf}`}
+          checked={props.selected}
+          onChange={() => handlers.toggle(key)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      </td>
+      <td className="name-col">
+        <span className="file-row" title={item.name}>
+          <span className={`file-ico ${item.isPrefix ? 'folder' : 'file'}`} aria-hidden />
+          {item.leaf}
+          {item.deleted && <span className="pill warn row-badge">deleted</span>}
+        </span>
+      </td>
+      <td className="num">{item.isPrefix ? '—' : formatBytes(item.size)}</td>
+      <td className="muted">{formatWhen(item.lastModified)}</td>
+    </tr>
+  )
+})
 
 function Action(props: {
   icon: string
