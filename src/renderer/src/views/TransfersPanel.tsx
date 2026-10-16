@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ActivityEntry, TransferInfo, TransfersSnapshot } from '../../../shared/types'
+import { onPanelAction } from '../palette-bus'
 import { formatBytes, formatDuration, formatEta, formatPct, formatSpeed } from '../../../shared/format'
 
 function statusLine(t: TransferInfo): string {
@@ -206,13 +207,29 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
     }
   }, [])
 
+  // ⌘K: toggle the dock / jump to activity (pinned, so it stays open even when empty).
+  useEffect(
+    () =>
+      onPanelAction((action) => {
+        cancelScheduled()
+        const open = action === 'show-activity' || !(expanded && pinned)
+        setPinned(open)
+        setExpanded(open)
+        if (action === 'show-activity') {
+          window.setTimeout(() => document.querySelector('.transfers-panel .activity-head')?.scrollIntoView({ block: 'start' }), 0)
+        }
+      }),
+    [expanded, pinned]
+  )
+
   // Pop open the moment work starts, like a download shelf.
   useEffect(() => {
     if (snap && snap.active > 0 && !hadActive.current) setExpanded(true)
     hadActive.current = (snap?.active ?? 0) > 0
   }, [snap])
 
-  if (!snap || (snap.transfers.length === 0 && activities.length === 0)) return <></>
+  const empty = !snap || (snap.transfers.length === 0 && activities.length === 0)
+  if (!snap || (empty && !(pinned && expanded))) return <></>
 
   const firstActive = snap.transfers.find((t) => t.status === 'active')
   const up = snap.transfers.filter((t) => t.direction === 'upload' && (t.status === 'active' || t.status === 'queued')).length
@@ -311,6 +328,8 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
           ))}
         </ul>
       )}
+
+      {empty && <p className="muted small transfers-empty" style={{ margin: '10px 0 0' }}>No transfers or activity yet.</p>}
 
       {activities.length > 0 && (
         <>

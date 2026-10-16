@@ -12,6 +12,7 @@ import { formatBytes } from '../../../shared/format'
 import { virtualWindow } from '../../../shared/virtual-window'
 import { parseStorageError, type ExplorerError } from './errors'
 import ErrorCallout from './ErrorCallout'
+import { onExplorerAction, publishExplorer, type ExplorerAction } from '../palette-bus'
 import logoUrl from '../assets/logo.png'
 
 type SortKey = 'name' | 'size' | 'modified'
@@ -320,6 +321,11 @@ export default function Explorer(props: {
     if (props.target) {
       switchContainer(props.target.container)
       resetNav()
+      // ⌘K recent folders jump straight to a prefix.
+      if (props.target.prefix) {
+        setNavPrefix(props.target.prefix)
+        navPrefixRef.current = props.target.prefix
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.target?.tick])
@@ -934,6 +940,69 @@ export default function Explorer(props: {
       const count = await window.api.storage.undeleteBlobs({ accountId, container, names })
       return `Restored ${count} item${count === 1 ? '' : 's'}`
     })
+  }
+
+  /* ---------- ⌘K palette hooks (palette-bus.ts) ---------- */
+
+  function blobUrl(name: string): string {
+    const base = (account?.endpoint ?? '').replace(/\/+$/, '')
+    const path = [container ?? '', ...name.replace(/\/$/, '').split('/')].filter(Boolean)
+    return `${base}/${path.map(encodeURIComponent).join('/')}${name.endsWith('/') ? '/' : ''}`
+  }
+
+  function copyUrls(): void {
+    if (!container) return
+    const keys = selection.size > 0 ? [...selection] : [navPrefix ? `${navPrefix}/` : '']
+    void navigator.clipboard
+      ?.writeText(keys.map(blobUrl).join('\n'))
+      .then(() => flash(keys.length === 1 ? 'URL copied' : `${keys.length} URLs copied`))
+      .catch(() => undefined)
+  }
+
+  const paletteAction = useRef<(action: ExplorerAction) => void>(() => undefined)
+  paletteAction.current = (action) => {
+    if (busy !== null && action !== 'copy-url' && action !== 'copy-path' && action !== 'focus-filter') return
+    if (action === 'refresh') retryCurrent()
+    else if (action === 'upload-files') onUpload()
+    else if (action === 'upload-folder') onUploadFolder()
+    else if (action === 'new-folder') onNewFolder()
+    else if (action === 'new-container') onNewContainer()
+    else if (action === 'download') onDownload()
+    else if (action === 'copy-url') copyUrls()
+    else if (action === 'copy-path' && selection.size > 0) copyPaths([...selection])
+    else if (action === 'toggle-deleted' && container) setShowDeleted((v) => !v)
+    else if (action === 'go-up') goUp()
+    else if (action === 'focus-filter') {
+      filterRef.current?.focus()
+      filterRef.current?.select()
+    }
+  }
+  useEffect(() => onExplorerAction((action) => paletteAction.current(action)), [])
+  useEffect(() => {
+    publishExplorer(
+      accountId
+        ? {
+            accountId,
+            container,
+            prefix: navPrefix,
+            selection: selection.size,
+            containers: containers.map((c) => c.name),
+            canManageContainers: account?.kind === 'account' && !account.containerName,
+            showDeleted
+          }
+        : null
+    )
+  }, [accountId, account, container, navPrefix, selection, containers, showDeleted])
+  useEffect(() => () => publishExplorer(null), [])
+
+  function onUploadFolder(): void {
+    if (!accountId || !container) return
+    setBusy('upload')
+    setActionError(null)
+    window.api.transfers
+      .upload({ accountId, container, prefix: blobs?.prefix || undefined, folder: true })
+      .catch((err: unknown) => fail(err, 'action'))
+      .finally(() => setBusy(null))
   }
 
   /* ---------- render ---------- */

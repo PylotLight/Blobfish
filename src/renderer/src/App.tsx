@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { APP_NAME, APP_TAGLINE } from '../../shared/config'
 import type { AccountSummary, StorageContainer, SysInfo } from '../../shared/types'
 import logoUrl from './assets/logo.png'
@@ -9,10 +9,15 @@ import TransfersPanel from './views/TransfersPanel'
 import { ConfirmDialog, PromptDialog } from './views/Dialogs'
 import { DEFAULT_PREFS, accentVars, loadPrefs, savePrefs, SettingsView, type Prefs } from './views/Settings'
 import { REVEAL_UPDATES_KEY } from './views/UpdateSettings'
+import { sendPanelAction } from './palette-bus'
+
+const CommandPalette = lazy(() => import('./views/CommandPalette'))
 
 export interface SelectionTarget {
   accountId: string
   container: string | null
+  /** Folder to open inside `container` (⌘K recent folders). */
+  prefix?: string
   tick: number
 }
 
@@ -72,6 +77,7 @@ export default function App(): React.JSX.Element {
   const [attachedOpen, setAttachedOpen] = useState(true)
   const [copiedSecretId, setCopiedSecretId] = useState<string | null>(null)
   const [secretError, setSecretError] = useState<string | null>(null)
+  const [paletteOpen, setPaletteOpen] = useState(false)
 
   const refreshAccounts = useCallback(() => {
     window.api.accounts
@@ -126,6 +132,20 @@ export default function App(): React.JSX.Element {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // ⌘K / Ctrl+K toggles the command palette. Capture phase so inputs can't swallow it;
+  // ignored while another modal (wizard, confirm, preview) owns the screen.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'k') return
+      if (document.querySelector('.modal-backdrop:not(.palette-backdrop)')) return
+      e.preventDefault()
+      e.stopPropagation()
+      setPaletteOpen((v) => !v)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
   }, [])
 
   // Drag-to-resize sidebar width. The live width is mirrored to a ref so
@@ -210,12 +230,12 @@ export default function App(): React.JSX.Element {
     })
   }
 
-  function selectAccount(accountId: string, container: string | null = null): void {
+  function selectAccount(accountId: string, container: string | null = null, prefix?: string): void {
     const a = accounts.find((x) => x.id === accountId)
     const resolved =
       container ?? (a && a.kind !== 'account' ? (a.containerName ?? null) : null)
     setSelectedId(accountId)
-    setTarget((t) => ({ accountId, container: resolved, tick: (t?.tick ?? 0) + 1 }))
+    setTarget((t) => ({ accountId, container: resolved, prefix, tick: (t?.tick ?? 0) + 1 }))
   }
 
   function goHome(): void {
@@ -647,6 +667,39 @@ export default function App(): React.JSX.Element {
         </main>
         {!showSettings && <TransfersPanel onOpenSettings={() => setShowSettings(true)} />}
       </div>
+
+      {paletteOpen && (
+        <Suspense fallback={null}>
+          <CommandPalette
+            platform={platform ?? 'darwin'}
+            accounts={accounts}
+            containersCache={containersCache}
+            selectedId={selectedId}
+            theme={prefs.theme}
+            onClose={() => setPaletteOpen(false)}
+            app={{
+              newConnection: () => setShowWizard(true),
+              goHome: () => {
+                setShowSettings(false)
+                goHome()
+              },
+              openSettings: () => setShowSettings(true),
+              toggleSidebar: () => setSidebarCollapsed((v) => !v),
+              setTheme: (theme) => updatePrefs({ ...prefs, theme }),
+              open: (accountId, container, prefix) => {
+                setShowSettings(false)
+                selectAccount(accountId, container, prefix)
+              },
+              copySecret,
+              panel: (action) => {
+                // The dock only exists outside Settings; let it mount first.
+                setShowSettings(false)
+                window.setTimeout(() => sendPanelAction(action), 0)
+              }
+            }}
+          />
+        </Suspense>
+      )}
 
       {showWizard && (
         <ConnectWizard

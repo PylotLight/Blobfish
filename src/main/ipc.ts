@@ -327,7 +327,7 @@ export function registerIpc(): void {
   ipcMain.handle(
     'transfers:upload',
     (_event: IpcMainInvokeEvent, args: UploadEnqueueArgs): Promise<string[]> =>
-      enqueueUpload(args.accountId, args.container, args.prefix)
+      enqueueUpload(args.accountId, args.container, args.prefix, args.folder === true)
   )
   ipcMain.handle(
     'transfers:download',

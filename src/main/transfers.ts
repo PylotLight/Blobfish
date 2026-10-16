@@ -1,7 +1,7 @@
 import { dialog } from 'electron'
 import { randomUUID } from 'node:crypto'
-import { mkdir, stat, unlink } from 'node:fs/promises'
-import { basename, join } from 'node:path'
+import { mkdir, readdir, stat, unlink } from 'node:fs/promises'
+import { basename, join, relative, sep } from 'node:path'
 import { decryptSecret } from './accounts'
 import { logActivity } from './activity'
 import { getMainWindow } from './window'
@@ -339,20 +339,36 @@ function uniqueDownloadPath(destDir: string, rel: string, used: Set<string>): st
 export async function enqueueUpload(
   accountId: string,
   container: string,
-  prefix?: string
+  prefix?: string,
+  folder = false
 ): Promise<string[]> {
   const win = getMainWindow()
   const picked = await dialog.showOpenDialog(win!, {
-    title: 'Upload to Blobfish',
-    properties: ['openFile', 'multiSelections']
+    title: folder ? 'Upload folder to Blobfish' : 'Upload to Blobfish',
+    properties: folder ? ['openDirectory', 'multiSelections'] : ['openFile', 'multiSelections']
   })
   if (picked.canceled || picked.filePaths.length === 0) return []
   const { profile } = await decryptSecret(accountId)
   const base = [profile.prefix, prefix].filter(Boolean).join('/').replace(/^\/+|\/+$/g, '')
+  // Folder upload keeps the picked folder's name and layout: <base>/<folder>/<sub>/<file>.
+  const files: Array<{ fp: string; rel: string }> = []
+  for (const picked0 of picked.filePaths) {
+    if (!folder) {
+      files.push({ fp: picked0, rel: basename(picked0) })
+      continue
+    }
+    const parent = join(picked0, '..')
+    const entries = await readdir(picked0, { recursive: true, withFileTypes: true }).catch(() => [])
+    for (const entry of entries) {
+      if (!entry.isFile()) continue // dirs are implicit in blob names; symlinks skipped
+      const fp = join(entry.parentPath, entry.name)
+      files.push({ fp, rel: relative(parent, fp).split(sep).join('/') })
+    }
+  }
   const ids: string[] = []
-  for (const fp of picked.filePaths) {
+  for (const { fp, rel } of files) {
     const size = (await stat(fp).catch(() => null))?.size ?? 0
-    const dest = base ? `${base}/${basename(fp)}` : basename(fp)
+    const dest = base ? `${base}/${rel}` : rel
     ids.push(
       enqueue({
         direction: 'upload',
