@@ -5,13 +5,13 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { APP_ID } from '../shared/config'
 import { migrateAccountSecrets } from './accounts'
 import { registerIpc } from './ipc'
+import { initializeUpdates, registerUpdateIpc } from './updates'
 import { createAppMenu } from './menu'
 import { createAppTray, destroyTray } from './tray'
 import { createWindow, getMainWindow, hideWindow, resolveAppIcon, showWindow } from './window'
 import { loadActivities, saveActivities } from './activity'
 import { inFlightCounts, stopTransfersForQuit } from './transfers'
 import { createShutdown, quitWarning } from '../shared/stability'
-import { initializeUpdates, registerUpdateIpc } from './updates'
 
 // Single instance: a second launch focuses the existing window instead of forking.
 const primaryInstance = app.requestSingleInstanceLock()
