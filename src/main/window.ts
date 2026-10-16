@@ -1,9 +1,15 @@
-import { BrowserWindow, app, shell } from 'electron'
-import { existsSync } from 'node:fs'
+import { BrowserWindow, app, screen, shell, type Rectangle } from 'electron'
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
 import { WINDOW } from '../shared/config'
 import type { GlassState, VibrancyName } from '../shared/types'
+import {
+  centerOnArea,
+  fitBoundsToDisplays,
+  parseSavedWindowState,
+  type SavedWindowState
+} from '../shared/window-geometry'
 
 const isMac = process.platform === 'darwin'
 
@@ -31,10 +37,82 @@ export function resolveAppIcon(): string | undefined {
   return existsSync(p) ? p : undefined
 }
 
+// Window state (ported from Surffish via Inkfish #49): the main window reopens where you left
+// it (size, position, maximized, full screen), fitted back onto a display that still exists.
+const WINDOW_STATE_FILE = 'window-state.json'
+const SAVE_DELAY_MS = 500
+const MIN_SIZE = { width: WINDOW.minWidth, height: WINDOW.minHeight }
+
+function windowStatePath(): string {
+  return join(app.getPath('userData'), WINDOW_STATE_FILE)
+}
+
+function loadWindowState(): SavedWindowState | null {
+  try {
+    const path = windowStatePath()
+    if (!existsSync(path)) return null
+    const saved = parseSavedWindowState(JSON.parse(readFileSync(path, 'utf8')))
+    if (!saved) return null
+    const areas = screen.getAllDisplays().map((d) => d.workArea)
+    const bounds =
+      fitBoundsToDisplays(saved.bounds, areas, MIN_SIZE) ??
+      centerOnArea(saved.bounds, screen.getPrimaryDisplay().workArea, MIN_SIZE)
+    return { ...saved, bounds }
+  } catch (err) {
+    console.warn('[window] could not read window state:', err instanceof Error ? err.message : String(err))
+    return null
+  }
+}
+
+function saveWindowState(win: BrowserWindow, normalBounds: Rectangle): void {
+  if (win.isDestroyed()) return
+  const state: SavedWindowState = {
+    // Normal (un-maximized) bounds, so un-maximizing after a relaunch goes back to your size.
+    bounds: normalBounds,
+    maximized: win.isMaximized(),
+    fullScreen: win.isFullScreen()
+  }
+  try {
+    const path = windowStatePath()
+    writeFileSync(`${path}.tmp`, JSON.stringify(state))
+    renameSync(`${path}.tmp`, path)
+  } catch (err) {
+    console.warn('[window] could not save window state:', err instanceof Error ? err.message : String(err))
+  }
+}
+
+function trackWindowState(win: BrowserWindow): void {
+  // Track normal bounds ourselves: a window that launched maximized has no earlier normal size
+  // on Linux, so getNormalBounds() there returns the maximized rect and the size would be lost.
+  let normalBounds = win.getBounds()
+  let timer: NodeJS.Timeout | null = null
+  const schedule = (): void => {
+    if (!win.isDestroyed() && !win.isMaximized() && !win.isFullScreen() && !win.isMinimized()) {
+      normalBounds = win.getBounds()
+    }
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => {
+      timer = null
+      saveWindowState(win, normalBounds)
+    }, SAVE_DELAY_MS)
+  }
+  for (const event of ['resize', 'move', 'maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen'] as const) {
+    win.on(event as 'resize', schedule)
+  }
+  // 'close' fires before the window goes away (quit included), so the last state always lands.
+  win.on('close', () => {
+    if (timer) clearTimeout(timer)
+    timer = null
+    saveWindowState(win, normalBounds)
+  })
+}
+
 export function createWindow(): BrowserWindow {
+  const saved = loadWindowState()
   const win = new BrowserWindow({
-    width: WINDOW.width,
-    height: WINDOW.height,
+    width: saved?.bounds.width ?? WINDOW.width,
+    height: saved?.bounds.height ?? WINDOW.height,
+    ...(saved ? { x: saved.bounds.x, y: saved.bounds.y } : {}),
     minWidth: WINDOW.minWidth,
     minHeight: WINDOW.minHeight,
     show: false,
@@ -61,7 +139,12 @@ export function createWindow(): BrowserWindow {
     }
   })
 
-  win.on('ready-to-show', () => win.show())
+  win.on('ready-to-show', () => {
+    if (saved?.maximized) win.maximize()
+    if (saved?.fullScreen) win.setFullScreen(true)
+    win.show()
+  })
+  trackWindowState(win)
 
   win.webContents.setWindowOpenHandler((details) => {
     void shell.openExternal(details.url)
