@@ -3321,8 +3321,20 @@ th.wide {
   gap: 4px;
   padding: 8px 12px 0;
   border-bottom: 1px solid var(--border);
+  /* Scrolls sideways when tabs overflow, but never shows a bar: overflow-x alone
+   * made overflow-y auto too, which drew a stray mini scrollbar beside the tabs. */
   overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
   flex-shrink: 0;
+}
+
+.tab-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.transfers-bar .t-stats > .t-failed {
+  color: var(--danger);
 }
 
 .tab-strip .tab {
