@@ -1,4 +1,4 @@
-import { BrowserWindow, app, screen, shell } from 'electron'
+import { BrowserWindow, app, screen, shell, type Rectangle } from 'electron'
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
@@ -64,11 +64,11 @@ function loadWindowState(): SavedWindowState | null {
   }
 }
 
-function saveWindowState(win: BrowserWindow): void {
+function saveWindowState(win: BrowserWindow, normalBounds: Rectangle): void {
   if (win.isDestroyed()) return
   const state: SavedWindowState = {
-    // Normal bounds, so un-maximizing after a relaunch goes back to the size you had.
-    bounds: win.getNormalBounds(),
+    // Normal (un-maximized) bounds, so un-maximizing after a relaunch goes back to your size.
+    bounds: normalBounds,
     maximized: win.isMaximized(),
     fullScreen: win.isFullScreen()
   }
@@ -82,12 +82,18 @@ function saveWindowState(win: BrowserWindow): void {
 }
 
 function trackWindowState(win: BrowserWindow): void {
+  // Track normal bounds ourselves: a window that launched maximized has no earlier normal size
+  // on Linux, so getNormalBounds() there returns the maximized rect and the size would be lost.
+  let normalBounds = win.getBounds()
   let timer: NodeJS.Timeout | null = null
   const schedule = (): void => {
+    if (!win.isDestroyed() && !win.isMaximized() && !win.isFullScreen() && !win.isMinimized()) {
+      normalBounds = win.getBounds()
+    }
     if (timer) clearTimeout(timer)
     timer = setTimeout(() => {
       timer = null
-      saveWindowState(win)
+      saveWindowState(win, normalBounds)
     }, SAVE_DELAY_MS)
   }
   for (const event of ['resize', 'move', 'maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen'] as const) {
@@ -97,7 +103,7 @@ function trackWindowState(win: BrowserWindow): void {
   win.on('close', () => {
     if (timer) clearTimeout(timer)
     timer = null
-    saveWindowState(win)
+    saveWindowState(win, normalBounds)
   })
 }
 
