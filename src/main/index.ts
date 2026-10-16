@@ -11,6 +11,7 @@ import { createWindow, getMainWindow, hideWindow, resolveAppIcon, showWindow } f
 import { loadActivities, saveActivities } from './activity'
 import { inFlightCounts, stopTransfersForQuit } from './transfers'
 import { createShutdown, quitWarning } from '../shared/stability'
+import { initializeUpdates, registerUpdateIpc } from './updates'
 
 // Single instance: a second launch focuses the existing window instead of forking.
 const primaryInstance = app.requestSingleInstanceLock()
@@ -41,10 +42,13 @@ app.whenReady().then(() => {
   // Last session's activity feed (written by the ordered shutdown below).
   loadActivities()
   registerIpc()
+  registerUpdateIpc()
   // Electron 45 async safeStorage: re-seal stored secrets if the keychain asks (background, once).
   migrateAccountSecrets()
   createAppMenu()
   createWindow()
+  // Release notifications from the GitHub releases feed (first check ~30 s after launch, then every 6 h).
+  initializeUpdates()
   createAppTray({
     onShow: showWindow,
     onHide: hideWindow,

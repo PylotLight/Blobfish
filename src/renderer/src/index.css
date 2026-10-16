@@ -4164,3 +4164,28 @@ th.wide {
     align-items: stretch;
   }
 }
+
+/* Settings › About & updates (UpdateSettings.tsx) */
+.update-notes {
+  margin: 4px 0 0;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.update-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent, var(--mint));
+  display: inline-block;
+  flex: none;
+}
+
+.settings-btn .update-dot {
+  margin-left: auto;
+}

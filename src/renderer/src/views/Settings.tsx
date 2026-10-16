@@ -1,3 +1,5 @@
+import { UpdateSettings } from './UpdateSettings'
+
 export type ThemeName = 'midnight' | 'abyss' | 'slate'
 export type DensityName = 'comfortable' | 'compact'
 export type MotionName = 'full' | 'reduced'
@@ -316,6 +318,8 @@ export function SettingsView(props: {
             </button>
           </div>
         </section>
+
+        <UpdateSettings />
       </div>
 
       <div className="row end">

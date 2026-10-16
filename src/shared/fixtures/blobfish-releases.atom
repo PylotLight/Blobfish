@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/" xml:lang="en-US">
+  <id>tag:github.com,2008:https://github.com/PylotLight/Blobfish/releases</id>
+  <link type="text/html" rel="alternate" href="https://github.com/PylotLight/Blobfish/releases"/>
+  <link type="application/atom+xml" rel="self" href="https://github.com/PylotLight/Blobfish/releases.atom"/>
+  <title>Release notes from Blobfish</title>
+  <updated>2026-10-08T02:46:35Z</updated>
+  <entry>
+    <id>tag:github.com,2008:Repository/1401003488/v0.2.2</id>
+    <updated>2026-10-08T02:48:55Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/PylotLight/Blobfish/releases/tag/v0.2.2"/>
+    <title>v0.2.2</title>
+    <content type="html">&lt;h2&gt;[0.2.2] - 2026-10-08&lt;/h2&gt;
+&lt;h3&gt;Added&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;(preview)&lt;/strong&gt; Resizable CSV columns with content autosize, table polish (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/3651c1081034f5b66ac9712221b52b7b73429852&quot;&gt;3651c10&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(preview)&lt;/strong&gt; Excel-style column options popover (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/01de085f1d4f8c325bdfd1e1950c0bf29acc95a9&quot;&gt;01de085&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(blobs)&lt;/strong&gt; Move/clone blobs into a folder (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/46aa5c9a88cd8726379ffba1eedb536743ffb70e&quot;&gt;46aa5c9&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(blobs)&lt;/strong&gt; Visual folder picker for move/copy destination (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/221fd7a03ca1ac01166aff4dd0817e697a7a8d3e&quot;&gt;221fd7a&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(ui)&lt;/strong&gt; Dashboard home on launch (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/e49b5d012d35c8eec29d59bdc1004a1e1ab2c833&quot;&gt;e49b5d0&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(transfers)&lt;/strong&gt; Inline delete for downloaded files (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/ec347626c27eb00f4c68af77f94b7f69283d4f47&quot;&gt;ec34762&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(blobs)&lt;/strong&gt; Deleted view with undelete plus version history restore (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/4565842dd0b98395c321847c67c871393eabe106&quot;&gt;4565842&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(transfers)&lt;/strong&gt; File completed transfers to activity, single feed (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/c8688dc6972f868a73fafd7c2425092b1e555662&quot;&gt;c8688dc&lt;/a&gt;)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3&gt;Fixed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;(ui)&lt;/strong&gt; Compact horizontal home hero, wider page (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/28ab01bffdeb032436576cd639593cbccce19f6d&quot;&gt;28ab01b&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(blobs)&lt;/strong&gt; List-based collision check for move/copy (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/ac8e0ec6a585f995ce73491c02724e273b34aba2&quot;&gt;ac8e0ec&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(blobs)&lt;/strong&gt; Replace-existing option, provable conflicts, batch dupes (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/e961aedfa2b473f0237fb9d6578002dd3e8f5aec&quot;&gt;e961aed&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(blobs)&lt;/strong&gt; Delete confirm previews blast radius, audit names (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/d6df06daaca31386d104b776c6028c9a96bad5b0&quot;&gt;d6df06d&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(ui)&lt;/strong&gt; Clickable home button, inline row actions, compact sidebar actions (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/a05c67099651448960cb0a9914bf4ad702be4ed4&quot;&gt;a05c670&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(transfers)&lt;/strong&gt; Delete feedback on transfer rows, download-only file actions (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/b4850ac7ed34c92d58b77f2347b95ca5ff9ea872&quot;&gt;b4850ac&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(ui)&lt;/strong&gt; Hover row actions, roomier new-connection button (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/7ef5a240ca23c55432940a56aa1ef57bc843c013&quot;&gt;7ef5a24&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(ui)&lt;/strong&gt; Row actions in overflow menu, never over names (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/febe6baf75649af84da034245a0f8863a2b91bab&quot;&gt;febe6ba&lt;/a&gt;)&lt;/li&gt;
+&lt;/ul&gt;</content>
+    <author>
+      <name>github-actions[bot]</name>
+    </author>
+    <media:thumbnail height="30" width="30" url="https://avatars.githubusercontent.com/in/15368?s=60&amp;v=4"/>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/1401003488/v0.2.1</id>
+    <updated>2026-10-08T01:37:01Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/PylotLight/Blobfish/releases/tag/v0.2.1"/>
+    <title>v0.2.1</title>
+    <content type="html">&lt;h2&gt;[0.2.1] - 2026-10-08&lt;/h2&gt;
+&lt;h3&gt;Fixed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;(ui)&lt;/strong&gt; Scope error banners per view so container 403s don&#39;t cover blobs (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/1543f69e33f46ef65c271a4791d29a30d35ac8c0&quot;&gt;1543f69&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(azure)&lt;/strong&gt; Skip container probe for scoped attachments (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/a7b5c2975280e769f5ee44020d1f895cc4cb1034&quot;&gt;a7b5c29&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(ui)&lt;/strong&gt; Honest container-list failure states (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/84bf401bf50b0d38a09ba2201df1549083b9241f&quot;&gt;84bf401&lt;/a&gt;)&lt;/li&gt;
+&lt;/ul&gt;</content>
+    <author>
+      <name>github-actions[bot]</name>
+    </author>
+    <media:thumbnail height="30" width="30" url="https://avatars.githubusercontent.com/in/15368?s=60&amp;v=4"/>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/1401003488/v0.2.0</id>
+    <updated>2026-10-07T16:44:25Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/PylotLight/Blobfish/releases/tag/v0.2.0"/>
+    <title>v0.2.0</title>
+    <content type="html">&lt;h2&gt;[0.2.0] - 2026-10-07&lt;/h2&gt;
+&lt;h3&gt;Added&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;(accounts)&lt;/strong&gt; Copy/export connection secret per connection (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/9933d5c2f6ee76bf193c8a83f36fce0ba03a8853&quot;&gt;9933d5c&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(transfers)&lt;/strong&gt; Open/reveal downloaded files from dock (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/ca92eb53a3c5e6cf40d26a61af5d62ea19de75ff&quot;&gt;ca92eb5&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(preview)&lt;/strong&gt; Sortable and filterable CSV columns (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/634528ab4c1caeddcb9d62c852c1ada4649e5cb4&quot;&gt;634528a&lt;/a&gt;)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3&gt;Fixed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;(transfers)&lt;/strong&gt; Download selected files flat, not parent dir (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/7ac904f6476b067f3c88eb3f46efd90ca5d6306e&quot;&gt;7ac904f&lt;/a&gt;)&lt;/li&gt;
+&lt;/ul&gt;</content>
+    <author>
+      <name>github-actions[bot]</name>
+    </author>
+    <media:thumbnail height="30" width="30" url="https://avatars.githubusercontent.com/in/15368?s=60&amp;v=4"/>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/1401003488/v0.1.2</id>
+    <updated>2026-10-05T00:31:57Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/PylotLight/Blobfish/releases/tag/v0.1.2"/>
+    <title>v0.1.2</title>
+    <content type="html">&lt;h2&gt;[0.1.2] - 2026-10-05&lt;/h2&gt;
+&lt;h3&gt;Added&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;(preview)&lt;/strong&gt; Range-based text/CSV file previews (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/e6f479158d8f0a941bed5f90a6de6b47db23dabe&quot;&gt;e6f4791&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(explorer)&lt;/strong&gt; Tabbed previews, click-to-select, context menu, flat pinned containers (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/97f44db803660f756584b4f4356fab12ab475cb1&quot;&gt;97f44db&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(ui)&lt;/strong&gt; Collapsible sidebar, quit button, settings width fix, single-frame logo (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/a97caf93e216f74413fffcfcdde0e5d093312f3f&quot;&gt;a97caf9&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(cli)&lt;/strong&gt; Npm/bunx launcher for Blobfish (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/efd5edd1ecaf0d4b493f61cd02c316ea883dc0c4&quot;&gt;efd5edd&lt;/a&gt;)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3&gt;Documentation&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;Refresh status, shortcuts, npm install, roadmap (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/0b38d5be5017847ba25a8fbe81153b174dd2f939&quot;&gt;0b38d5b&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;Homebrew removed --no-quarantine, manual xattr is the only path (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/d458e982f9f8edc63f07652b995165ee06d54bc2&quot;&gt;d458e98&lt;/a&gt;)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3&gt;Fixed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;(sas)&lt;/strong&gt; Scope-aware container clients, pin containers, resizable grid, sas autofill (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/dcd901c2ac314269946b44130f6b81c8c8b5f4ca&quot;&gt;dcd901c&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(ui)&lt;/strong&gt; Single-root breadcrumb for scoped containers, row-count preview footer, readable context menu (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/6d57139fc47ef76965d92c4b38e27b1644978a35&quot;&gt;6d57139&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(errors)&lt;/strong&gt; One 403 for one outage, deduped activity, stale-request guards (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/90e32571d82e28d1e6866dbab54bc97e7a6c6fc9&quot;&gt;90e3257&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(cli)&lt;/strong&gt; Keep electron in devDependencies, fetch it on demand in launcher (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/3119e10893b2c5d58359c0013a2e0abc0337a6fa&quot;&gt;3119e10&lt;/a&gt;)&lt;/li&gt;
+&lt;/ul&gt;</content>
+    <author>
+      <name>github-actions[bot]</name>
+    </author>
+    <media:thumbnail height="30" width="30" url="https://avatars.githubusercontent.com/in/15368?s=60&amp;v=4"/>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/1401003488/v0.1.1</id>
+    <updated>2026-10-03T04:58:02Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/PylotLight/Blobfish/releases/tag/v0.1.1"/>
+    <title>v0.1.1</title>
+    <content type="html">&lt;h2&gt;[0.1.1] - 2026-10-03&lt;/h2&gt;
+&lt;h3&gt;Fixed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;(tap)&lt;/strong&gt; Remove deprecated cask stanzas, add unsigned-build caveats (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/68f5840895c5e4425b35ad7b91e2315e3c0c89f5&quot;&gt;68f5840&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(ui)&lt;/strong&gt; Unify explorer panel, polished error callouts + activity logging (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/76917fb388823631bb8a34995371fb8ebc0562e3&quot;&gt;76917fb&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(ui)&lt;/strong&gt; Floating transfers dock, quieter errors, version in sidebar (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/e37089d5bd77b5c79ec502ba1f71b30c84c576d1&quot;&gt;e37089d&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(ui)&lt;/strong&gt; Full-width hover dock, slim error banner, drop duplicate subtitle (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/4608ef0e97f266a32f4a5a68184a8aeb3198d983&quot;&gt;4608ef0&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(ui)&lt;/strong&gt; Dock alignment, hover intent, drop duplicate error toast (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/29c3aa34cda8504569639a9adff0fcec0e17b284&quot;&gt;29c3aa3&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(ui)&lt;/strong&gt; Consolidate settings into grouped single panel (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/c9a44ab535c68d3b920d788212282e3c35b6e32e&quot;&gt;c9a44ab&lt;/a&gt;)&lt;/li&gt;
+&lt;/ul&gt;</content>
+    <author>
+      <name>github-actions[bot]</name>
+    </author>
+    <media:thumbnail height="30" width="30" url="https://avatars.githubusercontent.com/in/15368?s=60&amp;v=4"/>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/1401003488/v0.1.0</id>
+    <updated>2026-10-03T04:01:10Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/PylotLight/Blobfish/releases/tag/v0.1.0"/>
+    <title>v0.1.0</title>
+    <content type="html">&lt;h2&gt;[0.1.0] - 2026-10-03&lt;/h2&gt;
+&lt;h3&gt;Added&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;(storage)&lt;/strong&gt; Foundational accounts — safeStorage profiles, 3 attach kinds, container/blob listing (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/237f4600bbf110903ac61ee9019fa1315a4579bc&quot;&gt;237f460&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(storage)&lt;/strong&gt; Wizard, tree sidebar, quick access, blob/container CRUD (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/18521bce2236e9d2a1b576faa345e3921fa0aee0&quot;&gt;18521bc&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(ui)&lt;/strong&gt; ASE-style browser, app menu with zoom, drop container dropdown (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/f2c27f81dec27a622b2a50f602a0f5cbd06f1e34&quot;&gt;f2c27f8&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(ui)&lt;/strong&gt; Settings, intentional confirms, smoother rollout, sidebar cleanup (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/b1044169349d7c11d6516c1ff4fd211ce3e0c548&quot;&gt;b104416&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(transfers)&lt;/strong&gt; Queued streaming uploads/downloads with progress dock (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/dd73abeb8412cd668cd162ecf6a4f4194d524809&quot;&gt;dd73abe&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(ui)&lt;/strong&gt; Dialog blur, parent row, sidebar container actions, settings page, accents, sticky toolbar (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/5d618a6cd76007053652e2af1ffaa569ee90b3ac&quot;&gt;5d618a6&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(settings)&lt;/strong&gt; Custom accent color picker (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/e984b163519283c3cccaa250fad74110b0c286e4&quot;&gt;e984b16&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(icons)&lt;/strong&gt; Wire app icon into debug and release builds (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/23314b8d3a672da5e5918cd24d12d76cced1790c&quot;&gt;23314b8&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(release)&lt;/strong&gt; Tag-driven release flow with changelog + homebrew cask (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/6daf36d85a18e8262f1e0f4d5197246f00a36e3d&quot;&gt;6daf36d&lt;/a&gt;)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3&gt;Fixed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;(ipc)&lt;/strong&gt; Remove duplicate transfers:configure handler (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/c0ff2a66f373f50acad7ae479d9827b4388ebd5e&quot;&gt;c0ff2a6&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(release)&lt;/strong&gt; Don&#39;t fail when version/changelog are unchanged (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/76fc7a52b36395cb283833d22b255919741779cd&quot;&gt;76fc7a5&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(release)&lt;/strong&gt; Match electron-builder&#39;s mac artifact naming (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/fabf2f0f1f04942e54fd9da4e5e58406ddb0230f&quot;&gt;fabf2f0&lt;/a&gt;)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3&gt;Other&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;Initial commit (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/2941127fa5df075422d72c5112a631101a8102d7&quot;&gt;2941127&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;Blobfish identity on starter template (config, package, readme) (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/9718d04614759cf98264fabd561785edc44b67a8&quot;&gt;9718d04&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;Add app build/icon assets (&lt;a href=&quot;https://github.com/PylotLight/Blobfish/commit/d4780b7d445fc77be83edf8161ff639de448e3cb&quot;&gt;d4780b7&lt;/a&gt;)&lt;/li&gt;
+&lt;/ul&gt;</content>
+    <author>
+      <name>github-actions[bot]</name>
+    </author>
+    <media:thumbnail height="30" width="30" url="https://avatars.githubusercontent.com/in/15368?s=60&amp;v=4"/>
+  </entry>
+</feed>
