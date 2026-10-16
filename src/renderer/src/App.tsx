@@ -11,6 +11,7 @@ import { DEFAULT_PREFS, accentVars, loadPrefs, savePrefs, SettingsView, type Pre
 import { REVEAL_UPDATES_KEY } from './views/UpdateSettings'
 import { sendPanelAction } from './palette-bus'
 import { BrandEasterEgg, useBrandTripleClick } from './views/easter-egg/BrandEasterEgg'
+import { Icon } from './views/Icon'
 
 const CommandPalette = lazy(() => import('./views/CommandPalette'))
 
@@ -383,23 +384,27 @@ export default function App(): React.JSX.Element {
                       ? `Unpin container "${c.name}" from Quick Access`
                       : `Pin container "${c.name}" to Quick Access`
                   }
+                  aria-label={isContainerPinned(a.endpoint, c.name) ? `Unpin ${c.name}` : `Pin ${c.name}`}
+                  aria-pressed={isContainerPinned(a.endpoint, c.name)}
                   onClick={() => toggleContainerPin(a, c.name)}
                 >
-                  {isContainerPinned(a.endpoint, c.name) ? '★' : '☆'}
+                  <Icon name="star" size={14} filled={isContainerPinned(a.endpoint, c.name)} />
                 </button>
                 <button
                   className="mini-btn"
                   title={`Rename container "${c.name}"`}
+                  aria-label={`Rename container ${c.name}`}
                   onClick={() => setRenameContainerFor({ accountId: a.id, name: c.name })}
                 >
-                  ✎
+                  <Icon name="pencil" size={14} />
                 </button>
                 <button
                   className="mini-btn danger-x"
                   title={`Delete container "${c.name}"`}
+                  aria-label={`Delete container ${c.name}`}
                   onClick={() => setDeleteContainerFor({ accountId: a.id, name: c.name })}
                 >
-                  ✕
+                  <Icon name="trash" size={14} />
                 </button>
               </span>
             )}
@@ -416,9 +421,10 @@ export default function App(): React.JSX.Element {
             <button
               className={`twisty${isOpen ? ' open' : ''}`}
               onClick={() => toggleExpand(a.id)}
-              aria-label={isOpen ? 'Collapse' : 'Expand'}
+              aria-label={isOpen ? `Collapse ${a.name}` : `Expand ${a.name}`}
+              aria-expanded={isOpen}
             >
-              ›
+              <Icon name="chevronRight" size={14} />
             </button>
           )}
           <button
@@ -456,6 +462,8 @@ export default function App(): React.JSX.Element {
             <button
               className={`mini-btn${a.pinned ? ' on' : ''}`}
               title={a.pinned ? 'Unpin from Quick Access' : 'Pin to Quick Access'}
+              aria-label={a.pinned ? `Unpin ${a.name} from Quick Access` : `Pin ${a.name} to Quick Access`}
+              aria-pressed={Boolean(a.pinned)}
               onClick={() =>
                 window.api.accounts
                   .pin(a.id, !a.pinned)
@@ -463,7 +471,7 @@ export default function App(): React.JSX.Element {
                   .catch(console.error)
               }
             >
-              {a.pinned ? '★' : '☆'}
+              <Icon name="star" size={14} filled={Boolean(a.pinned)} />
             </button>
             <button
               className="mini-btn"
@@ -471,7 +479,7 @@ export default function App(): React.JSX.Element {
               aria-label={`Actions for ${a.name}`}
               onClick={(e) => openRowMenu(e, a)}
             >
-              ⋯
+              <Icon name="more" size={16} />
             </button>
           </span>
         </div>
@@ -484,9 +492,10 @@ export default function App(): React.JSX.Element {
               <button
                 className="mini-btn group-add"
                 title="New container in this account"
+                aria-label="New container in this account"
                 onClick={() => setCreateFor(a.id)}
               >
-                +
+                <Icon name="plus" size={14} />
               </button>
             </li>
             {leaves}
@@ -531,16 +540,16 @@ export default function App(): React.JSX.Element {
             title="Collapse sidebar (⌘B)"
             aria-label="Collapse sidebar"
           >
-            ⟨
+            <Icon name="sidebar" size={16} />
           </button>
         </div>
 
         <div className="side-actions">
           <button className={`btn ghost home-cta${selectedId === null ? ' active-opt' : ''}`} onClick={goHome}>
-            ⌂ Home
+            <Icon name="home" size={15} /> Home
           </button>
           <button className="btn mint attach-cta" onClick={() => setShowWizard(true)}>
-            + New connection
+            <Icon name="plus" size={15} /> New connection
           </button>
         </div>
         {encAvailable === false && (
@@ -554,8 +563,8 @@ export default function App(): React.JSX.Element {
           {pinned.length > 0 && (
             <section className="tree-section">
               <button className="section-toggle" onClick={() => setQuickOpen((v) => !v)}>
-                <span className={`twisty${quickOpen ? ' open' : ''}`}>›</span>
-                <span className="star">★</span> Quick Access
+                <span className={`twisty${quickOpen ? ' open' : ''}`} aria-hidden><Icon name="chevronRight" size={13} /></span>
+                <span className="star" aria-hidden><Icon name="star" size={13} filled /></span> Quick Access
               </button>
               {quickOpen && <ul className="tree">{pinned.map(accountRow)}</ul>}
             </section>
@@ -563,7 +572,7 @@ export default function App(): React.JSX.Element {
 
           <section className="tree-section">
             <button className="section-toggle" onClick={() => setAllOpen((v) => !v)}>
-              <span className={`twisty${allOpen ? ' open' : ''}`}>›</span>
+              <span className={`twisty${allOpen ? ' open' : ''}`} aria-hidden><Icon name="chevronRight" size={13} /></span>
               Storage accounts
               <span className="count">{visibleAccounts.length}</span>
             </button>
@@ -584,7 +593,7 @@ export default function App(): React.JSX.Element {
           {visibleContainers.length > 0 && (
             <section className="tree-section">
               <button className="section-toggle" onClick={() => setAttachedOpen((v) => !v)}>
-                <span className={`twisty${attachedOpen ? ' open' : ''}`}>›</span>
+                <span className={`twisty${attachedOpen ? ' open' : ''}`} aria-hidden><Icon name="chevronRight" size={13} /></span>
                 Attached containers
                 <span className="count">{visibleContainers.length}</span>
               </button>
@@ -596,7 +605,7 @@ export default function App(): React.JSX.Element {
         <div className="side-foot">
           <div className="side-foot-row">
             <button className="settings-btn" onClick={() => setShowSettings(true)}>
-              <span aria-hidden>⚙</span> Settings
+              <Icon name="settings" size={15} /> Settings
               {updateBadge && <span className="update-dot" aria-label="Update available" title="Update available" />}
             </button>
             <button
@@ -605,7 +614,7 @@ export default function App(): React.JSX.Element {
               title="Quit Blobfish"
               aria-label="Quit Blobfish"
             >
-              <span aria-hidden>⏻</span>
+              <Icon name="power" size={15} />
             </button>
           </div>
           <span
@@ -638,7 +647,7 @@ export default function App(): React.JSX.Element {
             title="Expand sidebar (⌘B)"
             aria-label="Expand sidebar"
           >
-            ⟩
+            <Icon name="sidebar" size={16} />
           </button>
         )}
         <main className="view">
@@ -761,7 +770,11 @@ export default function App(): React.JSX.Element {
               onClick={() => copySecret(rowMenu.account.id)}
               title="Copy the SAS URL / connection string to the clipboard"
             >
-              {copiedSecretId === rowMenu.account.id ? '✓ Copied to clipboard' : '⧉ Copy connection secret'}
+              {copiedSecretId === rowMenu.account.id ? (
+                <><Icon name="check" size={14} /> Copied to clipboard</>
+              ) : (
+                <><Icon name="copy" size={14} /> Copy connection secret</>
+              )}
             </button>
             <button
               role="menuitem"
@@ -770,7 +783,7 @@ export default function App(): React.JSX.Element {
                 exportSecret(rowMenu.account.id)
               }}
             >
-              ⤓ Export secret to file…
+              <Icon name="fileDown" size={14} /> Export secret to file…
             </button>
             <button
               role="menuitem"
@@ -780,7 +793,7 @@ export default function App(): React.JSX.Element {
                 setRenameValue(rowMenu.account.name)
               }}
             >
-              ✎ Rename…
+              <Icon name="pencil" size={14} /> Rename…
             </button>
             <div className="ctx-sep" aria-hidden />
             <button
@@ -791,7 +804,7 @@ export default function App(): React.JSX.Element {
                 setDetachFor(rowMenu.account)
               }}
             >
-              ✕ Detach…
+              <Icon name="close" size={14} /> Detach…
             </button>
           </div>
         </>

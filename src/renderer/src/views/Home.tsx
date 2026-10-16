@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { AccountSummary, ActivityEntry } from '../../../shared/types'
 import logoUrl from '../assets/logo.png'
 import { APP_NAME, APP_TAGLINE } from '../../../shared/config'
+import { Icon } from './Icon'
 
 function sasWarning(expiry?: string | null): string | null {
   if (!expiry) return null
@@ -48,7 +49,7 @@ export default function HomeView(props: {
             <span className="pill conn-pill">
               {props.accounts.length} {props.accounts.length === 1 ? 'connection' : 'connections'}
             </span>
-            {pinned.length > 0 && <span className="pill conn-pill">★ {pinned.length} pinned</span>}
+            {pinned.length > 0 && <span className="pill conn-pill"><Icon name="star" size={12} filled /> {pinned.length} pinned</span>}
           </div>
           {props.accounts.length === 0 && (
             <p className="muted small home-hint">
@@ -59,7 +60,7 @@ export default function HomeView(props: {
         </div>
         <div className="home-cta-row">
           <button className="btn mint" onClick={props.onNewConnection}>
-            + New connection
+            <Icon name="plus" size={15} /> New connection
           </button>
         </div>
       </section>
@@ -82,7 +83,7 @@ export default function HomeView(props: {
                 </span>
                 {warn && <span className="pill warn">{warn}</span>}
                 <span className="twisty open" aria-hidden>
-                  ›
+                  <Icon name="chevronRight" size={14} />
                 </span>
               </button>
             )
@@ -97,7 +98,7 @@ export default function HomeView(props: {
             {recent.map((e) => (
               <li key={e.id} className="activity-row">
                 <span className={`a-dot ${e.status}`} aria-hidden>
-                  {e.status === 'success' ? '✓' : '✕'}
+                  <Icon name={e.status === 'success' ? 'check' : 'close'} size={11} />
                 </span>
                 <div className="a-main">
                   <div>{e.text}</div>
