@@ -1,6 +1,6 @@
 import { dialog } from 'electron'
 import { randomUUID } from 'node:crypto'
-import { mkdir, readdir, stat, unlink } from 'node:fs/promises'
+import { mkdir, readdir, stat } from 'node:fs/promises'
 import { basename, join, relative, sep } from 'node:path'
 import { decryptSecret } from './accounts'
 import { logActivity } from './activity'
@@ -15,9 +15,13 @@ import type {
   TransferDirection,
   TransferInfo,
   TransferStatus,
-  TransfersSnapshot
+  TransfersDelta,
+  TransfersSnapshot,
+  TransfersSummary
 } from '../shared/types'
 import { formatBytes, formatDuration } from '../shared/format'
+import { compareTransfers } from '../shared/transfers-delta'
+import { downloadConnections, downloadRangesToFile, downloadViaPartFile, type RangeReader } from './ranged-download'
 
 /* Tuning: 8 parallel block connections saturates most links without
  * hammering the service; 8 MiB blocks keep a 2 GiB file to 256 parts
@@ -36,7 +40,7 @@ const EMIT_MS = 250
 let uploadConcurrency = DEFAULT_UPLOAD_CONCURRENCY
 let maxParallel = DEFAULT_MAX_PARALLEL
 
-export function configureTransfers(opts: { uploadConcurrency?: number; maxParallel?: number }): TransfersSnapshot {
+export function configureTransfers(opts: { uploadConcurrency?: number; maxParallel?: number }): TransfersSummary {
   if (opts.uploadConcurrency !== undefined) {
     uploadConcurrency = Math.min(16, Math.max(1, Math.floor(opts.uploadConcurrency)))
   }
@@ -44,7 +48,16 @@ export function configureTransfers(opts: { uploadConcurrency?: number; maxParall
     maxParallel = Math.min(4, Math.max(1, Math.floor(opts.maxParallel)))
   }
   startNext()
-  return snapshot()
+  // Queued rows show the connections they will use; only resend the ones that changed.
+  for (const t of byId.values()) {
+    if (t.status !== 'queued') continue
+    const c = connectionsFor(t.spec.direction, t.spec.totalBytes)
+    if (c !== t.connections) {
+      t.connections = c
+      markDirty(t.id)
+    }
+  }
+  return summary()
 }
 
 interface ActiveTransfer {
@@ -61,6 +74,9 @@ interface ActiveTransfer {
     dfs: boolean
   }
   status: TransferStatus
+  seq: number
+  /** Connections this transfer is using / will use. */
+  connections: number
   doneBytes: number
   error?: string
   controller?: AbortController
@@ -75,21 +91,51 @@ interface ActiveTransfer {
 
 const transfers: ActiveTransfer[] = []
 let emitTimer: NodeJS.Timeout | null = null
+let seqCounter = 0
+let retrySeq = 0
+/** Last emitted rev; the renderer applies delta `rev` on top of `rev - 1`. */
+let rev = 0
+/* Rows changed / removed since the last emit. Emits carry only these, so a 5,000-file
+ * queue costs a few KB per progress tick instead of the whole list. */
+const dirty = new Set<string>()
+const removed = new Set<string>()
+
+function buildDelta(): TransfersDelta {
+  rev += 1
+  const upserts: TransferInfo[] = []
+  for (const id of dirty) {
+    const t = byId.get(id)
+    if (t) upserts.push(toInfo(t))
+  }
+  const delta: TransfersDelta = { ...summary(), upserts, removed: [...removed] }
+  dirty.clear()
+  removed.clear()
+  return delta
+}
 
 function emitNow(): void {
   if (emitTimer) {
     clearTimeout(emitTimer)
     emitTimer = null
   }
-  getMainWindow()?.webContents.send('transfers:changed', snapshot())
+  getMainWindow()?.webContents.send('transfers:changed', buildDelta())
 }
 
-function markDirty(): void {
+function markDirty(id?: string): void {
+  if (id !== undefined) dirty.add(id)
   if (emitTimer) return
   emitTimer = setTimeout(() => {
     emitTimer = null
-    getMainWindow()?.webContents.send('transfers:changed', snapshot())
+    getMainWindow()?.webContents.send('transfers:changed', buildDelta())
   }, EMIT_MS)
+}
+
+function forget(t: ActiveTransfer): void {
+  byId.delete(t.id)
+  dirty.delete(t.id)
+  removed.add(t.id)
+  const idx = transfers.indexOf(t)
+  if (idx !== -1) transfers.splice(idx, 1)
 }
 
 function toInfo(t: ActiveTransfer): TransferInfo {
@@ -111,9 +157,10 @@ function toInfo(t: ActiveTransfer): TransferInfo {
         : undefined,
     error: t.error,
     localPath: t.spec.localPath,
-    // Blob uploads stripe across N block connections; downloads and
-    // DataLake paths report per-file progress on their own stream count.
-    concurrency: t.spec.direction === 'upload' ? uploadConcurrency : 1,
+    // Uploads stripe blocks and downloads fetch ranges across N connections
+    // (files up to 8 MiB go in one request).
+    concurrency: t.connections,
+    seq: t.seq,
     startedAt: t.startedAt,
     finishedAt: t.finishedAt
   }
@@ -121,23 +168,38 @@ function toInfo(t: ActiveTransfer): TransferInfo {
 
 const byId = new Map<string, ActiveTransfer>()
 
-export function snapshot(): TransfersSnapshot {
-  const list = [...byId.values()].map(toInfo)
-  // Newest first for the panel; actives float above.
-  list.sort((a, b) => {
-    const rank = (s: TransferStatus): number =>
-      s === 'active' ? 0 : s === 'queued' ? 1 : 2
-    return rank(a.status) - rank(b.status) || (b.startedAt ?? 0) - (a.startedAt ?? 0)
-  })
-  const active = list.filter((t) => t.status === 'active')
-  return {
-    transfers: list,
-    active: active.length,
-    queued: list.filter((t) => t.status === 'queued').length,
-    aggregateBps: Math.round(active.reduce((sum, t) => sum + (t.speedBps ?? 0), 0)),
-    uploadConcurrency,
-    maxParallel
+function connectionsFor(direction: TransferDirection, totalBytes: number): number {
+  if (totalBytes > 0 && totalBytes <= SINGLE_SHOT_BYTES) return 1
+  return direction === 'download' ? downloadConnections(totalBytes || Infinity, uploadConcurrency) : uploadConcurrency
+}
+
+/** Counts only: O(n) over the queue but no row serialization. */
+export function summary(): TransfersSummary {
+  let active = 0
+  let queued = 0
+  let finished = 0
+  let up = 0
+  let down = 0
+  let aggregateBps = 0
+  for (const t of byId.values()) {
+    if (t.status === 'active') {
+      active += 1
+      if (t.speedBps > 0) aggregateBps += t.speedBps
+    } else if (t.status === 'queued') queued += 1
+    else finished += 1
+    if (t.status === 'active' || t.status === 'queued') {
+      if (t.spec.direction === 'upload') up += 1
+      else down += 1
+    }
   }
+  return { rev, active, queued, finished, up, down, aggregateBps: Math.round(aggregateBps), uploadConcurrency, maxParallel }
+}
+
+/** Full list for `transfers:list` (window load, crash-guard reload, or a missed delta). */
+export function snapshot(): TransfersSnapshot {
+  // Newest first for the panel; actives float above.
+  const list = [...byId.values()].map(toInfo).sort(compareTransfers)
+  return { ...summary(), transfers: list }
 }
 
 function enqueue(spec: ActiveTransfer['spec']): string {
@@ -146,6 +208,8 @@ function enqueue(spec: ActiveTransfer['spec']): string {
     id,
     spec,
     status: 'queued',
+    seq: ++seqCounter,
+    connections: connectionsFor(spec.direction, spec.totalBytes),
     doneBytes: 0,
     enqueuedAt: Date.now(),
     lastTickAt: Date.now(),
@@ -156,7 +220,7 @@ function enqueue(spec: ActiveTransfer['spec']): string {
   byId.set(id, record)
   // Coalesced: a folder download enqueues thousands of rows in one go, and a
   // full snapshot per row is O(n²) bytes over IPC.
-  markDirty()
+  markDirty(id)
   void startNext()
   return id
 }
@@ -190,7 +254,7 @@ function tick(id: string, loadedBytes: number): void {
   }
   t.doneBytes = Math.min(loadedBytes, t.spec.totalBytes || loadedBytes)
   if (t.spec.totalBytes === 0 && loadedBytes > 0) t.spec.totalBytes = loadedBytes
-  markDirty()
+  markDirty(id)
 }
 
 function describe(t: ActiveTransfer): string {
@@ -205,7 +269,8 @@ async function run(t: ActiveTransfer): Promise<void> {
   t.lastTickAt = Date.now()
   t.lastTickBytes = 0
   t.controller = new AbortController()
-  markDirty()
+  t.connections = connectionsFor(t.spec.direction, t.spec.totalBytes)
+  markDirty(t.id)
   const wallStart = Date.now()
   try {
     if (t.spec.direction === 'upload') {
@@ -219,7 +284,7 @@ async function run(t: ActiveTransfer): Promise<void> {
     t.doneBytes = t.spec.totalBytes
     t.finishedAt = Date.now()
     const size = formatBytes(t.spec.totalBytes)
-    const conn = t.spec.direction === 'upload' ? ` · ${uploadConcurrency} connections` : ''
+    const conn = t.connections > 1 ? ` · ${t.connections} connections` : ''
     logActivity({
       kind: 'transfer',
       text: `${describe(t)} complete`,
@@ -234,17 +299,13 @@ async function run(t: ActiveTransfer): Promise<void> {
     // Completed transfers live on in the activity feed (which carries
     // Open/Reveal/Delete) — the transfers list keeps in-flight and
     // retryable rows only, so nothing appears twice.
-    byId.delete(t.id)
-    const filedIdx = transfers.indexOf(t)
-    if (filedIdx !== -1) transfers.splice(filedIdx, 1)
+    forget(t)
   } catch (err) {
     if (t.controller?.signal.aborted || (err instanceof Error && err.name === 'AbortError')) {
       t.status = 'cancelled'
       t.finishedAt = Date.now()
-      // Remove partial downloads so a retry starts clean.
-      if (t.spec.direction === 'download') {
-        await unlink(t.spec.localPath).catch(() => {})
-      }
+      // The engine already removed the partial (.blobfish-part) file, so a retry starts clean
+      // and a file that was at the destination before is untouched.
       logActivity({ kind: 'transfer', text: `${describe(t)} cancelled`, status: 'failed' })
     } else {
       const friendly = friendlyError(err, `${t.spec.direction === 'upload' ? 'Upload' : 'Download'} failed`)
@@ -261,7 +322,7 @@ async function run(t: ActiveTransfer): Promise<void> {
     }
   } finally {
     t.controller = undefined
-    markDirty()
+    markDirty(byId.has(t.id) ? t.id : undefined)
     void startNext()
   }
 }
@@ -293,20 +354,63 @@ async function runDfsUpload(t: ActiveTransfer): Promise<void> {
   })
 }
 
+/* Range requests stream through the SDK's retriable reader (resumes a dropped
+ * socket from the last byte) and are pinned to the ETag seen up front, so a blob
+ * overwritten mid-download fails with 412 instead of stitching two versions. */
+const RANGE_RETRY_REQUESTS = 5
+
+async function rangedDownload(t: ActiveTransfer, read: RangeReader): Promise<void> {
+  const size = t.spec.totalBytes
+  t.connections = downloadConnections(size, uploadConcurrency)
+  markDirty(t.id)
+  await mkdir(join(t.spec.localPath, '..'), { recursive: true }).catch(() => {})
+  await downloadViaPartFile(t.spec.localPath, (part) =>
+    downloadRangesToFile(part, read, {
+      size,
+      concurrency: uploadConcurrency,
+      signal: t.controller?.signal,
+      onProgress: (loaded) => tick(t.id, loaded)
+    })
+  )
+}
+
 async function runBlobDownload(t: ActiveTransfer): Promise<void> {
   const { secret } = await decryptSecret(t.spec.accountId)
   const blob = blobContainerClientFromSecret(secret, t.spec.container).getBlobClient(t.spec.name)
+  let etag: string | undefined
+  let sized = false
   try {
-    const props = await blob.getProperties()
-    if (props.contentLength) t.spec.totalBytes = props.contentLength
-  } catch {
-    // Size stays as listed; progress still streams by bytes.
+    const props = await blob.getProperties({ abortSignal: t.controller?.signal })
+    if (props.contentLength !== undefined) {
+      t.spec.totalBytes = props.contentLength
+      sized = true
+    }
+    etag = props.etag
+  } catch (err) {
+    if (t.controller?.signal.aborted) throw err
+    // Size unknown: fall through to the SDK's single-stream download below.
   }
-  await mkdir(join(t.spec.localPath, '..'), { recursive: true }).catch(() => {})
-  await blob.downloadToFile(t.spec.localPath, 0, undefined, {
-    maxRetryRequests: 10,
-    onProgress: (e) => tick(t.id, e.loadedBytes),
-    abortSignal: t.controller?.signal
+  if (!sized) {
+    t.connections = 1
+    await mkdir(join(t.spec.localPath, '..'), { recursive: true }).catch(() => {})
+    await downloadViaPartFile(t.spec.localPath, (part) =>
+      blob
+        .downloadToFile(part, 0, undefined, {
+          maxRetryRequests: 10,
+          onProgress: (e) => tick(t.id, e.loadedBytes),
+          abortSignal: t.controller?.signal
+        })
+        .then(() => undefined)
+    )
+    return
+  }
+  await rangedDownload(t, async (offset, count, signal) => {
+    const res = await blob.download(offset, count, {
+      abortSignal: signal,
+      maxRetryRequests: RANGE_RETRY_REQUESTS,
+      conditions: etag ? { ifMatch: etag } : undefined
+    })
+    return res.readableStreamBody as AsyncIterable<Uint8Array> | undefined
   })
 }
 
@@ -314,16 +418,38 @@ async function runDfsDownload(t: ActiveTransfer): Promise<void> {
   const { secret } = await decryptSecret(t.spec.accountId)
   const fs = dataLakeFileSystemClientFromSecret(secret, t.spec.container)
   const file = fs.getFileClient(t.spec.name)
+  let etag: string | undefined
+  let sized = false
   try {
-    const props = await file.getProperties()
-    if (props.contentLength) t.spec.totalBytes = props.contentLength
-  } catch {
-    // Size stays as listed; progress still streams by bytes.
+    const props = await file.getProperties({ abortSignal: t.controller?.signal })
+    if (props.contentLength !== undefined) {
+      t.spec.totalBytes = props.contentLength
+      sized = true
+    }
+    etag = props.etag
+  } catch (err) {
+    if (t.controller?.signal.aborted) throw err
   }
-  await mkdir(join(t.spec.localPath, '..'), { recursive: true }).catch(() => {})
-  await file.readToFile(t.spec.localPath, 0, undefined, {
-    onProgress: (e) => tick(t.id, e.loadedBytes),
-    abortSignal: t.controller?.signal
+  if (!sized) {
+    t.connections = 1
+    await mkdir(join(t.spec.localPath, '..'), { recursive: true }).catch(() => {})
+    await downloadViaPartFile(t.spec.localPath, (part) =>
+      file
+        .readToFile(part, 0, undefined, {
+          onProgress: (e) => tick(t.id, e.loadedBytes),
+          abortSignal: t.controller?.signal
+        })
+        .then(() => undefined)
+    )
+    return
+  }
+  await rangedDownload(t, async (offset, count, signal) => {
+    const res = await file.read(offset, count, {
+      abortSignal: signal,
+      maxRetryRequests: RANGE_RETRY_REQUESTS,
+      conditions: etag ? { ifMatch: etag } : undefined
+    })
+    return res.readableStreamBody as AsyncIterable<Uint8Array> | undefined
   })
 }
 
@@ -483,35 +609,39 @@ export async function enqueueDownload(
   return ids
 }
 
-export function cancelTransfer(id: string): TransfersSnapshot {
+export function cancelTransfer(id: string): TransfersSummary {
   const t = byId.get(id)
-  if (!t) return snapshot()
+  if (!t) return summary()
   if (t.status === 'active') {
     t.controller?.abort()
   } else if (t.status === 'queued') {
     t.status = 'cancelled'
     t.finishedAt = Date.now()
+    dirty.add(t.id)
   }
   emitNow()
-  return snapshot()
+  return summary()
 }
 
-export function cancelAll(): TransfersSnapshot {
+export function cancelAll(): TransfersSummary {
   for (const t of byId.values()) {
     if (t.status === 'active') t.controller?.abort()
     else if (t.status === 'queued') {
       t.status = 'cancelled'
       t.finishedAt = Date.now()
+      dirty.add(t.id)
     }
   }
   emitNow()
-  return snapshot()
+  return summary()
 }
 
-export function retryTransfer(id: string): TransfersSnapshot {
+export function retryTransfer(id: string): TransfersSummary {
   const t = byId.get(id)
-  if (!t || (t.status !== 'failed' && t.status !== 'cancelled')) return snapshot()
+  if (!t || (t.status !== 'failed' && t.status !== 'cancelled')) return summary()
   t.status = 'queued'
+  t.seq = --retrySeq
+  dirty.add(t.id)
   t.error = undefined
   t.doneBytes = 0
   t.speedBps = 0
@@ -526,20 +656,16 @@ export function retryTransfer(id: string): TransfersSnapshot {
   }
   emitNow()
   void startNext()
-  return snapshot()
+  return summary()
 }
 
 /** Drop finished rows from the panel (queued/active are untouched). */
-export function clearFinished(): TransfersSnapshot {
-  for (const [id, t] of byId) {
-    if (t.status === 'completed' || t.status === 'failed' || t.status === 'cancelled') {
-      byId.delete(id)
-      const idx = transfers.indexOf(t)
-      if (idx !== -1) transfers.splice(idx, 1)
-    }
+export function clearFinished(): TransfersSummary {
+  for (const t of [...byId.values()]) {
+    if (t.status === 'completed' || t.status === 'failed' || t.status === 'cancelled') forget(t)
   }
   emitNow()
-  return snapshot()
+  return summary()
 }
 
 /* ---------------- quit (ordered shutdown) ---------------- */
@@ -567,6 +693,7 @@ export async function stopTransfersForQuit(timeoutMs = 4_000): Promise<number> {
     if (t.status !== 'queued') continue
     t.status = 'cancelled'
     t.finishedAt = now
+    dirty.add(t.id)
     cancelled += 1
     logActivity({ kind: 'transfer', text: `${describe(t)} cancelled`, detail: 'Blobfish quit before it started', status: 'failed' })
   }

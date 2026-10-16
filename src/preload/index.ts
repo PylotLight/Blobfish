@@ -25,7 +25,9 @@ import type {
   StorageContainer,
   SysInfo,
   TransferConfigure,
+  TransfersDelta,
   TransfersSnapshot,
+  TransfersSummary,
   UndeleteBlobsArgs,
   UploadEnqueueArgs,
   VibrancyName
@@ -134,21 +136,22 @@ const api = {
   },
   transfers: {
     list: (): Promise<TransfersSnapshot> => ipcRenderer.invoke('transfers:list'),
-    configure: (opts: TransferConfigure): Promise<TransfersSnapshot> =>
+    configure: (opts: TransferConfigure): Promise<TransfersSummary> =>
       ipcRenderer.invoke('transfers:configure', opts),
     upload: (args: UploadEnqueueArgs): Promise<string[]> =>
       ipcRenderer.invoke('transfers:upload', args),
     download: (args: DownloadArgs): Promise<string[]> =>
       ipcRenderer.invoke('transfers:download', args),
-    cancel: (id: string): Promise<TransfersSnapshot> =>
+    cancel: (id: string): Promise<TransfersSummary> =>
       ipcRenderer.invoke('transfers:cancel', id),
-    cancelAll: (): Promise<TransfersSnapshot> => ipcRenderer.invoke('transfers:cancel-all'),
-    retry: (id: string): Promise<TransfersSnapshot> =>
+    cancelAll: (): Promise<TransfersSummary> => ipcRenderer.invoke('transfers:cancel-all'),
+    retry: (id: string): Promise<TransfersSummary> =>
       ipcRenderer.invoke('transfers:retry', id),
-    clearFinished: (): Promise<TransfersSnapshot> =>
+    clearFinished: (): Promise<TransfersSummary> =>
       ipcRenderer.invoke('transfers:clear-finished'),
-    onUpdate: (cb: (snap: TransfersSnapshot) => void): (() => void) => {
-      const handler = (_event: IpcRendererEvent, snap: TransfersSnapshot): void => cb(snap)
+    /** Compact deltas (changed rows + removed ids); apply with shared/transfers-delta. */
+    onUpdate: (cb: (delta: TransfersDelta) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, delta: TransfersDelta): void => cb(delta)
       ipcRenderer.on('transfers:changed', handler)
       return () => ipcRenderer.removeListener('transfers:changed', handler)
     }

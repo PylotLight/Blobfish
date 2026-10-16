@@ -1,7 +1,71 @@
-import { useEffect, useRef, useState } from 'react'
-import type { ActivityEntry, TransferInfo, TransfersSnapshot } from '../../../shared/types'
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { ActivityEntry, TransferInfo, TransfersDelta } from '../../../shared/types'
 import { onPanelAction } from '../palette-bus'
 import { formatBytes, formatDuration, formatEta, formatPct, formatSpeed } from '../../../shared/format'
+import { applyTransfersDelta, viewFromSnapshot, type TransfersView } from '../../../shared/transfers-delta'
+import { virtualWindow } from '../../../shared/virtual-window'
+
+/* Above this many rows only the visible slice is mounted (5,000 queued files used to
+ * mean 5,000 <li>s re-rendered on every progress tick). */
+const VIRTUAL_MIN_ROWS = 60
+const VIRTUAL_OVERSCAN = 6
+const DEFAULT_ROW_PITCH = 78
+
+/**
+ * Full list once (`transfers:list`), then compact deltas. Deltas that land before the
+ * list resolves are buffered; a rev gap (missed delta) re-fetches the list.
+ */
+function useTransfers(): TransfersView | null {
+  const [view, setView] = useState<TransfersView | null>(null)
+  useEffect(() => {
+    let alive = true
+    let current: TransfersView | null = null
+    let pending: TransfersDelta[] = []
+    let resyncing = false
+    const resync = (): void => {
+      if (resyncing) return
+      resyncing = true
+      window.api.transfers
+        .list()
+        .then((snap) => {
+          if (!alive) return
+          resyncing = false
+          let v: TransfersView | null = viewFromSnapshot(snap)
+          for (const d of pending) v = v && applyTransfersDelta(v, d)
+          pending = []
+          if (!v) return resync()
+          current = v
+          setView(v)
+        })
+        .catch((err: unknown) => {
+          resyncing = false
+          console.error(err)
+        })
+    }
+    const off = window.api.transfers.onUpdate((delta) => {
+      if (!current || resyncing) {
+        pending.push(delta)
+        return
+      }
+      const next = applyTransfersDelta(current, delta)
+      if (!next) {
+        pending.push(delta)
+        current = null
+        return resync()
+      }
+      if (next !== current) {
+        current = next
+        setView(next)
+      }
+    })
+    resync()
+    return () => {
+      alive = false
+      off()
+    }
+  }, [])
+  return view
+}
 
 function statusLine(t: TransferInfo): string {
   const size =
@@ -13,7 +77,7 @@ function statusLine(t: TransferInfo): string {
       const bits = [size, formatPct(t.doneBytes, t.totalBytes)]
       if (t.speedBps) bits.push(formatSpeed(t.speedBps))
       if (t.etaSec !== undefined) bits.push(formatEta(t.etaSec))
-      if (t.direction === 'upload') bits.push(`${t.concurrency} conn`)
+      if (t.concurrency > 1) bits.push(`${t.concurrency} conn`)
       return bits.join(' · ')
     }
     case 'queued':
@@ -32,7 +96,7 @@ function statusLine(t: TransferInfo): string {
   }
 }
 
-function TransferRow(props: { t: TransferInfo }): React.JSX.Element {
+const TransferRow = memo(function TransferRow(props: { t: TransferInfo }): React.JSX.Element {
   const { t } = props
   const pct = t.totalBytes > 0 ? Math.min(100, (t.doneBytes / t.totalBytes) * 100) : 0
   const indeterminate = t.status === 'active' && t.totalBytes === 0
@@ -65,7 +129,10 @@ function TransferRow(props: { t: TransferInfo }): React.JSX.Element {
             style={indeterminate ? undefined : { width: `${pct}%` }}
           />
         </div>
-        <div className={`t-status small${t.status === 'failed' ? ' error-text' : ' muted'}`}>
+        <div
+          className={`t-status small${t.status === 'failed' ? ' error-text' : ' muted'}`}
+          title={t.status === 'failed' ? t.error : undefined}
+        >
           {statusLine(t)}
         </div>
       </div>
@@ -120,7 +187,7 @@ function TransferRow(props: { t: TransferInfo }): React.JSX.Element {
       </span>
     </li>
   )
-}
+})
 
 function ActivityRow(props: { entry: ActivityEntry }): React.JSX.Element {
   const { entry } = props
@@ -166,7 +233,9 @@ function ActivityRow(props: { entry: ActivityEntry }): React.JSX.Element {
 }
 
 export default function TransfersPanel(props: { onOpenSettings: () => void }): React.JSX.Element {
-  const [snap, setSnap] = useState<TransfersSnapshot | null>(null)
+  const view = useTransfers()
+  const snap = view?.summary ?? null
+  const total = view?.order.length ?? 0
   const [activities, setActivities] = useState<ActivityEntry[]>([])
   const [expanded, setExpanded] = useState(false)
   // Pinned = user explicitly opened via click; hover alone only opens transiently.
@@ -197,15 +266,56 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
   }, [])
 
   useEffect(() => {
-    window.api.transfers.list().then(setSnap).catch(console.error)
     window.api.activity.list().then(setActivities).catch(console.error)
-    const offT = window.api.transfers.onUpdate(setSnap)
-    const offA = window.api.activity.onUpdate(setActivities)
-    return () => {
-      offT()
-      offA()
-    }
+    return window.api.activity.onUpdate(setActivities)
   }, [])
+
+  /* ---------- virtualized transfer rows (the panel itself scrolls) ---------- */
+  const panelRef = useRef<HTMLElement>(null)
+  const topSpacerRef = useRef<HTMLLIElement>(null)
+  const [rowPitch, setRowPitch] = useState(DEFAULT_ROW_PITCH)
+  const [viewport, setViewport] = useState({ offset: 0, height: 600 })
+  const virtual = expanded && total > VIRTUAL_MIN_ROWS
+  const scrollFrame = useRef(0)
+
+  const measureViewport = useCallback((): void => {
+    const el = panelRef.current
+    const spacer = topSpacerRef.current
+    if (!el || !spacer) return
+    const listTop = spacer.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop
+    const offset = Math.max(0, el.scrollTop - listTop)
+    const height = el.clientHeight
+    setViewport((prev) => (prev.offset === offset && prev.height === height ? prev : { offset, height }))
+  }, [])
+
+  const onPanelScroll = useCallback((): void => {
+    if (scrollFrame.current) return
+    scrollFrame.current = requestAnimationFrame(() => {
+      scrollFrame.current = 0
+      measureViewport()
+    })
+  }, [measureViewport])
+
+  useEffect(() => () => cancelAnimationFrame(scrollFrame.current), [])
+
+  useEffect(() => {
+    const el = panelRef.current
+    if (!el || !virtual) return
+    const ro = new ResizeObserver(() => measureViewport())
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [virtual, measureViewport])
+
+  // Rows are fixed-height (one-line name + bar + one-line status), so one measured
+  // row (+ its margin) sizes them all.
+  useLayoutEffect(() => {
+    if (!virtual) return
+    measureViewport()
+    const row = topSpacerRef.current?.nextElementSibling as HTMLElement | null
+    if (!row) return
+    const h = row.getBoundingClientRect().height + (parseFloat(getComputedStyle(row).marginBottom) || 0)
+    if (h > 0 && Math.abs(h - rowPitch) > 0.5) setRowPitch(h)
+  })
 
   // ⌘K: toggle the dock / jump to activity (pinned, so it stays open even when empty).
   useEffect(
@@ -228,12 +338,14 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
     hadActive.current = (snap?.active ?? 0) > 0
   }, [snap])
 
-  const empty = !snap || (snap.transfers.length === 0 && activities.length === 0)
-  if (!snap || (empty && !(pinned && expanded))) return <></>
+  const empty = !snap || (total === 0 && activities.length === 0)
+  if (!view || !snap || (empty && !(pinned && expanded))) return <></>
 
-  const firstActive = snap.transfers.find((t) => t.status === 'active')
-  const up = snap.transfers.filter((t) => t.direction === 'upload' && (t.status === 'active' || t.status === 'queued')).length
-  const down = snap.transfers.filter((t) => t.direction === 'download' && (t.status === 'active' || t.status === 'queued')).length
+  // Actives sort first, so this is O(1).
+  const firstId = view.order[0]
+  const first = firstId !== undefined ? view.rows.get(firstId) : undefined
+  const firstActive = first?.status === 'active' ? first : undefined
+  const { up, down } = snap
 
   if (!expanded) {
     return (
@@ -251,7 +363,7 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
         <span className="t-stats">
           {up > 0 && <span>↑ {up}</span>}
           {down > 0 && <span>↓ {down}</span>}
-          {snap.active === 0 && <span>✓ {snap.transfers.length}</span>}
+          {snap.active === 0 && <span>✓ {total}</span>}
         </span>
         {firstActive && (
           <span className="t-mini-name">
@@ -265,12 +377,14 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
     )
   }
 
-  const finished = snap.transfers.filter(
-    (t) => t.status === 'completed' || t.status === 'failed' || t.status === 'cancelled'
-  )
+  const { start, end } = virtual
+    ? virtualWindow(total, viewport.offset, viewport.height, rowPitch, VIRTUAL_OVERSCAN)
+    : { start: 0, end: total }
 
   return (
     <section
+      ref={panelRef}
+      onScroll={virtual ? onPanelScroll : undefined}
       className="transfers-panel card dock-in"
       aria-label="Transfers and activity"
       onMouseEnter={cancelScheduled}
@@ -288,14 +402,14 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
               ? `${snap.queued} queued`
               : 'idle'}
         </span>
-        <span className="pill conn-pill" title="Parallel block connections per upload · max simultaneous transfers">
+        <span className="pill conn-pill" title="Parallel connections per file (uploads and downloads) · max simultaneous transfers">
           {snap.uploadConcurrency} conn/file · {snap.maxParallel} parallel
         </span>
         <span className="transfers-head-actions">
           <button className="mini-btn" title="Transfer tuning" onClick={props.onOpenSettings}>
             Tuning
           </button>
-          {finished.length > 0 && (
+          {snap.finished > 0 && (
             <button
               className="mini-btn"
               onClick={() => void window.api.transfers.clearFinished()}
@@ -321,11 +435,14 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
         </span>
       </header>
 
-      {snap.transfers.length > 0 && (
-        <ul className="transfer-list">
-          {snap.transfers.map((t) => (
-            <TransferRow key={t.id} t={t} />
-          ))}
+      {total > 0 && (
+        <ul className={`transfer-list${virtual ? ' virtual' : ''}`} aria-rowcount={total}>
+          {virtual && <li ref={topSpacerRef} className="t-spacer" aria-hidden style={{ height: start * rowPitch }} />}
+          {view.order.slice(start, end).map((id) => {
+            const t = view.rows.get(id)
+            return t ? <TransferRow key={id} t={t} /> : null
+          })}
+          {virtual && <li className="t-spacer" aria-hidden style={{ height: (total - end) * rowPitch }} />}
         </ul>
       )}
 

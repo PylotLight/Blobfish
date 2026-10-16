@@ -1,7 +1,11 @@
 import { describe, expect, mock, test } from 'bun:test'
+import { existsSync } from 'node:fs'
 
 // Drives the real transfer queue with electron + azure stubbed out.
-const sent: Array<{ transfers: unknown[] }> = []
+const sent: Array<{ upserts: unknown[]; removed: string[]; active: number; queued: number }> = []
+const downloads: Array<{ offset: number; count: number }> = []
+const STREAM_SIZE = 64 * 1024 * 1024
+const CHUNK = Buffer.alloc(16 * 1024, 0x62)
 const uploadOpts: Array<Record<string, unknown>> = []
 const N = 400
 let streaming = false
@@ -15,7 +19,7 @@ mock.module('electron', () => ({
   }
 }))
 mock.module('./window', () => ({
-  getMainWindow: () => ({ webContents: { send: (_ch: string, snap: { transfers: unknown[] }) => sent.push(snap) } })
+  getMainWindow: () => ({ webContents: { send: (_ch: string, d: (typeof sent)[number]) => sent.push(d) } })
 }))
 mock.module('./activity', () => ({ logActivity: () => {} }))
 mock.module('./accounts', () => ({
@@ -30,15 +34,23 @@ mock.module('./azure', () => ({
       for (let i = 0; i < N; i++) yield { name: `logs/part-${i}.json`, properties: { contentLength: 10 } }
     },
     getBlobClient: () => ({
-      getProperties: async () => ({ contentLength: streaming ? 2 ** 40 : 10 }),
-      downloadToFile: async (_p: string, _o: number, _c: unknown, o: { onProgress: (e: { loadedBytes: number }) => void }) => {
-        if (!streaming) return new Promise((r) => setTimeout(r, 1))
-        // ~64 KiB per callback like the SDK, 16 per ms ≈ 1 GiB/s for 400ms.
-        let loaded = 0
-        const end = Date.now() + 400
-        while (Date.now() < end) {
-          for (let i = 0; i < 16; i++) o.onProgress({ loadedBytes: (loaded += 65536) })
-          await new Promise((r) => setTimeout(r, 1))
+      getProperties: async () => ({ contentLength: streaming ? STREAM_SIZE : 10, etag: '"e1"' }),
+      download: async (offset: number, count: number, o: { abortSignal: AbortSignal }) => {
+        downloads.push({ offset, count })
+        return {
+          readableStreamBody: (async function* () {
+            if (!streaming) {
+              await new Promise((r) => setTimeout(r, 1))
+              yield Buffer.alloc(count, 0x61)
+              return
+            }
+            // Throttled per connection: 16 KiB a ms.
+            for (let p = 0; p < count; p += CHUNK.length) {
+              if (o.abortSignal.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' })
+              await new Promise((r) => setTimeout(r, 1))
+              yield CHUNK.subarray(0, Math.min(CHUNK.length, count - p))
+            }
+          })()
         }
       }
     }),
@@ -69,19 +81,53 @@ describe('transfer queue', () => {
     await settle(tr)
     expect(tr.snapshot().transfers.length).toBe(0)
     expect(sent.length).toBeLessThan(40)
-    expect(sent.at(-1)?.transfers.length).toBe(0)
+    expect(sent.at(-1)?.active).toBe(0)
+    expect(sent.at(-1)?.queued).toBe(0)
+    // Deltas: every row is sent when it appears and removed once, never the whole list per tick.
+    const upserts = sent.reduce((n, d) => n + d.upserts.length, 0)
+    const removedIds = new Set(sent.flatMap((d) => d.removed))
+    expect(removedIds.size).toBe(N)
+    expect(upserts).toBeLessThan(N * 4)
   })
 
-  test('speed is measured over the tick window, not the last 64 KiB callback', async () => {
+  test('big downloads fetch ranges in parallel; speed is the tick window, not one callback', async () => {
     const tr = await import('./transfers')
     streaming = true
-    await tr.enqueueDownload('a', 'c', ['big.bin'])
+    downloads.length = 0
+    const [id] = await tr.enqueueDownload('a', 'c', ['big.bin'])
     await new Promise((r) => setTimeout(r, 300))
-    const speed = tr.snapshot().transfers[0]?.speedBps ?? 0
-    await settle(tr)
+    const row = tr.snapshot().transfers.find((t) => t.id === id)
+    // 8 connections (the connections-per-file setting) each pulling an 8 MiB range.
+    expect(row?.concurrency).toBe(8)
+    expect(new Set(downloads.map((d) => d.offset)).size).toBe(8)
+    expect(downloads.every((d) => d.count === 8 * 1024 * 1024)).toBe(true)
+    // ~8 × 16 MiB/s (timer-bound, lots of slack); the old math reported ~1 MiB/s.
+    expect(row?.speedBps ?? 0).toBeGreaterThan(30 * 1024 * 1024)
+    // Quit mid-download: ordered shutdown waits for the engine, which removes the partial file.
+    const cancelled = await tr.stopTransfersForQuit()
     streaming = false
-    // Real rate is ~1 GiB/s (timer-bound, so allow lots of slack); the old math reported ~1 MiB/s.
-    expect(speed).toBeGreaterThan(50 * 1024 * 1024)
+    expect(cancelled).toBe(1)
+    expect(existsSync('/tmp/blobfish-test-dl/big.bin.blobfish-part')).toBe(false)
+    expect(existsSync('/tmp/blobfish-test-dl/big.bin')).toBe(false)
+    tr.clearFinished()
+  })
+
+  test('a 5,000-file queue sends small deltas while it runs', async () => {
+    const tr = await import('./transfers')
+    tr.configureTransfers({ maxParallel: 1 })
+    const names = Array.from({ length: 5000 }, (_, i) => `logs/2026/10/16/part-${String(i).padStart(6, '0')}-abcdef.json`)
+    sent.length = 0
+    await tr.enqueueDownload('a', 'c', names)
+    await new Promise((r) => setTimeout(r, 700))
+    const sizes = sent.map((d) => JSON.stringify(d).length)
+    // First emit introduces the rows; later ones only carry the rows that moved.
+    expect(sizes[0]).toBeGreaterThan(1_000_000)
+    expect(Math.max(...sizes.slice(1))).toBeLessThan(40_000)
+    tr.cancelAll()
+    await settle(tr)
+    tr.clearFinished()
+    tr.configureTransfers({ maxParallel: 2 })
+    expect(tr.snapshot().transfers.length).toBe(0)
   })
 
   test('uploads stripe across block connections above the single-shot size', async () => {
