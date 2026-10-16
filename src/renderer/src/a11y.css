@@ -1,0 +1,39 @@
+/* Keyboard focus + motion preferences (Inkfish/Surffish parity).
+ * Kept in its own sheet, loaded after index.css, so it layers on top of the
+ * per-component styles without touching them. */
+
+/* One consistent ring for keyboard focus only (mouse clicks never show it).
+ * Chromium's default auto ring was the only cue before, and the search box +
+ * address filter suppressed it entirely. */
+:focus-visible {
+  outline: 2px solid var(--mint);
+  outline-offset: 2px;
+}
+
+/* Text fields draw focus on their wrapper (the inputs are borderless). */
+.toolbar-filter:focus-within,
+.addr-filter:focus-within {
+  border-color: rgba(126, 226, 168, 0.55);
+  box-shadow: 0 0 0 3px var(--mint-dim);
+}
+.toolbar-filter input:focus-visible,
+.addr-filter input:focus-visible {
+  outline: none;
+}
+
+/* Scrollable regions that take focus (preview text / csv) — inset so the
+ * ring isn't clipped by the panel's overflow. */
+[role='region'][tabindex]:focus-visible {
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
