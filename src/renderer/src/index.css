@@ -2623,10 +2623,11 @@ li.done .wiz-num {
   background: linear-gradient(165deg, rgba(44, 40, 54, 0.5), rgba(16, 14, 22, 0.62));
 }
 
-/* No vibrancy (Linux/Windows, or macOS with it switched off in Settings): the
- * transparent mac window would show the raw desktop, so lay the tint over a solid
- * base. Same colour as the non-mac BrowserWindow backgroundColor. */
-.shell[data-vibrancy='off'] {
+/* macOS with vibrancy switched off in Settings: the window is still transparent, so
+ * without this the tint would sit on the raw desktop. Lay it over a solid base (same
+ * colour as the non-mac BrowserWindow backgroundColor, which already gives
+ * Linux/Windows their opaque base). */
+.shell[data-platform='darwin'][data-vibrancy='off'] {
   background-color: #101418;
 }
 
