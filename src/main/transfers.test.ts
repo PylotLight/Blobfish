@@ -60,6 +60,8 @@ const settle = async (tr: typeof import('./transfers')): Promise<void> => {
 describe('transfer queue', () => {
   test('a big folder download coalesces snapshots instead of one per row', async () => {
     const tr = await import('./transfers')
+    // Order-independent: earlier tests' rows already settled, count only this test's sends.
+    sent.length = 0
     const ids = await tr.enqueueDownload('a', 'c', ['logs/'])
     expect(ids.length).toBe(N)
     // Was N sends on enqueue alone (+2 per row as each started/finished): O(n²) bytes.
