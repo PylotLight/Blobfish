@@ -4,6 +4,7 @@ import { onPanelAction } from '../palette-bus'
 import { Icon } from './Icon'
 import { formatBytes, formatDuration, formatEta, formatPct, formatSpeed } from '../../../shared/format'
 import { applyTransfersDelta, viewFromSnapshot, type TransfersView } from '../../../shared/transfers-delta'
+import { barChips } from '../../../shared/transfers-bar'
 import { rowPitch as measurePitch, syncBudget, virtualWindow } from '../../../shared/virtual-window'
 
 /* Above this many rows only the visible slice is mounted (5,000 queued files used to
@@ -360,6 +361,7 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
   const { up, down } = snap
 
   if (!expanded) {
+    const chips = barChips(activities, snap.finished)
     return (
       <button
         className="transfers-bar"
@@ -375,7 +377,8 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
         <span className="t-stats">
           {up > 0 && <span aria-label={`${up} uploading`}><Icon name="up" size={12} />{up}</span>}
           {down > 0 && <span aria-label={`${down} downloading`}><Icon name="down" size={12} />{down}</span>}
-          {snap.active === 0 && <span aria-label={`${total} done`}><Icon name="check" size={12} />{total}</span>}
+          {chips.done > 0 && <span aria-label={`${chips.done} done`}><Icon name="check" size={12} />{chips.done}</span>}
+          {chips.failed > 0 && <span className="t-failed" aria-label={`${chips.failed} failed or cancelled`}><Icon name="close" size={12} />{chips.failed}</span>}
         </span>
         {firstActive && (
           <span className="t-mini-name">
