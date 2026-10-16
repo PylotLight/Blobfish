@@ -246,6 +246,8 @@ export interface UploadEnqueueArgs {
   accountId: string
   container: string
   prefix?: string
+  /** Pick folders instead of files; uploads everything under them, keeping the layout. */
+  folder?: boolean
 }
 
 export interface DownloadArgs {
