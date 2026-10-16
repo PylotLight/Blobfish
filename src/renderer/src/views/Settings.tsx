@@ -1,4 +1,5 @@
 import { UpdateSettings } from './UpdateSettings'
+import { Icon } from './Icon'
 
 export type ThemeName = 'midnight' | 'abyss' | 'slate'
 export type DensityName = 'comfortable' | 'compact'
@@ -141,7 +142,7 @@ export function SettingsView(props: {
           </p>
         </div>
         <button className="btn ghost small" onClick={props.onBack}>
-          ← Back
+          <Icon name="back" size={14} /> Back
         </button>
       </div>
 
@@ -310,6 +311,7 @@ export function SettingsView(props: {
             <button
               role="switch"
               aria-checked={prefs.vibrancy}
+              aria-label="Native vibrancy blur"
               className={`switch${prefs.vibrancy ? ' on' : ''}`}
               disabled={!props.vibrancySupported}
               onClick={() => set({ vibrancy: !prefs.vibrancy })}

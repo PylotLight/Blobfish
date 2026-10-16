@@ -30,7 +30,7 @@
   background: transparent;
   color: var(--text);
   font: inherit;
-  font-size: 15px;
+  font-size: var(--fs-md);
   padding: 14px 16px;
   outline: none;
   border-radius: 0;
@@ -70,7 +70,7 @@
 }
 .palette-glyph {
   color: var(--muted);
-  font-size: 16px;
+  font-size: var(--fs-lg);
   line-height: 1;
 }
 .palette-text {
@@ -86,7 +86,7 @@
   white-space: nowrap;
 }
 .palette-title {
-  font-size: 13.5px;
+  font-size: var(--fs-sm);
 }
 .palette-title mark {
   background: transparent;

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { ExplorerError } from './errors'
+import { Icon } from './Icon'
 
 /**
  * Slim single-line error banner. The full story lives in the activity dock —
@@ -35,15 +36,15 @@ export default function ErrorCallout(props: {
         <span className="error-banner-actions">
           {props.onRetry && (
             <button className="error-retry" onClick={props.onRetry}>
-              ↻ Retry
+              <Icon name="refresh" size={13} /> Retry
             </button>
           )}
           <button className="error-text-btn" onClick={() => setShowDetails((v) => !v)}>
-            {showDetails ? 'Hide details ▴' : 'Details ▾'}
+            {showDetails ? 'Hide details' : 'Details'} <Icon name={showDetails ? 'chevronUp' : 'chevronDown'} size={12} />
           </button>
           {props.onDismiss && (
-            <button className="error-text-btn" onClick={props.onDismiss} aria-label="Dismiss error">
-              ✕
+            <button className="error-text-btn" onClick={props.onDismiss} aria-label="Dismiss error" title="Dismiss">
+              <Icon name="close" size={13} />
             </button>
           )}
         </span>
@@ -53,7 +54,7 @@ export default function ErrorCallout(props: {
           <p>{error.message} See the activity dock for the full history.</p>
           <pre className="error-technical">{error.technical}</pre>
           <button className="error-text-btn" onClick={() => void copyDetails()}>
-            {copied ? 'Copied ✓' : 'Copy details'}
+            {copied ? <>Copied <Icon name="check" size={12} /></> : 'Copy details'}
           </button>
         </div>
       )}

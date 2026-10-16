@@ -7,6 +7,7 @@ import type {
 import type { SelectionTarget } from '../App'
 import { ConfirmDialog, FolderPickerDialog, PromptDialog, VersionHistoryDialog } from './Dialogs'
 import PreviewDialog from './Preview'
+import { Icon, type IconName } from './Icon'
 import { formatBytes } from '../../../shared/format'
 import { virtualWindow } from '../../../shared/virtual-window'
 import { parseStorageError, type ExplorerError } from './errors'
@@ -1045,7 +1046,7 @@ export default function Explorer(props: {
         </p>
         {props.onNewConnection && (
           <button className="btn mint hero-cta" onClick={props.onNewConnection}>
-            + Connect Storage Account
+            <Icon name="plus" size={15} /> Connect Storage Account
           </button>
         )}
       </section>
@@ -1147,7 +1148,7 @@ export default function Explorer(props: {
                 closePreviewTab(t.key)
               }}
             >
-              ✕
+              <Icon name="close" size={12} />
             </span>
           </button>
         )
@@ -1226,7 +1227,7 @@ export default function Explorer(props: {
 
   const toolbarFilter = (
     <label className="toolbar-filter" title="Search (⌘F)">
-      <span aria-hidden>⌕</span>
+      <Icon name="search" size={14} />
       <input
         ref={filterRef}
         value={filter}
@@ -1235,8 +1236,8 @@ export default function Explorer(props: {
         aria-label="Search current view"
       />
       {filter && (
-        <button className="mini-btn" onClick={() => setFilter('')} aria-label="Clear search">
-          ✕
+        <button className="mini-btn" onClick={() => setFilter('')} aria-label="Clear search" title="Clear search">
+          <Icon name="close" size={13} />
         </button>
       )}
     </label>
@@ -1244,9 +1245,9 @@ export default function Explorer(props: {
 
   const historyButtons = (
     <div className="nav-btns">
-      <button className="nav-btn" onClick={goBack} disabled={backHist.length === 0} title="Back" aria-label="Back">←</button>
-      <button className="nav-btn" onClick={goForward} disabled={fwdHist.length === 0} title="Forward" aria-label="Forward">→</button>
-      <button className="nav-btn" onClick={goUp} disabled={navPrefix === '' && (scoped || !container)} title="Up one level" aria-label="Up">↑</button>
+      <button className="nav-btn" onClick={goBack} disabled={backHist.length === 0} title="Back" aria-label="Back"><Icon name="back" /></button>
+      <button className="nav-btn" onClick={goForward} disabled={fwdHist.length === 0} title="Forward" aria-label="Forward"><Icon name="forward" /></button>
+      <button className="nav-btn" onClick={goUp} disabled={navPrefix === '' && (scoped || !container)} title="Up one level" aria-label="Up one level"><Icon name="up" /></button>
       <button
         className="nav-btn"
         onClick={retryCurrent}
@@ -1254,25 +1255,25 @@ export default function Explorer(props: {
         title="Refresh"
         aria-label="Refresh"
       >
-        ↻
+        <Icon name="refresh" />
       </button>
     </div>
   )
 
   const actionBar = (
     <div className="actionbar" role="toolbar" aria-label="Blob actions">
-      <Action icon="↑" label="Upload" primary onClick={onUpload} disabled={!container || busy !== null} working={busy === 'upload'} workingLabel="Uploading…" />
-      <Action icon="↓" label={`Download${selection.size > 0 ? ` (${selection.size})` : ''}`} onClick={onDownload} disabled={selection.size === 0 || hasDeletedSel || busy !== null} />
-      <Action icon="+" label="New folder" onClick={onNewFolder} disabled={!container || busy !== null} />
-      <Action icon="☑" label="Select all" onClick={() => toggleAll(visibleBlobs.map(keyOf))} disabled={visibleBlobs.length === 0} />
-      <Action icon="◍" label="Deleted" primary={showDeleted} onClick={() => setShowDeleted((v) => !v)} disabled={isDfs || !container || busy !== null} />
+      <Action icon="upload" label="Upload" keepLabel primary onClick={onUpload} disabled={!container || busy !== null} working={busy === 'upload'} workingLabel="Uploading…" />
+      <Action icon="download" label={`Download${selection.size > 0 ? ` (${selection.size})` : ''}`} keepLabel onClick={onDownload} disabled={selection.size === 0 || hasDeletedSel || busy !== null} />
+      <Action icon="folderPlus" label="New folder" onClick={onNewFolder} disabled={!container || busy !== null} />
+      <Action icon="selectAll" label="Select all" onClick={() => toggleAll(visibleBlobs.map(keyOf))} disabled={visibleBlobs.length === 0} />
+      <Action icon="archive" label="Deleted" pressed={showDeleted} primary={showDeleted} onClick={() => setShowDeleted((v) => !v)} disabled={isDfs || !container || busy !== null} />
       <span className="action-sep" aria-hidden />
-      <Action icon="👁" label="Preview" onClick={() => previewFile && openPreviewTab(previewFile.name, previewFile.size)} disabled={!previewFile || busy !== null} />
-      <Action icon="✎" label="Rename" onClick={onRename} disabled={!canRename || busy !== null} />
-      <Action icon="↩" label={`Restore${selection.size > 0 && hasDeletedSel ? ` (${selection.size})` : ''}`} onClick={onRestore} disabled={!hasDeletedSel || busy !== null} />
-      <Action icon="⇄" label="Move to…" onClick={() => onMoveOrCopy('move')} disabled={selection.size === 0 || hasDeletedSel || busy !== null} />
-      <Action icon="⧉" label="Copy to…" onClick={() => onMoveOrCopy('copy')} disabled={selection.size === 0 || hasDeletedSel || busy !== null} />
-      <Action icon="✕" label={`Delete${selection.size > 0 ? ` (${selection.size})` : ''}`} danger onClick={onDelete} disabled={selection.size === 0 || hasDeletedSel || busy !== null} />
+      <Action icon="eye" label="Preview" keepLabel onClick={() => previewFile && openPreviewTab(previewFile.name, previewFile.size)} disabled={!previewFile || busy !== null} />
+      <Action icon="pencil" label="Rename" onClick={onRename} disabled={!canRename || busy !== null} />
+      <Action icon="restore" label={`Restore${selection.size > 0 && hasDeletedSel ? ` (${selection.size})` : ''}`} onClick={onRestore} disabled={!hasDeletedSel || busy !== null} />
+      <Action icon="move" label="Move to…" onClick={() => onMoveOrCopy('move')} disabled={selection.size === 0 || hasDeletedSel || busy !== null} />
+      <Action icon="copy" label="Copy to…" onClick={() => onMoveOrCopy('copy')} disabled={selection.size === 0 || hasDeletedSel || busy !== null} />
+      <Action icon="trash" label={`Delete${selection.size > 0 ? ` (${selection.size})` : ''}`} keepLabel danger onClick={onDelete} disabled={selection.size === 0 || hasDeletedSel || busy !== null} />
     </div>
   )
 
@@ -1337,9 +1338,10 @@ export default function Explorer(props: {
                   className="endpoint-badge"
                   onClick={copyEndpoint}
                   title={`${account.endpoint} — click to copy`}
+                  aria-label={copiedEndpoint ? 'Endpoint copied' : `Copy endpoint ${account.endpoint}`}
                 >
                   <span className="endpoint-host">{endpointHost}</span>
-                  <span className="endpoint-copy">{copiedEndpoint ? '✓' : '⧉'}</span>
+                  <span className="endpoint-copy" aria-hidden><Icon name={copiedEndpoint ? 'check' : 'copy'} size={12} /></span>
                 </button>
                 {warn && <span className="pill warn">{warn}</span>}
               </div>
@@ -1348,8 +1350,8 @@ export default function Explorer(props: {
           <div className="toolbar-right">
             {toolbarFilter}
             {!scoped && (
-              <button className="btn mint small toolbar-primary" disabled={busy !== null} onClick={onNewContainer}>
-                + New container
+              <button className="btn mint small toolbar-primary" disabled={busy !== null} onClick={onNewContainer} aria-label="New container" title="New container">
+                <Icon name="plus" size={14} /><span className="toolbar-btn-label"> New container</span>
               </button>
             )}
           </div>
@@ -1366,7 +1368,7 @@ export default function Explorer(props: {
             </ul>
           ) : showEmpty ? (
             <div className="empty-state">
-              <div className="empty-state-icon" aria-hidden>▦</div>
+              <div className="empty-state-icon" aria-hidden><Icon name="grid" size={26} /></div>
               <p className="empty-state-title">
                 {filter ? `No containers matching "${filter}"` : 'No containers yet'}
               </p>
@@ -1383,7 +1385,7 @@ export default function Explorer(props: {
                 ) : (
                   !scoped && (
                     <button className="btn mint small" onClick={onNewContainer}>
-                      + New container
+                      <Icon name="plus" size={14} /> New container
                     </button>
                   )
                 )}
@@ -1441,9 +1443,10 @@ export default function Explorer(props: {
                           <button
                             className="mini-btn danger-x"
                             title={`Delete container "${c.name}"`}
+                            aria-label={`Delete container ${c.name}`}
                             onClick={() => onDeleteContainer(c.name)}
                           >
-                            ✕
+                            <Icon name="trash" size={14} />
                           </button>
                         </td>
                       )}
@@ -1513,8 +1516,9 @@ export default function Explorer(props: {
               disabled={busy !== null}
               onClick={() => container && onDeleteContainer(container)}
               title="Delete this container and everything in it"
+              aria-label="Delete container"
             >
-              Delete container
+              <Icon name="trash" size={14} /><span className="toolbar-btn-label"> Delete container</span>
             </button>
           )}
         </div>
@@ -1563,7 +1567,7 @@ export default function Explorer(props: {
           </ul>
         ) : showBlobEmpty ? (
           <div className="empty-state">
-            <div className="empty-state-icon" aria-hidden>◍</div>
+            <div className="empty-state-icon" aria-hidden><Icon name="inbox" size={26} /></div>
             <p className="empty-state-title">
               {filter ? `Nothing matches "${filter}"` : 'This folder is empty'}
             </p>
@@ -1630,7 +1634,7 @@ export default function Explorer(props: {
                   <td className="check-col" />
                   <td className="name-col">
                     <span className="file-row parent-link">
-                      <span className="file-ico folder up" aria-hidden>↩</span>
+                      <span className="file-ico folder up" aria-hidden><Icon name="parent" size={14} /></span>
                       <strong>..</strong>
                       <span className="muted small">Up to parent</span>
                     </span>
@@ -1804,25 +1808,33 @@ const BlobRow = memo(function BlobRow(props: {
 })
 
 function Action(props: {
-  icon: string
+  icon: IconName
   label: string
   onClick: () => void
   disabled?: boolean
   primary?: boolean
   danger?: boolean
+  /** Toggle buttons (Deleted) report their state. */
+  pressed?: boolean
+  /** Keep the text label when the toolbar is too narrow for every label. */
+  keepLabel?: boolean
   working?: boolean
   workingLabel?: string
 }): React.JSX.Element {
+  const label = props.working ? (props.workingLabel ?? props.label) : props.label
   return (
     <button
-      className={`action${props.primary ? ' primary' : ''}${props.danger ? ' danger' : ''}`}
+      className={`action${props.primary ? ' primary' : ''}${props.danger ? ' danger' : ''}${props.keepLabel ? ' keep-label' : ''}`}
       onClick={props.onClick}
       disabled={props.disabled}
+      aria-label={label}
+      aria-pressed={props.pressed}
+      title={label}
     >
       <span className="action-icon" aria-hidden>
-        {props.icon}
+        <Icon name={props.icon} size={16} />
       </span>
-      {props.working ? (props.workingLabel ?? props.label) : props.label}
+      <span className="action-label">{label}</span>
     </button>
   )
 }
@@ -1847,7 +1859,7 @@ function Th(props: {
     >
       <button className={`th-btn${active ? ' active' : ''}`} onClick={() => props.onSort(props.k)}>
         {props.label}
-        <span className="sort-arrow">{active ? (props.dir === 1 ? ' ↑' : ' ↓') : ''}</span>
+        <span className="sort-arrow" aria-hidden>{active ? <Icon name={props.dir === 1 ? 'up' : 'down'} size={12} /> : null}</span>
       </button>
       {props.resizeKey && props.onResizeStart && (
         <span

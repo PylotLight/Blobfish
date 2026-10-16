@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ActivityEntry, TransferInfo, TransfersDelta } from '../../../shared/types'
 import { onPanelAction } from '../palette-bus'
+import { Icon } from './Icon'
 import { formatBytes, formatDuration, formatEta, formatPct, formatSpeed } from '../../../shared/format'
 import { applyTransfersDelta, viewFromSnapshot, type TransfersView } from '../../../shared/transfers-delta'
 import { virtualWindow } from '../../../shared/virtual-window'
@@ -114,7 +115,7 @@ const TransferRow = memo(function TransferRow(props: { t: TransferInfo }): React
   return (
     <li className={`transfer${t.status === 'failed' ? ' failed' : ''}`}>
       <span className={`t-dir ${t.direction}`} aria-hidden>
-        {t.direction === 'upload' ? '↑' : '↓'}
+        <Icon name={t.direction === 'upload' ? 'upload' : 'download'} size={14} />
       </span>
       <div className="t-main">
         <div className="t-name" title={`${t.container}/${t.name}`}>
@@ -169,21 +170,23 @@ const TransferRow = memo(function TransferRow(props: { t: TransferInfo }): React
           <button
             className="mini-btn"
             title="Cancel transfer"
+            aria-label={`Cancel ${t.name}`}
             onClick={() => void window.api.transfers.cancel(t.id)}
           >
-            ✕
+            <Icon name="close" size={13} />
           </button>
         )}
         {(t.status === 'failed' || t.status === 'cancelled') && (
           <button
             className="mini-btn"
             title="Retry transfer"
+            aria-label={`Retry ${t.name}`}
             onClick={() => void window.api.transfers.retry(t.id)}
           >
-            ↻
+            <Icon name="refresh" size={13} />
           </button>
         )}
-        {t.status === 'completed' && <span className="t-done" aria-label="Done">✓</span>}
+        {t.status === 'completed' && <span className="t-done" role="img" aria-label="Done"><Icon name="check" size={13} /></span>}
       </span>
     </li>
   )
@@ -195,7 +198,7 @@ function ActivityRow(props: { entry: ActivityEntry }): React.JSX.Element {
   return (
     <li className="activity-row">
       <span className={`a-dot ${entry.status}`} aria-hidden>
-        {entry.status === 'success' ? '✓' : '✕'}
+        <Icon name={entry.status === 'success' ? 'check' : 'close'} size={11} />
       </span>
       <div className="a-main">
         <div>{entry.text}</div>
@@ -372,7 +375,7 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
           </span>
         )}
         {snap.aggregateBps > 0 && <span className="t-speed">{formatSpeed(snap.aggregateBps)}</span>}
-        <span className="twisty open" aria-hidden>›</span>
+        <span className="twisty open" aria-hidden><Icon name="chevronRight" size={13} /></span>
       </button>
     )
   }
@@ -428,9 +431,10 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
               setPinned(false)
               setExpanded(false)
             }}
-            aria-label="Collapse"
+            aria-label="Collapse transfers"
+            title="Collapse"
           >
-            ⌄
+            <Icon name="chevronDown" size={14} />
           </button>
         </span>
       </header>

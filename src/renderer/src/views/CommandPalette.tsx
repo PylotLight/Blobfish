@@ -9,6 +9,7 @@ import {
   type PalettePlace
 } from '../../../shared/command-palette'
 import { locationKey } from '../../../shared/recent-locations'
+import { Icon } from './Icon'
 import type { AccountSummary, StorageContainer } from '../../../shared/types'
 import {
   getExplorerSnapshot,
@@ -197,7 +198,7 @@ function Highlighted({ text, hits }: { text: string; hits: number[] }): React.JS
 }
 
 function ItemIcon({ item, accounts }: { item: PaletteItem; accounts: AccountSummary[] }): React.JSX.Element {
-  if (item.kind === 'command') return <span className="palette-glyph">›</span>
+  if (item.kind === 'command') return <span className="palette-glyph"><Icon name="chevronRight" size={14} /></span>
   if (item.placeKind === 'path') return <span className="file-ico folder" />
   if (item.placeKind === 'container') return <span className="kind-ico container" />
   const id = item.placeId.slice('conn:'.length)

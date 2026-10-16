@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AccountCreateInput, AccountSummary, StorageKind } from '../../../shared/types'
 import { stripIpcWrapper } from './errors'
+import { Icon } from './Icon'
 import {
   parseConnectionString,
   parseSasUrl,
@@ -212,8 +213,8 @@ export default function ConnectWizard(props: {
       >
         <header className="wiz-head">
           <h2>Connect to Azure Storage</h2>
-          <button className="icon-btn" onClick={props.onClose} aria-label="Close">
-            ✕
+          <button className="icon-btn" onClick={props.onClose} aria-label="Close" title="Close">
+            <Icon name="close" />
           </button>
         </header>
 
@@ -221,10 +222,10 @@ export default function ConnectWizard(props: {
           {STEPS.map((label, i) => (
             <li key={label} className={i === step ? 'current' : i < step ? 'done' : ''}>
               <button className="wiz-step-btn" onClick={() => i < step && setStep(i)}>
-                <span className="wiz-num">{i < step ? '✓' : i + 1}</span>
+                <span className="wiz-num">{i < step ? <Icon name="check" size={12} /> : i + 1}</span>
                 {label}
               </button>
-              {i < STEPS.length - 1 && <span className="wiz-sep" aria-hidden>›</span>}
+              {i < STEPS.length - 1 && <span className="wiz-sep" aria-hidden><Icon name="chevronRight" size={13} /></span>}
             </li>
           ))}
         </ol>

@@ -12,6 +12,7 @@ import {
 } from '../../../shared/preview'
 import type { PreviewFlavor, PreviewResult } from '../../../shared/types'
 import { stripIpcWrapper } from './errors'
+import { Icon } from './Icon'
 
 /**
  * Range-based file preview. Each page is one HTTP range GET (default 256 KiB /
@@ -340,8 +341,8 @@ export default function PreviewDialog(props: {
                 {'{}'} Pretty
               </button>
             )}
-            <button className="icon-btn" onClick={props.onClose} aria-label="Close preview">
-              ✕
+            <button className="icon-btn" onClick={props.onClose} aria-label="Close preview" title="Close preview">
+              <Icon name="close" />
             </button>
           </div>
         </div>
@@ -362,7 +363,7 @@ export default function PreviewDialog(props: {
             </div>
           ) : binary ? (
             <div className="empty-state">
-              <div className="empty-state-icon" aria-hidden>⬢</div>
+              <div className="empty-state-icon" aria-hidden><Icon name="binary" size={26} /></div>
               <p className="empty-state-title">Binary file — no text preview</p>
               <p className="muted small empty-state-sub">
                 Only the first bytes were fetched to check the file type. Download the full file to view it.
@@ -370,7 +371,7 @@ export default function PreviewDialog(props: {
             </div>
           ) : size === 0 && text === '' ? (
             <div className="empty-state">
-              <div className="empty-state-icon" aria-hidden>◍</div>
+              <div className="empty-state-icon" aria-hidden><Icon name="inbox" size={26} /></div>
               <p className="empty-state-title">File is empty</p>
               <p className="muted small empty-state-sub">Zero bytes — nothing to preview.</p>
             </div>
@@ -404,7 +405,7 @@ export default function PreviewDialog(props: {
                             >
                               <span className="csv-sort-label" title={label}>{label}</span>
                               <span className="csv-sort-arrow" aria-hidden>
-                                {sortCol === i ? (sortDir === 1 ? ' ↑' : ' ↓') : ''}
+                                {sortCol === i ? <Icon name={sortDir === 1 ? 'up' : 'down'} size={12} /> : null}
                               </span>
                             </button>
                             <button
@@ -414,7 +415,7 @@ export default function PreviewDialog(props: {
                               aria-label={`Filter and sort options for ${label}`}
                               aria-expanded={openCol === i}
                             >
-                              ▼
+                              <Icon name="chevronDown" size={12} />
                             </button>
                           </div>
                           {openCol === i && (
@@ -427,7 +428,7 @@ export default function PreviewDialog(props: {
                                   setOpenCol(null)
                                 }}
                               >
-                                ↑ Sort ascending
+                                <Icon name="up" size={13} /> Sort ascending
                               </button>
                               <button
                                 className={`csv-pop-item${sortCol === i && sortDir === -1 ? ' selected' : ''}`}
@@ -437,7 +438,7 @@ export default function PreviewDialog(props: {
                                   setOpenCol(null)
                                 }}
                               >
-                                ↓ Sort descending
+                                <Icon name="down" size={13} /> Sort descending
                               </button>
                               {sortCol === i && (
                                 <button
