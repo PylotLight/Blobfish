@@ -509,3 +509,46 @@ export function clearFinished(): TransfersSnapshot {
   emitNow()
   return snapshot()
 }
+
+/* ---------------- quit (ordered shutdown) ---------------- */
+
+/** What the quit prompt needs: transfers still moving bytes or waiting their turn. */
+export function inFlightCounts(): { active: number; queued: number } {
+  let active = 0
+  let queued = 0
+  for (const t of byId.values()) {
+    if (t.status === 'active') active += 1
+    else if (t.status === 'queued') queued += 1
+  }
+  return { active, queued }
+}
+
+/**
+ * Cancel everything in flight and wait (bounded) for the engines to unwind, so partial
+ * downloads are removed and each cancel lands in the activity log before it is persisted.
+ * Queued rows are cancelled first so nothing new starts while the active ones abort.
+ */
+export async function stopTransfersForQuit(timeoutMs = 4_000): Promise<number> {
+  const now = Date.now()
+  let cancelled = 0
+  for (const t of byId.values()) {
+    if (t.status !== 'queued') continue
+    t.status = 'cancelled'
+    t.finishedAt = now
+    cancelled += 1
+    logActivity({ kind: 'transfer', text: `${describe(t)} cancelled`, detail: 'Blobfish quit before it started', status: 'failed' })
+  }
+  const unwinding = [...byId.values()].filter((t) => t.status === 'active')
+  for (const t of unwinding) t.controller?.abort()
+  cancelled += unwinding.length
+  const deadline = Date.now() + timeoutMs
+  // run() clears `controller` in its finally, after the partial file is gone and the cancel is logged.
+  while (unwinding.some((t) => t.controller) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+  if (emitTimer) {
+    clearTimeout(emitTimer)
+    emitTimer = null
+  }
+  return cancelled
+}

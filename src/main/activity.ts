@@ -1,8 +1,10 @@
-import { shell } from 'electron'
+import { app, shell } from 'electron'
 import { randomUUID } from 'node:crypto'
-import { existsSync } from 'node:fs'
-import { unlink } from 'node:fs/promises'
+import { existsSync, readFileSync } from 'node:fs'
+import { rename, unlink, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { getMainWindow } from './window'
+import { ACTIVITY_FILE, parsePersistedActivities, serializeActivities } from '../shared/activity-store'
 import type { ActivityEntry, ActivityKind, ActivityStatus, TransferDirection } from '../shared/types'
 
 const MAX_ENTRIES = 120
@@ -143,4 +145,36 @@ export async function deleteDownloadedFile(
     }
     return { success: false, message: err instanceof Error ? err.message : String(err) }
   }
+}
+
+/* ---------------- persistence (ordered shutdown writes it, launch reads it back) ---------------- */
+
+function activityPath(): string {
+  return join(app.getPath('userData'), ACTIVITY_FILE)
+}
+
+/** Read last session's activity feed. Call once at startup, before the window asks for it. */
+let loaded = false
+
+export function loadActivities(): void {
+  loaded = true
+  try {
+    const path = activityPath()
+    if (!existsSync(path)) return
+    const restored = parsePersistedActivities(JSON.parse(readFileSync(path, 'utf8')))
+    // Anything logged before load (unlikely this early) stays on top.
+    const ids = new Set(entries.map((e) => e.id))
+    entries = [...entries, ...restored.filter((e) => !ids.has(e.id))].slice(0, MAX_ENTRIES)
+  } catch (err) {
+    console.warn('[activity] could not read activity log:', err instanceof Error ? err.message : String(err))
+  }
+}
+
+/** Write the feed atomically (temp + rename, 0600: it holds local paths and account ids). */
+export async function saveActivities(): Promise<void> {
+  // Quitting before launch finished must not replace last session's log with an empty one.
+  if (!loaded) return
+  const path = activityPath()
+  await writeFile(`${path}.tmp`, serializeActivities(entries), { mode: 0o600 })
+  await rename(`${path}.tmp`, path)
 }
