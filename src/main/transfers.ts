@@ -169,8 +169,9 @@ function toInfo(t: ActiveTransfer): TransferInfo {
 const byId = new Map<string, ActiveTransfer>()
 
 function connectionsFor(direction: TransferDirection, totalBytes: number): number {
-  if (totalBytes > 0 && totalBytes <= SINGLE_SHOT_BYTES) return 1
-  return direction === 'download' ? downloadConnections(totalBytes || Infinity, uploadConcurrency) : uploadConcurrency
+  // Unknown size (0) shows 1 until the download's HEAD tells us how many ranges it gets.
+  if (totalBytes <= SINGLE_SHOT_BYTES) return 1
+  return direction === 'download' ? downloadConnections(totalBytes, uploadConcurrency) : uploadConcurrency
 }
 
 /** Counts only: O(n) over the queue but no row serialization. */
