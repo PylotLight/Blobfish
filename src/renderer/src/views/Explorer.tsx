@@ -1,7 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type {
   AccountSummary,
-  ListBlobsResult,
   StorageBlobItem,
   StorageContainer
 } from '../../../shared/types'
@@ -12,6 +11,9 @@ import { formatBytes } from '../../../shared/format'
 import { virtualWindow } from '../../../shared/virtual-window'
 import { parseStorageError, type ExplorerError } from './errors'
 import ErrorCallout from './ErrorCallout'
+import ListingStatus from './ListingStatus'
+import { useBlobListing } from './useBlobListing'
+import { isPartial } from '../../../shared/listing-pager'
 import { onExplorerAction, publishExplorer, type ExplorerAction } from '../palette-bus'
 import logoUrl from '../assets/logo.png'
 
@@ -89,13 +91,13 @@ export default function Explorer(props: {
   // Container-scoped attachments open straight into their container —
   // no intermediate container-directory level.
   const [container, setContainer] = useState<string | null>(() => account?.containerName ?? null)
-  const [blobs, setBlobs] = useState<ListBlobsResult | null>(null)
+  const listing = useBlobListing()
+  const { blobs, setBlobs, loadingList } = listing
   const [navPrefix, setNavPrefix] = useState('')
   const [backHist, setBackHist] = useState<string[]>([])
   const [fwdHist, setFwdHist] = useState<string[]>([])
   const [selection, setSelection] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState('')
-  const [loadingList, setLoadingList] = useState(false)
   const [loadingContainers, setLoadingContainers] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   // Errors are tracked per view: a background container-listing 403 (SAS
@@ -167,7 +169,6 @@ export default function Explorer(props: {
   // Container and blob listings track independently so one selection resolving
   // can't invalidate the other.
   const containerSeq = useRef(0)
-  const blobSeq = useRef(0)
   const selectionRef = useRef(selection)
   selectionRef.current = selection
   const filterRef = useRef<HTMLInputElement>(null)
@@ -294,7 +295,6 @@ export default function Explorer(props: {
   // Initial load per account.
   useEffect(() => {
     containerSeq.current += 1
-    blobSeq.current += 1
     setContainers([])
     const initial = account?.containerName ?? null
     setContainer(initial)
@@ -353,59 +353,38 @@ export default function Explorer(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId])
 
-  // Blob listing.
+  // Blob listing: first page right away, the rest streamed in behind it.
   useEffect(() => {
     if (!accountId || !container) return
-    const seq = ++blobSeq.current
-    let cancelled = false
-    setLoadingList(true)
     // A fresh selection clears that view's previous auth error.
     setBlobError(null)
-    window.api.storage
-      .listBlobs({ accountId, container, prefix: navPrefix || undefined, includeDeleted: showDeleted || undefined })
-      .then((res) => {
-        if (!cancelled && seq === blobSeq.current) {
-          setBlobs(res)
-          setBlobError(null)
-          setSelection(new Set())
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled && seq === blobSeq.current) {
-          fail(err, 'blobs')
-          setBlobs(null)
-        }
-      })
-      .finally(() => {
-        if (!cancelled && seq === blobSeq.current) setLoadingList(false)
-      })
-    return () => {
-      cancelled = true
-    }
+    listing.load(
+      { accountId, container, prefix: navPrefix, includeDeleted: showDeleted },
+      () => {
+        setBlobError(null)
+        setSelection(new Set())
+      },
+      (err) => {
+        fail(err, 'blobs')
+        setBlobs(null)
+      }
+    )
+    return listing.cancel
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId, container, navPrefix, showDeleted])
 
   function reloadBlobs(): void {
     const curContainer = containerRef.current
     if (!accountId || !curContainer) return
-    const seq = ++blobSeq.current
-    const curPrefix = navPrefixRef.current
-    const curDeleted = showDeletedRef.current
-    setLoadingList(true)
     setBlobError(null)
-    window.api.storage
-      .listBlobs({ accountId, container: curContainer, prefix: curPrefix || undefined, includeDeleted: curDeleted || undefined })
-      .then((res) => {
-        if (seq !== blobSeq.current) return
-        setBlobs(res)
+    listing.load(
+      { accountId, container: curContainer, prefix: navPrefixRef.current, includeDeleted: showDeletedRef.current },
+      () => {
         setBlobError(null)
         setSelection(new Set())
-      })
-      .catch((err: unknown) => {
-        if (seq === blobSeq.current) fail(err, 'blobs')
-      })
-      .finally(() => {
-        if (seq === blobSeq.current) setLoadingList(false)
-      })
+      },
+      (err) => fail(err, 'blobs')
+    )
   }
 
   /* ---------- prefix history ---------- */
@@ -572,6 +551,11 @@ export default function Explorer(props: {
   }
 
   function toggleAll(keys: string[]): void {
+    const clearing = selection.size === keys.length && keys.length > 0
+    // Be upfront when the folder isn't fully listed: only loaded rows get picked.
+    if (!clearing && keys.length > 0 && isPartial(listing.phase)) {
+      flash(`Selected the ${keys.length.toLocaleString()} loaded items. This folder has more that aren't listed yet.`)
+    }
     setSelection((prev) => (prev.size === keys.length && keys.length > 0 ? new Set() : new Set(keys)))
   }
 
@@ -1514,6 +1498,14 @@ export default function Explorer(props: {
       ) : (
       <>
       {actionBar}
+      <ListingStatus
+        phase={listing.phase}
+        loaded={blobs?.items.length ?? 0}
+        error={listing.pagingError}
+        filtering={filter.trim() !== ''}
+        onStop={listing.stop}
+        onLoadMore={listing.loadMore}
+      />
 
       <div
         className="explorer-body-scroll"

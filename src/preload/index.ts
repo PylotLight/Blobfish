@@ -13,6 +13,8 @@ import type {
   GlassState,
   ListBlobsArgs,
   ListBlobsResult,
+  ListBlobsWire,
+  StorageBlobItem,
   ListVersionsArgs,
   MoveBlobsArgs,
   PreviewArgs,
@@ -92,8 +94,17 @@ const api = {
   storage: {
     listContainers: (accountId: string): Promise<StorageContainer[]> =>
       ipcRenderer.invoke('storage:list-containers', accountId),
-    listBlobs: (args: ListBlobsArgs): Promise<ListBlobsResult> =>
-      ipcRenderer.invoke('storage:list-blobs', args),
+    // Items cross IPC as one JSON string (see ListBlobsWire); JSON.parse here
+    // is a few ms, far cheaper than structured-cloning 5,000 objects in main.
+    listBlobs: async (args: ListBlobsArgs): Promise<ListBlobsResult> => {
+      const wire = (await ipcRenderer.invoke('storage:list-blobs', args)) as ListBlobsWire
+      return {
+        container: wire.container,
+        prefix: wire.prefix,
+        items: JSON.parse(wire.itemsJson) as StorageBlobItem[],
+        continuationToken: wire.continuationToken
+      }
+    },
     createContainer: (args: ContainerActionArgs): Promise<void> =>
       ipcRenderer.invoke('storage:create-container', args),
     deleteContainer: (args: ContainerActionArgs): Promise<void> =>

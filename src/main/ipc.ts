@@ -15,7 +15,7 @@ import type {
   DownloadArgs,
   GlassState,
   ListBlobsArgs,
-  ListBlobsResult,
+  ListBlobsWire,
   ListVersionsArgs,
   MoveBlobsArgs,
   PreviewArgs,
@@ -60,6 +60,7 @@ import {
   restoreVersion,
   undeleteBlobs
 } from './azure'
+import { prewarmListWorker } from './list-runner'
 import { previewBlob } from './preview'
 import {
   cancelAll,
@@ -102,7 +103,12 @@ export function registerIpc(): void {
   // Azure SDKs load lazily; warm them once the first window has painted so the
   // first listing doesn't pay for the module load either.
   app.once('browser-window-created', (_, win) => {
-    win.webContents.once('did-finish-load', () => setTimeout(prewarmAzureSdk, 750))
+    win.webContents.once('did-finish-load', () =>
+      setTimeout(() => {
+        prewarmAzureSdk()
+        prewarmListWorker()
+      }, 750)
+    )
   })
 
   ipcMain.handle('ping', () => 'pong')
@@ -249,8 +255,15 @@ export function registerIpc(): void {
   )
   ipcMain.handle(
     'storage:list-blobs',
-    (_event: IpcMainInvokeEvent, args: ListBlobsArgs): Promise<ListBlobsResult> =>
-      listBlobs(args.accountId, args.container, args.prefix, args.pageSize, args.includeDeleted)
+    (_event: IpcMainInvokeEvent, args: ListBlobsArgs): Promise<ListBlobsWire> =>
+      listBlobs(
+        args.accountId,
+        args.container,
+        args.prefix,
+        args.pageSize,
+        args.includeDeleted,
+        args.continuationToken
+      )
   )
   ipcMain.handle(
     'storage:create-container',

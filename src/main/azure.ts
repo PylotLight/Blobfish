@@ -1,125 +1,29 @@
-import type * as BlobSdk from '@azure/storage-blob'
-import type { BlobServiceClient, ContainerClient } from '@azure/storage-blob'
-import type * as DataLakeSdk from '@azure/storage-file-datalake'
-import type { DataLakeFileSystemClient, DataLakeServiceClient } from '@azure/storage-file-datalake'
-import { createRequire } from 'node:module'
+import type { ContainerClient } from '@azure/storage-blob'
 import { basename } from 'node:path'
 import { decryptSecret } from './accounts'
 import { logActivity } from './activity'
+import {
+  blobContainerClientFromSecret,
+  blobServiceFromSecret,
+  dataLakeFileSystemClientFromSecret,
+  dataLakeServiceFromSecret,
+  isConnectionStringSecret,
+  isDfsEndpoint
+} from './azure-clients'
 import { formatBytes } from '../shared/format'
-import type { BlobVersionInfo, ListBlobsResult, StorageBlobItem, StorageContainer } from '../shared/types'
+import { MAX_LIST_PAGE } from './list-page'
+import { runListPage } from './list-runner'
+import type { BlobVersionInfo, ListBlobsWire, StorageBlobItem, StorageContainer } from '../shared/types'
 
-/* The Azure SDKs cost ~120-160 ms of synchronous module loading, which used to
- * sit in front of app ready on every launch. They load on first use instead
- * (or from prewarmAzureSdk() once the window has painted). */
-const requireSdk = createRequire(import.meta.url)
-let blobSdk: typeof BlobSdk | null = null
-let dataLakeSdk: typeof DataLakeSdk | null = null
-
-function blobApi(): typeof BlobSdk {
-  return (blobSdk ??= requireSdk('@azure/storage-blob') as typeof BlobSdk)
-}
-
-function dataLakeApi(): typeof DataLakeSdk {
-  return (dataLakeSdk ??= requireSdk('@azure/storage-file-datalake') as typeof DataLakeSdk)
-}
-
-/** Load the SDKs off the startup path so the first listing doesn't pay for them. */
-export function prewarmAzureSdk(): void {
-  try {
-    blobApi()
-    dataLakeApi()
-  } catch {
-    // A broken install surfaces on first real use with a proper error.
-  }
-}
-
-export function isDfsEndpoint(endpoint: string): boolean {
-  return endpoint.includes('.dfs.')
-}
-
-export function isConnectionStringSecret(secret: string): boolean {
-  const s = secret.trim()
-  return s.includes('AccountName=') || s === 'UseDevelopmentStorage=true'
-}
-
-export function blobServiceFromSecret(_profileEndpoint: string, secret: string): BlobServiceClient {
-  if (isConnectionStringSecret(secret)) {
-    return blobApi().BlobServiceClient.fromConnectionString(secret.trim())
-  }
-  // Full SAS URL (service or container scoped).
-  return new (blobApi().BlobServiceClient)(secret.trim())
-}
-
-export function dataLakeServiceFromSecret(secret: string): DataLakeServiceClient {
-  if (isConnectionStringSecret(secret)) {
-    return dataLakeApi().DataLakeServiceClient.fromConnectionString(secret.trim())
-  }
-  return new (dataLakeApi().DataLakeServiceClient)(secret.trim())
-}
-
-/**
- * A SAS URL may be scoped to the whole service (`https://acct.blob…?sv=…`),
- * a single container (`…/mycontainer?sv=…`), or a directory inside one
- * (`…/mycontainer/dir?sv=…`). `new BlobServiceClient(containerSasUrl)
- * .getContainerClient(container)` would then double the path
- * (`…/mycontainer/mycontainer`) and Azure answers 400 "The requested URI
- * does not represent any resource on the server." — exactly the failure
- * reported for container-SAS attachments. These helpers return a client
- * bound to the SAS scope instead.
- */
-function containerUrlFromSas(secret: string, container: string): string {
-  const trimmed = secret.trim()
-  const url = new URL(trimmed)
-  const segs = url.pathname.split('/').filter(Boolean)
-  const sasContainer = segs[0] ? decodeURIComponent(segs[0]) : undefined
-  if (!sasContainer) return trimmed
-  if (container && sasContainer.toLowerCase() !== container.trim().toLowerCase()) {
-    throw new Error(
-      `This SAS grants access to container "${sasContainer}", not "${container}". Re-attach with a service SAS or the matching container SAS.`
-    )
-  }
-  // Strip any directory prefix — the client must point at the container root.
-  return `${url.origin}/${encodeURIComponent(sasContainer)}${url.search}`
-}
-
-function sasContainerName(secret: string): string | undefined {
-  try {
-    const url = new URL(secret.trim())
-    const segs = url.pathname.split('/').filter(Boolean)
-    return segs[0] ? decodeURIComponent(segs[0]) : undefined
-  } catch {
-    return undefined
-  }
-}
-
-export function blobContainerClientFromSecret(secret: string, container: string): ContainerClient {
-  if (isConnectionStringSecret(secret)) {
-    return blobApi().BlobServiceClient.fromConnectionString(secret.trim()).getContainerClient(container)
-  }
-  const trimmed = secret.trim()
-  const sasContainer = sasContainerName(trimmed)
-  if (!sasContainer) {
-    // Service-scoped SAS — derive the container from it.
-    return new (blobApi().BlobServiceClient)(trimmed).getContainerClient(container)
-  }
-  return new (blobApi().ContainerClient)(containerUrlFromSas(trimmed, container))
-}
-
-export function dataLakeFileSystemClientFromSecret(
-  secret: string,
-  container: string
-): DataLakeFileSystemClient {
-  if (isConnectionStringSecret(secret)) {
-    return dataLakeApi().DataLakeServiceClient.fromConnectionString(secret.trim()).getFileSystemClient(container)
-  }
-  const trimmed = secret.trim()
-  const sasContainer = sasContainerName(trimmed)
-  if (!sasContainer) {
-    return new (dataLakeApi().DataLakeServiceClient)(trimmed).getFileSystemClient(container)
-  }
-  return new (dataLakeApi().DataLakeFileSystemClient)(containerUrlFromSas(trimmed, container))
-}
+export {
+  blobContainerClientFromSecret,
+  blobServiceFromSecret,
+  dataLakeFileSystemClientFromSecret,
+  dataLakeServiceFromSecret,
+  isConnectionStringSecret,
+  isDfsEndpoint,
+  prewarmAzureSdk
+} from './azure-clients'
 
 /** Friendly wrapper so renderer errors are readable, not SDK soup. */
 export function friendlyError(err: unknown, fallback: string): Error {
@@ -218,85 +122,30 @@ export async function listBlobs(
   accountId: string,
   containerArg?: string,
   prefixArg?: string,
-  pageSize = 5000,
-  includeDeleted = false
-): Promise<ListBlobsResult> {
+  pageSize = MAX_LIST_PAGE,
+  includeDeleted = false,
+  continuationToken?: string
+): Promise<ListBlobsWire> {
   const { profile, secret } = await decryptSecret(accountId)
   const container = (containerArg ?? profile.containerName ?? '').trim()
   if (container === '') throw new Error('No container selected.')
   const base = (profile.prefix ?? '').replace(/^\/+|\/+$/g, '')
   const nav = (prefixArg ?? '').replace(/^\/+/, '')
   const effective = [base, nav].filter(Boolean).join('/').replace(/^\/+|\/+$/g, '')
-  const listingPrefix = effective === '' ? undefined : effective.endsWith('/') ? effective : `${effective}/`
 
   try {
-    if (isDfsEndpoint(profile.endpoint)) {
-      if (includeDeleted) {
-        throw new Error('Showing deleted blobs is not supported for ADLS Gen2 attachments yet.')
-      }
-      const fs = dataLakeFileSystemClientFromSecret(secret, container)
-      const items: StorageBlobItem[] = []
-      const seen = new Set<string>()
-      // listPaths with recursive=false emulates hierarchy.
-      for await (const p of fs.listPaths({
-        path: effective === '' ? undefined : effective,
-        recursive: false
-      })) {
-        const full = p.name!
-        const rest = effective === '' ? full : full.slice(effective.length + 1)
-        if (rest === '' || rest.includes('/')) {
-          // Deeper nesting collapsed to the next segment as a prefix.
-          const seg = rest.split('/')[0]
-          const dirName = effective === '' ? seg! : `${effective}/${seg}`
-          if (seg && !seen.has(dirName)) {
-            seen.add(dirName)
-            items.push({ name: dirName, leaf: seg!, isPrefix: true })
-          }
-          continue
-        }
-        items.push({
-          name: full,
-          leaf: rest,
-          isPrefix: Boolean(p.isDirectory),
-          size: p.contentLength,
-          lastModified: p.lastModified?.toISOString()
-        })
-        if (items.length >= Math.min(pageSize, 5000)) break
-      }
-      items.sort((a, b) => Number(b.isPrefix) - Number(a.isPrefix) || a.leaf.localeCompare(b.leaf))
-      return { container, prefix: effective, items }
-    }
-
-    const client = blobContainerClientFromSecret(secret, container)
-    const items: StorageBlobItem[] = []
-    const iter = client.listBlobsByHierarchy('/', { prefix: listingPrefix, includeDeleted })
-    for await (const entry of iter) {
-      if (entry.kind === 'prefix') {
-        const full = entry.name.replace(/\/$/, '')
-        const leaf = effective === '' ? full : full.slice(effective.length + 1) || full
-        items.push({ name: full, leaf, isPrefix: true })
-      } else {
-        // Zero-byte `folder/` marker blobs (created by New Folder) surface as folders.
-        if (entry.name.endsWith('/') && (entry.properties?.contentLength ?? 0) === 0) {
-          const full = entry.name.replace(/\/$/, '')
-          const leaf = effective === '' ? full : full.slice(effective.length + 1) || full
-          items.push({ name: full, leaf, isPrefix: true })
-          continue
-        }
-        items.push({
-          name: entry.name,
-          leaf: entry.name.slice((listingPrefix ?? '').length) || entry.name,
-          isPrefix: false,
-          size: entry.properties?.contentLength,
-          lastModified: entry.properties?.lastModified?.toISOString(),
-          contentType: entry.properties?.contentType,
-          deleted: entry.deleted || undefined
-        })
-      }
-      if (items.length >= Math.min(pageSize, 5000)) break
-    }
-    items.sort((a, b) => Number(b.isPrefix) - Number(a.isPrefix) || a.leaf.localeCompare(b.leaf))
-    return { container, prefix: effective, items }
+    // One page per call: the renderer pages through big folders with the
+    // continuation token. Parsing happens on the listing worker thread.
+    const page = await runListPage({
+      dfs: isDfsEndpoint(profile.endpoint),
+      secret,
+      container,
+      effective,
+      includeDeleted,
+      pageSize,
+      continuationToken
+    })
+    return { container, prefix: effective, ...page }
   } catch (err) {
     const friendly = friendlyError(err, `Failed to list blobs in "${container}"`)
     logActivity({
