@@ -339,7 +339,6 @@ code {
   border-radius: var(--radius);
   padding: 20px 22px;
   backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
 }
 
 .card h2 {
@@ -529,7 +528,6 @@ input[type='range'] {
   z-index: 60;
   background: rgba(4, 6, 9, 0.5);
   backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -570,7 +568,6 @@ input[type='range'] {
   background: var(--panel);
   border: 1px solid var(--border);
   backdrop-filter: blur(22px) saturate(180%);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
 }
 
 .glass.strong {
@@ -1469,7 +1466,6 @@ textarea.secret-input {
   pointer-events: none;
   background: rgba(18, 22, 30, 0.92);
   backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   padding: 2px 4px;
   border-radius: 7px;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
@@ -1513,7 +1509,6 @@ textarea.secret-input {
   z-index: 15;
   background: var(--header-blur-bg, rgba(14, 18, 25, 0.85));
   backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
 }
 
 .card.explorer-body {
@@ -1534,7 +1529,6 @@ textarea.secret-input {
   z-index: 10;
   background: var(--header-blur-bg, rgba(14, 18, 25, 0.88));
   backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
   border-bottom: 1px solid var(--border);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
 }
@@ -3288,7 +3282,6 @@ th.wide {
   background: rgba(22, 27, 37, 0.92);
   border: 1px solid var(--border);
   backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
 }
 
@@ -3317,7 +3310,6 @@ th.wide {
 .ctx-menu.glass.strong {
   background: rgba(24, 29, 40, 0.97);
   backdrop-filter: blur(30px) saturate(180%);
-  -webkit-backdrop-filter: blur(30px) saturate(180%);
 }
 
 .ctx-sep {
@@ -3345,7 +3337,6 @@ th.wide {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -3369,7 +3360,6 @@ th.wide {
   border-bottom: 1px solid var(--border);
   background: var(--header-blur-bg, rgba(14, 18, 25, 0.85));
   backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
   flex-shrink: 0;
   flex-wrap: wrap;
 }
@@ -3737,7 +3727,6 @@ th.wide {
   z-index: 40;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(22px) saturate(180%);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
 }
 
 .transfers-panel {
@@ -3965,7 +3954,6 @@ th.wide {
   border-radius: 10px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(30px) saturate(180%);
-  -webkit-backdrop-filter: blur(30px) saturate(180%);
   padding: 6px;
   z-index: 5;
 }
