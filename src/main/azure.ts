@@ -136,7 +136,7 @@ function withSas(blobUrl: string, secret: string): string {
 }
 
 export async function listContainers(accountId: string): Promise<StorageContainer[]> {
-  const { profile, secret } = decryptSecret(accountId)
+  const { profile, secret } = await decryptSecret(accountId)
   // Container-scoped attachments cannot enumerate the account — return the
   // attached container as a singleton without probing it. A getProperties
   // probe 403s on list-only SAS tokens even though blob listing works fine,
@@ -193,7 +193,7 @@ export async function listBlobs(
   pageSize = 5000,
   includeDeleted = false
 ): Promise<ListBlobsResult> {
-  const { profile, secret } = decryptSecret(accountId)
+  const { profile, secret } = await decryptSecret(accountId)
   const container = (containerArg ?? profile.containerName ?? '').trim()
   if (container === '') throw new Error('No container selected.')
   const base = (profile.prefix ?? '').replace(/^\/+|\/+$/g, '')
@@ -289,7 +289,7 @@ export async function createContainer(accountId: string, name: string): Promise<
     throw new Error('Container names are 3–63 lowercase letters, numbers and dashes.')
   }
   const started = Date.now()
-  const { profile, secret } = decryptSecret(accountId)
+  const { profile, secret } = await decryptSecret(accountId)
   try {
     if (isDfsEndpoint(profile.endpoint)) {
       await dataLakeServiceFromSecret(secret).getFileSystemClient(clean).create()
@@ -311,7 +311,7 @@ export async function createContainer(accountId: string, name: string): Promise<
 
 export async function deleteContainer(accountId: string, name: string): Promise<void> {
   const started = Date.now()
-  const { profile, secret } = decryptSecret(accountId)
+  const { profile, secret } = await decryptSecret(accountId)
   try {
     if (isDfsEndpoint(profile.endpoint)) {
       await dataLakeServiceFromSecret(secret).getFileSystemClient(name).delete()
@@ -347,7 +347,7 @@ export async function renameContainer(
   }
   if (dest === source) return source
   const started = Date.now()
-  const { profile, secret } = decryptSecret(accountId)
+  const { profile, secret } = await decryptSecret(accountId)
   if (isDfsEndpoint(profile.endpoint)) {
     throw new Error('Renaming ADLS Gen2 filesystems is not supported yet — create a new one and move files instead.')
   }
@@ -410,7 +410,7 @@ export async function createFolder(
   }
   const full = joinKey(prefix, leaf)
   const started = Date.now()
-  const { profile, secret } = decryptSecret(accountId)
+  const { profile, secret } = await decryptSecret(accountId)
   try {
     if (isDfsEndpoint(profile.endpoint)) {
       const fs = dataLakeFileSystemClientFromSecret(secret, container)
@@ -478,7 +478,7 @@ export async function expandBlobNames(
   container: string,
   names: string[]
 ): Promise<string[]> {
-  const { profile, secret } = decryptSecret(accountId)
+  const { profile, secret } = await decryptSecret(accountId)
   return (await expandFiles(profile.endpoint, secret, container, names)).map((f) => f.name)
 }
 
@@ -489,7 +489,7 @@ export async function deleteNames(
 ): Promise<number> {
   if (names.length === 0) return 0
   const started = Date.now()
-  const { profile, secret } = decryptSecret(accountId)
+  const { profile, secret } = await decryptSecret(accountId)
   try {
     let count: number
     let removed: string[]
@@ -547,7 +547,7 @@ export async function renameBlob(
   const dest = slash === -1 ? leaf : `${source.slice(0, slash + 1)}${leaf}`
   if (dest === source) return source
   const started = Date.now()
-  const { profile, secret } = decryptSecret(accountId)
+  const { profile, secret } = await decryptSecret(accountId)
   if (isDfsEndpoint(profile.endpoint)) {
     throw new Error('Rename is not supported for ADLS Gen2 attachments yet.')
   }
@@ -709,7 +709,7 @@ export async function copyBlobs(
 ): Promise<number> {
   const destPrefix = cleanDestPrefix(destPrefixRaw)
   const started = Date.now()
-  const { profile, secret } = decryptSecret(accountId)
+  const { profile, secret } = await decryptSecret(accountId)
   if (isDfsEndpoint(profile.endpoint)) {
     throw new Error('Copy is not supported for ADLS Gen2 attachments yet.')
   }
@@ -740,7 +740,7 @@ export async function moveBlobs(
 ): Promise<number> {
   const destPrefix = cleanDestPrefix(destPrefixRaw)
   const started = Date.now()
-  const { profile, secret } = decryptSecret(accountId)
+  const { profile, secret } = await decryptSecret(accountId)
   if (isDfsEndpoint(profile.endpoint)) {
     throw new Error('Move is not supported for ADLS Gen2 attachments yet.')
   }
@@ -774,7 +774,7 @@ export async function listBlobVersions(
 ): Promise<BlobVersionInfo[]> {
   const clean = name.trim()
   if (clean === '') throw new Error('No blob selected.')
-  const { profile, secret } = decryptSecret(accountId)
+  const { profile, secret } = await decryptSecret(accountId)
   if (isDfsEndpoint(profile.endpoint)) {
     throw new Error('Version history is not supported for ADLS Gen2 attachments yet.')
   }
@@ -817,7 +817,7 @@ export async function undeleteBlobs(accountId: string, container: string, names:
   const files = names.filter((n) => !n.endsWith('/'))
   if (files.length === 0) throw new Error('Nothing selected to restore.')
   const started = Date.now()
-  const { profile, secret } = decryptSecret(accountId)
+  const { profile, secret } = await decryptSecret(accountId)
   if (isDfsEndpoint(profile.endpoint)) {
     throw new Error('Restore is not supported for ADLS Gen2 attachments yet.')
   }
@@ -848,7 +848,7 @@ export async function restoreVersion(
   const clean = name.trim()
   if (clean === '') throw new Error('No blob selected.')
   const started = Date.now()
-  const { profile, secret } = decryptSecret(accountId)
+  const { profile, secret } = await decryptSecret(accountId)
   if (isDfsEndpoint(profile.endpoint)) {
     throw new Error('Restore is not supported for ADLS Gen2 attachments yet.')
   }

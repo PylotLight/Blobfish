@@ -255,7 +255,7 @@ async function run(t: ActiveTransfer): Promise<void> {
 /* ---------------- engines ---------------- */
 
 async function runBlobUpload(t: ActiveTransfer): Promise<void> {
-  const { secret } = decryptSecret(t.spec.accountId)
+  const { secret } = await decryptSecret(t.spec.accountId)
   const blob = blobContainerClientFromSecret(secret, t.spec.container).getBlockBlobClient(t.spec.name)
   await blob.uploadFile(t.spec.localPath, {
     blockSize: t.spec.totalBytes >= LARGE_FILE_BYTES ? LARGE_BLOCK_SIZE : undefined,
@@ -266,7 +266,7 @@ async function runBlobUpload(t: ActiveTransfer): Promise<void> {
 }
 
 async function runDfsUpload(t: ActiveTransfer): Promise<void> {
-  const { secret } = decryptSecret(t.spec.accountId)
+  const { secret } = await decryptSecret(t.spec.accountId)
   const fs = dataLakeFileSystemClientFromSecret(secret, t.spec.container)
   const file = fs.getFileClient(t.spec.name)
   await file.create().catch(() => {})
@@ -278,7 +278,7 @@ async function runDfsUpload(t: ActiveTransfer): Promise<void> {
 }
 
 async function runBlobDownload(t: ActiveTransfer): Promise<void> {
-  const { secret } = decryptSecret(t.spec.accountId)
+  const { secret } = await decryptSecret(t.spec.accountId)
   const blob = blobContainerClientFromSecret(secret, t.spec.container).getBlobClient(t.spec.name)
   try {
     const props = await blob.getProperties()
@@ -295,7 +295,7 @@ async function runBlobDownload(t: ActiveTransfer): Promise<void> {
 }
 
 async function runDfsDownload(t: ActiveTransfer): Promise<void> {
-  const { secret } = decryptSecret(t.spec.accountId)
+  const { secret } = await decryptSecret(t.spec.accountId)
   const fs = dataLakeFileSystemClientFromSecret(secret, t.spec.container)
   const file = fs.getFileClient(t.spec.name)
   try {
@@ -347,7 +347,7 @@ export async function enqueueUpload(
     properties: ['openFile', 'multiSelections']
   })
   if (picked.canceled || picked.filePaths.length === 0) return []
-  const { profile } = decryptSecret(accountId)
+  const { profile } = await decryptSecret(accountId)
   const base = [profile.prefix, prefix].filter(Boolean).join('/').replace(/^\/+|\/+$/g, '')
   const ids: string[] = []
   for (const fp of picked.filePaths) {
@@ -382,7 +382,7 @@ export async function enqueueDownload(
   })
   if (picked.canceled || picked.filePaths.length === 0) return []
   const destDir = picked.filePaths[0]!
-  const { profile, secret } = decryptSecret(accountId)
+  const { profile, secret } = await decryptSecret(accountId)
   const dfs = isDfsEndpoint(profile.endpoint)
   // Explicitly picked files download flat (basename only) — selecting files
   // must never recreate parent dirs or pull in unpicked siblings. Selected

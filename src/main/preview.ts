@@ -48,7 +48,7 @@ export async function previewBlob(args: PreviewArgs): Promise<PreviewResult> {
   const base = { name, offset, nextOffset: offset, eof: true, encoding: 'utf-8' }
 
   try {
-    const { profile, secret } = decryptSecret(args.accountId)
+    const { profile, secret } = await decryptSecret(args.accountId)
     const dfs = isDfsEndpoint(profile.endpoint)
 
     let size = 0

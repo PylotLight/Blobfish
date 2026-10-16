@@ -568,7 +568,10 @@ export default function App(): React.JSX.Element {
               <span aria-hidden>⏻</span>
             </button>
           </div>
-          <span className="status-sub">
+          <span
+            className="status-sub"
+            title={`Electron ${window.api.versions.electron()} · Chromium ${window.api.versions.chrome()} · Node ${window.api.versions.node()}`}
+          >
             {accounts.length} {accounts.length === 1 ? 'connection' : 'connections'} · OS Keychain encrypted{appVersion ? ` · v${appVersion}` : ''}
           </span>
         </div>

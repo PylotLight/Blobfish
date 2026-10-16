@@ -17,6 +17,7 @@ import {
   parseSasUrl,
   suggestDisplayName
 } from '../shared/parse'
+import { ensureEncryption as ensureAsyncEncryption, migrateSecrets, openSecret, sealSecret } from './secret-seal'
 
 export { isConnectionString, parseConnectionString, parseSasUrl }
 
@@ -53,13 +54,18 @@ function writeFile(data: AccountsFile): void {
   writeFileSync(accountsPath(), JSON.stringify(data, null, 2), 'utf8')
 }
 
-function ensureEncryption(): void {
-  if (!safeStorage.isEncryptionAvailable()) {
-    throw new Error(
-      'OS keychain encryption is unavailable (safeStorage). ' +
-        'On Linux this usually means libsecret / gnome-keyring is missing.'
-    )
-  }
+// Electron 45: async safeStorage only (the sync calls are deprecated). See secret-seal.ts.
+function ensureEncryption(): Promise<void> {
+  return ensureAsyncEncryption(safeStorage)
+}
+
+/** Persist a re-sealed secret onto a fresh read, only if the entry still holds the old ciphertext. */
+function persistReseal(id: string, prev: string, next: string): void {
+  const data = readFile()
+  const entry = data.accounts.find((a) => a.id === id)
+  if (!entry || entry.encryptedSecret !== prev) return
+  entry.encryptedSecret = next
+  writeFile(data)
 }
 
 function stripSecret(stored: StoredAccount): AccountSummary {
@@ -80,15 +86,40 @@ export function getStoredAccount(id: string): StoredAccount {
 }
 
 /** Decrypt the connection secret for an account. Main-process only. */
-export function decryptSecret(id: string): { profile: AccountSummary; secret: string } {
-  ensureEncryption()
+export async function decryptSecret(id: string): Promise<{ profile: AccountSummary; secret: string }> {
   const stored = getStoredAccount(id)
-  const secret = safeStorage.decryptString(Buffer.from(stored.encryptedSecret, 'base64'))
+  const prev = stored.encryptedSecret
+  const secret = await openSecret(safeStorage, prev, (next) => persistReseal(id, prev, next))
   return { profile: stripSecret(stored), secret }
 }
 
-export function addAccount(input: AccountCreateInput): AccountSummary {
-  ensureEncryption()
+let migrated = false
+/**
+ * Once per launch (after app ready): re-seal any stored secrets the async
+ * decryptor flags for re-encryption. Existing sync-API ciphertext reads fine
+ * either way, so this is housekeeping, never a blocker.
+ */
+export function migrateAccountSecrets(): void {
+  if (migrated) return
+  migrated = true
+  const data = readFile()
+  if (data.accounts.length === 0) return
+  const before = new Map(data.accounts.map((a) => [a.id, a.encryptedSecret]))
+  void migrateSecrets(safeStorage, data.accounts, () => {
+    // Merge onto a fresh read so anything added/removed meanwhile isn't clobbered.
+    const fresh = readFile()
+    for (const a of fresh.accounts) {
+      const next = data.accounts.find((x) => x.id === a.id)?.encryptedSecret
+      if (next !== undefined && a.encryptedSecret === before.get(a.id)) a.encryptedSecret = next
+    }
+    writeFile(fresh)
+  }).catch((err: unknown) => {
+    console.warn('[accounts] secret migration failed', err instanceof Error ? err.message : String(err))
+  })
+}
+
+export async function addAccount(input: AccountCreateInput): Promise<AccountSummary> {
+  await ensureEncryption()
   const kind: StorageKind = input.kind
   const secret = input.secret.trim()
   if (secret === '') throw new Error('Connection string or SAS URL is required.')
@@ -142,7 +173,7 @@ export function addAccount(input: AccountCreateInput): AccountSummary {
     createdAt: Date.now(),
     sasExpiry: sasExpiry ?? null,
     pinned: false,
-    encryptedSecret: safeStorage.encryptString(secret).toString('base64')
+    encryptedSecret: await sealSecret(safeStorage, secret)
   }
   const data = readFile()
   data.accounts.push(stored)
@@ -190,11 +221,11 @@ export function setPinned(id: string, pinned: boolean): AccountSummary {
  * needed. Idempotent — returns the existing attachment when one already
  * covers the same endpoint + container.
  */
-export function pinContainerAttachment(sourceId: string, containerRaw: string): AccountSummary {
-  ensureEncryption()
+export async function pinContainerAttachment(sourceId: string, containerRaw: string): Promise<AccountSummary> {
+  await ensureEncryption()
   const container = containerRaw.trim()
   if (container === '') throw new Error('Container name is required.')
-  const { profile, secret } = decryptSecret(sourceId)
+  const { profile, secret } = await decryptSecret(sourceId)
   const data = readFile()
   const existing = data.accounts.find(
     (a) => a.endpoint === profile.endpoint && (a.containerName ?? '').toLowerCase() === container.toLowerCase()
@@ -217,13 +248,13 @@ export function pinContainerAttachment(sourceId: string, containerRaw: string): 
     createdAt: Date.now(),
     sasExpiry: profile.sasExpiry ?? null,
     pinned: true,
-    encryptedSecret: safeStorage.encryptString(secret).toString('base64')
+    encryptedSecret: await sealSecret(safeStorage, secret)
   }
   data.accounts.push(stored)
   writeFile(data)
   return stripSecret(stored)
 }
 
-export function encryptionAvailable(): boolean {
-  return safeStorage.isEncryptionAvailable()
+export function encryptionAvailable(): Promise<boolean> {
+  return safeStorage.isAsyncEncryptionAvailable()
 }

@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { APP_ID } from '../shared/config'
+import { migrateAccountSecrets } from './accounts'
 import { registerIpc } from './ipc'
 import { createAppMenu } from './menu'
 import { createAppTray, destroyTray } from './tray'
@@ -32,6 +33,8 @@ app.whenReady().then(() => {
   })
 
   registerIpc()
+  // Electron 45 async safeStorage: re-seal stored secrets if the keychain asks (background, once).
+  migrateAccountSecrets()
   createAppMenu()
   createWindow()
   createAppTray({
