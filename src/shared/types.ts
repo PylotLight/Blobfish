@@ -295,17 +295,37 @@ export interface TransferInfo {
   error?: string
   /** Parallel connections this transfer may use. */
   concurrency: number
+  /** Queue position (enqueue order; retries go negative so they sort first). */
+  seq: number
   startedAt?: number
   finishedAt?: number
 }
 
-export interface TransfersSnapshot {
-  transfers: TransferInfo[]
+/** Counts and tuning, without rows: what invoke replies and every delta carry. */
+export interface TransfersSummary {
+  /** Bumped on every `transfers:changed` emit; deltas apply to the snapshot with rev - 1. */
+  rev: number
   active: number
   queued: number
+  /** Completed (until removed), failed and cancelled rows. */
+  finished: number
+  /** Active + queued uploads / downloads. */
+  up: number
+  down: number
   aggregateBps: number
   uploadConcurrency: number
   maxParallel: number
+}
+
+/** Full list (`transfers:list`, used on load and after a missed delta). */
+export interface TransfersSnapshot extends TransfersSummary {
+  transfers: TransferInfo[]
+}
+
+/** `transfers:changed` payload: only rows that changed since the previous rev. */
+export interface TransfersDelta extends TransfersSummary {
+  upserts: TransferInfo[]
+  removed: string[]
 }
 
 export interface TransferConfigure {

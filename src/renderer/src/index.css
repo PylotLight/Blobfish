@@ -2875,6 +2875,22 @@ li.done .wiz-num {
   transition: width 0.25s linear;
 }
 
+/* Virtualized list (>60 rows): block flow with a margin per row so one measured
+ * pitch sizes the spacers; no entry animation as rows mount while scrolling. */
+.transfer-list.virtual {
+  display: block;
+}
+
+.transfer-list.virtual > .transfer {
+  margin-bottom: 10px;
+  animation: none;
+}
+
+.transfer-list.virtual > .t-spacer {
+  margin: 0;
+  padding: 0;
+}
+
 .transfer.failed .t-fill {
   background: var(--danger);
 }
@@ -2895,6 +2911,10 @@ li.done .wiz-num {
 
 .t-status {
   font-variant-numeric: tabular-nums;
+  /* One line so every row has the same height (virtualized list); full error in the title. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .t-actions {

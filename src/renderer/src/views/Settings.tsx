@@ -13,7 +13,7 @@ export interface Prefs {
   /** Custom accent hex (`#rrggbb`) used when `accent === 'custom'`. */
   customAccent: string
   vibrancy: boolean
-  /** Parallel block connections per upload (1–16). */
+  /** Parallel connections per file, uploads and downloads (1–16). */
   uploadConcurrency: number
   /** Simultaneous transfers (1–4). */
   maxParallel: number
@@ -265,9 +265,9 @@ export function SettingsView(props: {
           <div className="setting-row inline">
             <div className="setting-label">
               <span className="setting-title-row">
-                Upload connections per file: <code>{prefs.uploadConcurrency}</code>
+                Connections per file: <code>{prefs.uploadConcurrency}</code>
               </span>
-              <span className="muted small setting-hint">More saturate fast links; fewer are kinder to small networks and Azurite.</span>
+              <span className="muted small setting-hint">Uploads stripe blocks and downloads fetch ranges in parallel (files over 8 MiB). More saturate fast links; fewer are kinder to small networks and Azurite.</span>
             </div>
             <input
               type="range"
@@ -276,7 +276,7 @@ export function SettingsView(props: {
               max={16}
               value={prefs.uploadConcurrency}
               onChange={(e) => set({ uploadConcurrency: Number(e.target.value) })}
-              aria-label="Upload connections per file"
+              aria-label="Connections per file"
             />
           </div>
           <div className="setting-row inline">
@@ -284,7 +284,7 @@ export function SettingsView(props: {
               <span className="setting-title-row">
                 Simultaneous transfers: <code>{prefs.maxParallel}</code>
               </span>
-              <span className="muted small setting-hint">Downloads stream on a single connection each.</span>
+              <span className="muted small setting-hint">How many files move at once.</span>
             </div>
             <input
               type="range"

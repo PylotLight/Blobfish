@@ -27,6 +27,7 @@ import type {
   SysInfo,
   TransferConfigure,
   TransfersSnapshot,
+  TransfersSummary,
   UndeleteBlobsArgs,
   UploadEnqueueArgs,
   VibrancyName
@@ -334,7 +335,7 @@ export function registerIpc(): void {
   ipcMain.handle('transfers:list', (): TransfersSnapshot => transfersSnapshot())
   ipcMain.handle(
     'transfers:configure',
-    (_event: IpcMainInvokeEvent, opts: TransferConfigure): TransfersSnapshot =>
+    (_event: IpcMainInvokeEvent, opts: TransferConfigure): TransfersSummary =>
       configureTransfers(opts)
   )
   ipcMain.handle(
@@ -349,14 +350,14 @@ export function registerIpc(): void {
   )
   ipcMain.handle(
     'transfers:cancel',
-    (_event: IpcMainInvokeEvent, id: string): TransfersSnapshot => cancelTransfer(id)
+    (_event: IpcMainInvokeEvent, id: string): TransfersSummary => cancelTransfer(id)
   )
-  ipcMain.handle('transfers:cancel-all', (): TransfersSnapshot => cancelAll())
+  ipcMain.handle('transfers:cancel-all', (): TransfersSummary => cancelAll())
   ipcMain.handle(
     'transfers:retry',
-    (_event: IpcMainInvokeEvent, id: string): TransfersSnapshot => retryTransfer(id)
+    (_event: IpcMainInvokeEvent, id: string): TransfersSummary => retryTransfer(id)
   )
-  ipcMain.handle('transfers:clear-finished', (): TransfersSnapshot => clearFinished())
+  ipcMain.handle('transfers:clear-finished', (): TransfersSummary => clearFinished())
 
   // ----- Activity log (ASE-style: transfers + ops in one place) -----
   ipcMain.handle('activity:list', (): ActivityEntry[] => listActivities())
