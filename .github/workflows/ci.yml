@@ -3,6 +3,8 @@ name: ci
 on:
   push:
   pull_request:
+  # electron-bump.yml starts ci on its branch this way (pushes made with the workflow token don't trigger it).
+  workflow_dispatch:
 
 jobs:
   verify:
@@ -13,5 +15,6 @@ jobs:
         with:
           bun-version-file: .bun-version
       - run: bun install
+      - run: bun test
       - run: bun run typecheck
       - run: bun run build

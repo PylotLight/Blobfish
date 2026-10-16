@@ -165,11 +165,11 @@ export function registerIpc(): void {
   ipcMain.handle('app:version', (): string => app.getVersion())
 
   // ----- Blobfish storage accounts (secrets stay in main via safeStorage) -----
-  ipcMain.handle('accounts:encryption', (): boolean => encryptionAvailable())
+  ipcMain.handle('accounts:encryption', (): Promise<boolean> => encryptionAvailable())
   ipcMain.handle('accounts:list', (): AccountSummary[] => listAccounts())
   ipcMain.handle(
     'accounts:add',
-    (_event: IpcMainInvokeEvent, input: AccountCreateInput): AccountSummary =>
+    (_event: IpcMainInvokeEvent, input: AccountCreateInput): Promise<AccountSummary> =>
       addAccount(input)
   )
   ipcMain.handle(
@@ -189,13 +189,13 @@ export function registerIpc(): void {
   ipcMain.handle(
     'accounts:pin-container',
     (_event: IpcMainInvokeEvent, id: string, container: string): Promise<AccountSummary> =>
-      Promise.resolve(pinContainerAttachment(id, container))
+      pinContainerAttachment(id, container)
   )
   ipcMain.handle('accounts:azurite-template', (): string => azuriteConnectionString())
   ipcMain.handle(
     'accounts:copy-secret',
-    (_event: IpcMainInvokeEvent, id: string): boolean => {
-      const { profile, secret } = decryptSecret(id)
+    async (_event: IpcMainInvokeEvent, id: string): Promise<boolean> => {
+      const { profile, secret } = await decryptSecret(id)
       clipboard.writeText(secret)
       logActivity({
         kind: 'connection',
@@ -211,7 +211,7 @@ export function registerIpc(): void {
       _event: IpcMainInvokeEvent,
       id: string
     ): Promise<{ saved: boolean; path?: string }> => {
-      const { profile, secret } = decryptSecret(id)
+      const { profile, secret } = await decryptSecret(id)
       const safeName = profile.name.replace(/[^\w.-]+/g, '_').slice(0, 80) || 'connection'
       const win = getMainWindow()
       const saveOpts = {
