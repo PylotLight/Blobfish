@@ -1047,6 +1047,15 @@ input[type='range'] {
   font-size: 14.5px;
 }
 
+tr.virtual-spacer {
+  pointer-events: none;
+}
+
+.blob-table tr.virtual-spacer td {
+  padding: 0;
+  border: 0;
+}
+
 .blob-table tr:last-child td {
   border-bottom: none;
 }
@@ -1850,6 +1859,11 @@ input[type='range'].slider-inline {
 .row-in {
   animation: fadeSlideIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
   transition: background 0.12s ease;
+}
+
+.row-in.no-anim {
+  /* Virtualized rows mount while scrolling — no entrance animation. */
+  animation: none;
 }
 
 .row-in:hover {
