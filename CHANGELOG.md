@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-10-16
+
+### Added
+
+- **(window)** Remember main window size/position (from Inkfish/Surffish) (#5) ([1775097](https://github.com/PylotLight/Blobfish/commit/17750974adbfb49eaa20e7bbe8147e1694614517))
+- **(updates)** Release notifications + About & updates (from Inkfish/Surffish) (#6) ([8603982](https://github.com/PylotLight/Blobfish/commit/860398214bc58a87418662861bd2c32c6ad8a7b8))
+- ⌘K command palette + quick switcher (from Inkfish/Surffish) (#7) ([b662716](https://github.com/PylotLight/Blobfish/commit/b662716043d278f89a80afe5a44209ef09888f21))
+- Secret logo easter egg (triple-click the Blobfish logo) (#2) ([ecdbd82](https://github.com/PylotLight/Blobfish/commit/ecdbd8269f5777960c778cda63c86d3b235c08c5))
+- **(explorer)** Finder-style keyboard nav for the file list (#14) ([3a0ffdc](https://github.com/PylotLight/Blobfish/commit/3a0ffdc90670f17d77315006e22565699ca59ef0))
+- **(ui)** Svg icon set, one-row explorer toolbar, type scale tokens (#16) ([02a8a15](https://github.com/PylotLight/Blobfish/commit/02a8a150033259c6d58e0b2061f53cf183663e77))
+
+### Documentation
+
+- Add Blobfish README screenshot ([302c601](https://github.com/PylotLight/Blobfish/commit/302c601c343738b5b06c05a65b925def41b1ca61))
+
+### Fixed
+
+- **(stability)** Crash guard + ordered shutdown (from Inkfish/Surffish) (#4) ([7734aa0](https://github.com/PylotLight/Blobfish/commit/7734aa0ae406c583073435f607cc5e8d29159d77))
+- **(a11y)** Visible keyboard focus ring + respect reduced motion (#11) ([394661e](https://github.com/PylotLight/Blobfish/commit/394661ecd8bcc4eca1ce16d0b7aca487b9fbf2a1))
+- **(explorer)** Fast scroll on big folders no longer blanks the window (React #185) (#17) ([1ed831e](https://github.com/PylotLight/Blobfish/commit/1ed831e31357a22a634df40192e74d1c5a08aa7d))
+- **(ui)** Transfers bar counts finished transfers, no stray tab-strip scrollbar (#18) ([438e489](https://github.com/PylotLight/Blobfish/commit/438e489edebc0b01a2fca263f04bc997b1b0314d))
+
+### Performance
+
+- Lazy-load the Azure SDKs in main and minify the renderer (#9) ([a2aacfe](https://github.com/PylotLight/Blobfish/commit/a2aacfe20809fca41ec33da2a0f709fc30128a79))
+- Virtualize the blob list and memoize rows in Explorer (#8) ([bc86163](https://github.com/PylotLight/Blobfish/commit/bc8616309ed269e265b05bed84483a61f66342dc))
+- **(transfers)** Coalesce snapshot IPC, stripe uploads >8MiB, fix speed/ETA (#10) ([a87d84f](https://github.com/PylotLight/Blobfish/commit/a87d84f986722efebd2ee6c69715f0a9dfe12dea))
+- **(ui)** Let native vibrancy do the blur, css blur only on floating overlays (#12) ([b4427f1](https://github.com/PylotLight/Blobfish/commit/b4427f1abe0ab384a074f6cc65bf1dd9041193f0))
+- **(listing)** Page past 5,000 items + parse listings off the main thread (#13) ([5a883a0](https://github.com/PylotLight/Blobfish/commit/5a883a09f432a76b5a82d5b4d8735440a0e7e04a))
+- **(transfers)** Parallel ranged downloads + virtualized transfers panel with compact deltas (#15) ([59b1a68](https://github.com/PylotLight/Blobfish/commit/59b1a68559ab207a3f3c740152660be0f00babca))
+
 ## [0.2.2] - 2026-10-08
 
 ### Added
@@ -107,6 +138,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Blobfish identity on starter template (config, package, readme) ([9718d04](https://github.com/PylotLight/Blobfish/commit/9718d04614759cf98264fabd561785edc44b67a8))
 - Add app build/icon assets ([d4780b7](https://github.com/PylotLight/Blobfish/commit/d4780b7d445fc77be83edf8161ff639de448e3cb))
 
+[0.2.3]: https://github.com/PylotLight/Blobfish/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/PylotLight/Blobfish/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/PylotLight/Blobfish/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/PylotLight/Blobfish/compare/v0.1.2...v0.2.0
