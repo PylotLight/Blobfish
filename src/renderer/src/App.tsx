@@ -501,6 +501,7 @@ export default function App(): React.JSX.Element {
       className={`shell${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}
       data-platform={platform ?? 'unknown'}
       data-theme={prefs.theme}
+      data-vibrancy={platform === null ? undefined : platform === 'darwin' && prefs.vibrancy ? 'on' : 'off'}
       data-accent={prefs.accent}
       data-density={prefs.density}
       data-motion={prefs.motion}

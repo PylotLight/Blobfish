@@ -49,6 +49,14 @@ code {
  * covers the native NSVisualEffectView blur. On macOS the window is transparent
  * and `vibrancy: fullscreen-ui` supplies the blur; this tint just darkens it.
  * On other platforms the gradient below doubles as the window background.
+ *
+ * BLUR RULE (same as Surffish): the window vibrancy IS the blur for static chrome
+ * (sidebar, toolbar, panels, cards), so those use a plain tint and no CSS
+ * backdrop-filter; stacking one on top of vibrancy is a second full blur pass every
+ * time something under it repaints. Unprefixed `backdrop-filter` (never the -webkit-
+ * one, Electron 45 ignores it; ci checks) only on floating surfaces over moving
+ * content: modal backdrop, ctx menu, toasts, transfers dock, popovers. <=20px, one
+ * layer per overlay.
  */
 .shell {
   display: flex;
@@ -338,7 +346,6 @@ code {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 20px 22px;
-  backdrop-filter: blur(18px) saturate(160%);
 }
 
 .card h2 {
@@ -527,7 +534,7 @@ input[type='range'] {
   inset: 0;
   z-index: 60;
   background: rgba(4, 6, 9, 0.5);
-  backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -567,11 +574,17 @@ input[type='range'] {
 .glass {
   background: var(--panel);
   border: 1px solid var(--border);
-  backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: blur(18px) saturate(160%);
 }
 
 .glass.strong {
   background: var(--panel-strong);
+}
+
+/* The modal backdrop already blurs everything behind the sheet: don't stack a second
+ * blur pass on the sheet itself (one blur layer per overlay, never two). */
+.modal-backdrop .glass {
+  backdrop-filter: none;
 }
 
 /* ---------- Glass tab: mock layout ---------- */
@@ -1464,8 +1477,7 @@ textarea.secret-input {
   gap: 2px;
   opacity: 0;
   pointer-events: none;
-  background: rgba(18, 22, 30, 0.92);
-  backdrop-filter: blur(12px);
+  background: rgba(18, 22, 30, 0.96);
   padding: 2px 4px;
   border-radius: 7px;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
@@ -1508,7 +1520,6 @@ textarea.secret-input {
   top: 0;
   z-index: 15;
   background: var(--header-blur-bg, rgba(14, 18, 25, 0.85));
-  backdrop-filter: blur(24px) saturate(180%);
 }
 
 .card.explorer-body {
@@ -1528,7 +1539,6 @@ textarea.secret-input {
   top: 0;
   z-index: 10;
   background: var(--header-blur-bg, rgba(14, 18, 25, 0.88));
-  backdrop-filter: blur(24px) saturate(180%);
   border-bottom: 1px solid var(--border);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
 }
@@ -2613,6 +2623,13 @@ li.done .wiz-num {
   background: linear-gradient(165deg, rgba(44, 40, 54, 0.5), rgba(16, 14, 22, 0.62));
 }
 
+/* No vibrancy (Linux/Windows, or macOS with it switched off in Settings): the
+ * transparent mac window would show the raw desktop, so lay the tint over a solid
+ * base. Same colour as the non-mac BrowserWindow backgroundColor. */
+.shell[data-vibrancy='off'] {
+  background-color: #101418;
+}
+
 /* Accent overrides — applied on top of the theme. */
 .shell[data-accent='mint'] {
   --accent: #7ee2a8;
@@ -3281,7 +3298,7 @@ th.wide {
   flex-direction: column;
   background: rgba(22, 27, 37, 0.92);
   border: 1px solid var(--border);
-  backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(18px) saturate(160%);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
 }
 
@@ -3309,7 +3326,6 @@ th.wide {
  * menu stays readable with or without backdrop-filter support. */
 .ctx-menu.glass.strong {
   background: rgba(24, 29, 40, 0.97);
-  backdrop-filter: blur(30px) saturate(180%);
 }
 
 .ctx-sep {
@@ -3336,7 +3352,6 @@ th.wide {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  backdrop-filter: blur(18px) saturate(160%);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -3359,7 +3374,6 @@ th.wide {
   padding: 14px 18px;
   border-bottom: 1px solid var(--border);
   background: var(--header-blur-bg, rgba(14, 18, 25, 0.85));
-  backdrop-filter: blur(24px) saturate(180%);
   flex-shrink: 0;
   flex-wrap: wrap;
 }
@@ -3726,7 +3740,7 @@ th.wide {
   margin-top: 0;
   z-index: 40;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: blur(18px) saturate(160%);
 }
 
 .transfers-panel {
@@ -3741,6 +3755,8 @@ th.wide {
   z-index: 40;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
   transform-origin: bottom center;
+  /* floats over the scrolling list (it's a .card, which no longer blurs) */
+  backdrop-filter: blur(18px) saturate(160%);
 }
 
 @keyframes dockIn {
@@ -3953,7 +3969,7 @@ th.wide {
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(30px) saturate(180%);
+  backdrop-filter: blur(16px);
   padding: 6px;
   z-index: 5;
 }

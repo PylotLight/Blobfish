@@ -27,6 +27,7 @@
     "preview": "electron-vite preview",
     "clean": "rm -rf out",
     "typecheck": "bun check",
+    "check:css": "bun scripts/ci/check-css.ts",
     "assets": "bun scripts/make-tray-icon.ts",
     "dist": "electron-builder",
     "dist:dir": "electron-builder --dir",
