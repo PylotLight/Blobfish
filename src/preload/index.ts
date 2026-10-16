@@ -28,6 +28,7 @@ import type {
   UploadEnqueueArgs,
   VibrancyName
 } from '../shared/types'
+import type { UpdateSettingsResult, UpdateState } from '../shared/update-feed'
 
 export interface Versions {
   node: () => string
@@ -155,6 +156,29 @@ const api = {
       const handler = (_event: IpcRendererEvent, entries: ActivityEntry[]): void => cb(entries)
       ipcRenderer.on('activity:changed', handler)
       return () => ipcRenderer.removeListener('activity:changed', handler)
+    }
+  },
+  /** Update notifications from the GitHub releases feed (main/updates.ts). */
+  updates: {
+    get: (): Promise<UpdateState> => ipcRenderer.invoke('updates:get'),
+    check: (): Promise<UpdateState> => ipcRenderer.invoke('updates:check'),
+    skip: (version: string): Promise<UpdateState> => ipcRenderer.invoke('updates:skip', version),
+    remindLater: (): Promise<UpdateState> => ipcRenderer.invoke('updates:remind-later'),
+    setSettings: (patch: { feedUrl?: string; betaChannel?: boolean }): Promise<UpdateSettingsResult> =>
+      ipcRenderer.invoke('updates:settings:set', patch),
+    download: (): Promise<boolean> => ipcRenderer.invoke('updates:download'),
+    openRelease: (): Promise<boolean> => ipcRenderer.invoke('updates:open-release'),
+    copyBrew: (): Promise<boolean> => ipcRenderer.invoke('updates:copy-brew'),
+    onChanged: (cb: (s: UpdateState) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, s: UpdateState): void => cb(s)
+      ipcRenderer.on('updates:changed', handler)
+      return () => ipcRenderer.removeListener('updates:changed', handler)
+    },
+    /** A notification click asks the window to open Settings → About & updates. */
+    onReveal: (cb: () => void): (() => void) => {
+      const handler = (): void => cb()
+      ipcRenderer.on('updates:reveal', handler)
+      return () => ipcRenderer.removeListener('updates:reveal', handler)
     }
   },
   app: {

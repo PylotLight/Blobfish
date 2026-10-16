@@ -8,6 +8,7 @@ import ConnectWizard from './views/ConnectWizard'
 import TransfersPanel from './views/TransfersPanel'
 import { ConfirmDialog, PromptDialog } from './views/Dialogs'
 import { DEFAULT_PREFS, accentVars, loadPrefs, savePrefs, SettingsView, type Prefs } from './views/Settings'
+import { REVEAL_UPDATES_KEY } from './views/UpdateSettings'
 
 export interface SelectionTarget {
   accountId: string
@@ -21,6 +22,20 @@ export default function App(): React.JSX.Element {
   const [target, setTarget] = useState<SelectionTarget | null>(null)
   const [showWizard, setShowWizard] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  // Update notifications: dot on the Settings button; a notification click opens About & updates.
+  const [updateBadge, setUpdateBadge] = useState(false)
+  useEffect(() => {
+    void window.api.updates.get().then((u) => setUpdateBadge(u.showBadge)).catch(() => undefined)
+    const offChanged = window.api.updates.onChanged((u) => setUpdateBadge(u.showBadge))
+    const offReveal = window.api.updates.onReveal(() => {
+      sessionStorage.setItem(REVEAL_UPDATES_KEY, '1')
+      setShowSettings(true)
+    })
+    return () => {
+      offChanged()
+      offReveal()
+    }
+  }, [])
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs())
   const [platform, setPlatform] = useState<SysInfo['platform'] | null>(null)
   const [encAvailable, setEncAvailable] = useState<boolean | null>(null)
@@ -558,6 +573,7 @@ export default function App(): React.JSX.Element {
           <div className="side-foot-row">
             <button className="settings-btn" onClick={() => setShowSettings(true)}>
               <span aria-hidden>⚙</span> Settings
+              {updateBadge && <span className="update-dot" aria-label="Update available" title="Update available" />}
             </button>
             <button
               className="quit-btn"

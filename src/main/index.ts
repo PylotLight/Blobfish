@@ -5,6 +5,7 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { APP_ID } from '../shared/config'
 import { migrateAccountSecrets } from './accounts'
 import { registerIpc } from './ipc'
+import { initializeUpdates, registerUpdateIpc } from './updates'
 import { createAppMenu } from './menu'
 import { createAppTray, destroyTray } from './tray'
 import { createWindow, getMainWindow, hideWindow, resolveAppIcon, showWindow } from './window'
@@ -41,10 +42,13 @@ app.whenReady().then(() => {
   // Last session's activity feed (written by the ordered shutdown below).
   loadActivities()
   registerIpc()
+  registerUpdateIpc()
   // Electron 45 async safeStorage: re-seal stored secrets if the keychain asks (background, once).
   migrateAccountSecrets()
   createAppMenu()
   createWindow()
+  // Release notifications from the GitHub releases feed (first check ~30 s after launch, then every 6 h).
+  initializeUpdates()
   createAppTray({
     onShow: showWindow,
     onHide: hideWindow,
