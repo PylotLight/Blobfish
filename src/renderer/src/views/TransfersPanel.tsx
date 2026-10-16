@@ -364,9 +364,9 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
         title="Transfers and activity — hover to expand, click to pin"
       >
         <span className="t-stats">
-          {up > 0 && <span>↑ {up}</span>}
-          {down > 0 && <span>↓ {down}</span>}
-          {snap.active === 0 && <span>✓ {total}</span>}
+          {up > 0 && <span aria-label={`${up} uploading`}><Icon name="up" size={12} />{up}</span>}
+          {down > 0 && <span aria-label={`${down} downloading`}><Icon name="down" size={12} />{down}</span>}
+          {snap.active === 0 && <span aria-label={`${total} done`}><Icon name="check" size={12} />{total}</span>}
         </span>
         {firstActive && (
           <span className="t-mini-name">

@@ -2744,6 +2744,12 @@ li.done .wiz-num {
   font-weight: 600;
 }
 
+.transfers-bar .t-stats > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
 .transfers-bar .t-mini-name {
   flex: 1;
   min-width: 0;
