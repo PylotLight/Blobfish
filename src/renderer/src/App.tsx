@@ -10,6 +10,7 @@ import { ConfirmDialog, PromptDialog } from './views/Dialogs'
 import { DEFAULT_PREFS, accentVars, loadPrefs, savePrefs, SettingsView, type Prefs } from './views/Settings'
 import { REVEAL_UPDATES_KEY } from './views/UpdateSettings'
 import { sendPanelAction } from './palette-bus'
+import { BrandEasterEgg, useBrandTripleClick } from './views/easter-egg/BrandEasterEgg'
 
 const CommandPalette = lazy(() => import('./views/CommandPalette'))
 
@@ -42,6 +43,7 @@ export default function App(): React.JSX.Element {
     }
   }, [])
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs())
+  const brandEgg = useBrandTripleClick()
   const [platform, setPlatform] = useState<SysInfo['platform'] | null>(null)
   const [encAvailable, setEncAvailable] = useState<boolean | null>(null)
   const [appVersion, setAppVersion] = useState<string | null>(null)
@@ -511,8 +513,9 @@ export default function App(): React.JSX.Element {
       >
         <div className="traffic-spacer" aria-hidden />
         <div className="brand">
-          <div className="brand-logo-frame">
-            <img src={logoUrl} alt="Blobfish" className="brand-logo-img" />
+          {/* Psst: triple-click the logo (views/easter-egg). */}
+          <div className="brand-logo-frame" onClick={brandEgg.onClick}>
+            <img src={logoUrl} alt="Blobfish" className="brand-logo-img" draggable={false} />
           </div>
           <div className="brand-details">
             <div className="brand-name-row">
@@ -860,6 +863,9 @@ export default function App(): React.JSX.Element {
             }
           }}
         />
+      )}
+      {brandEgg.open && (
+        <BrandEasterEgg logoUrl={logoUrl} reducedMotion={prefs.motion === 'reduced'} onClose={brandEgg.close} />
       )}
     </div>
   )

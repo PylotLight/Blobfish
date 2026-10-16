@@ -158,6 +158,8 @@ code {
   justify-content: center;
   overflow: hidden;
   flex-shrink: 0;
+  /* The brand row drags the window; the logo takes clicks (triple-click easter egg). */
+  -webkit-app-region: no-drag;
 }
 
 .brand-logo-img {
