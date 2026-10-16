@@ -1,0 +1,20 @@
+/* Explorer keyboard navigation (useExplorerKeys). The table is the single
+ * focus stop; the active row gets the same mint ring a11y.css uses for
+ * :focus-visible, only while the list has focus and keys are in use (or it
+ * was tabbed into). Mouse clicks never show it. */
+.blob-table[role='grid']:focus {
+  outline: none;
+}
+
+.blob-table[role='grid'][data-kb]:focus tr.kb-active,
+.blob-table[role='grid']:focus-visible tr.kb-active {
+  outline: 2px solid var(--mint);
+  outline-offset: -2px;
+}
+
+/* Tabbed in before there's an active row: ring the table itself, inset so
+ * the scroll panel doesn't clip it. */
+.blob-table[role='grid']:focus-visible:not(:has(tr.kb-active)) {
+  outline: 2px solid var(--mint);
+  outline-offset: -2px;
+}
