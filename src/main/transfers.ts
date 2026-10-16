@@ -26,6 +26,11 @@ const DEFAULT_UPLOAD_CONCURRENCY = 8
 const DEFAULT_MAX_PARALLEL = 2
 const LARGE_FILE_BYTES = 1024 * 1024 * 1024
 const LARGE_BLOCK_SIZE = 8 * 1024 * 1024
+/* Anything bigger than this is striped across `uploadConcurrency` block
+ * connections. The SDK defaults (blob: 256 MiB, DataLake: 100 MiB) send
+ * everything below that as ONE request on ONE connection, so a 200 MB file
+ * never used the parallel path at all. */
+const SINGLE_SHOT_BYTES = 8 * 1024 * 1024
 const EMIT_MS = 250
 
 let uploadConcurrency = DEFAULT_UPLOAD_CONCURRENCY
@@ -63,6 +68,8 @@ interface ActiveTransfer {
   startedAt?: number
   finishedAt?: number
   lastTickAt: number
+  /** doneBytes at lastTickAt: speed is measured over the whole window, not the last callback. */
+  lastTickBytes: number
   speedBps: number
 }
 
@@ -142,11 +149,14 @@ function enqueue(spec: ActiveTransfer['spec']): string {
     doneBytes: 0,
     enqueuedAt: Date.now(),
     lastTickAt: Date.now(),
+    lastTickBytes: 0,
     speedBps: 0
   }
   transfers.push(record)
   byId.set(id, record)
-  emitNow()
+  // Coalesced: a folder download enqueues thousands of rows in one go, and a
+  // full snapshot per row is O(n²) bytes over IPC.
+  markDirty()
   void startNext()
   return id
 }
@@ -171,9 +181,12 @@ function tick(id: string, loadedBytes: number): void {
   const now = Date.now()
   const dt = (now - t.lastTickAt) / 1000
   if (dt > 0.05) {
-    const instant = Math.max(0, loadedBytes - t.doneBytes) / dt
+    // The SDK fires onProgress every ~64 KiB (thousands of times a second), so
+    // diffing against the previous callback undercounted speed ~100x.
+    const instant = Math.max(0, loadedBytes - t.lastTickBytes) / dt
     t.speedBps = t.speedBps > 0 ? t.speedBps * 0.7 + instant * 0.3 : instant
     t.lastTickAt = now
+    t.lastTickBytes = loadedBytes
   }
   t.doneBytes = Math.min(loadedBytes, t.spec.totalBytes || loadedBytes)
   if (t.spec.totalBytes === 0 && loadedBytes > 0) t.spec.totalBytes = loadedBytes
@@ -190,8 +203,9 @@ async function run(t: ActiveTransfer): Promise<void> {
   t.status = 'active'
   t.startedAt = Date.now()
   t.lastTickAt = Date.now()
+  t.lastTickBytes = 0
   t.controller = new AbortController()
-  emitNow()
+  markDirty()
   const wallStart = Date.now()
   try {
     if (t.spec.direction === 'upload') {
@@ -247,7 +261,7 @@ async function run(t: ActiveTransfer): Promise<void> {
     }
   } finally {
     t.controller = undefined
-    emitNow()
+    markDirty()
     void startNext()
   }
 }
@@ -260,6 +274,7 @@ async function runBlobUpload(t: ActiveTransfer): Promise<void> {
   await blob.uploadFile(t.spec.localPath, {
     blockSize: t.spec.totalBytes >= LARGE_FILE_BYTES ? LARGE_BLOCK_SIZE : undefined,
     concurrency: uploadConcurrency,
+    maxSingleShotSize: SINGLE_SHOT_BYTES,
     onProgress: (e) => tick(t.id, e.loadedBytes),
     abortSignal: t.controller?.signal
   })
@@ -272,6 +287,7 @@ async function runDfsUpload(t: ActiveTransfer): Promise<void> {
   await file.create().catch(() => {})
   await file.uploadFile(t.spec.localPath, {
     maxConcurrency: uploadConcurrency,
+    singleUploadThreshold: SINGLE_SHOT_BYTES,
     onProgress: (e) => tick(t.id, e.loadedBytes),
     abortSignal: t.controller?.signal
   })
