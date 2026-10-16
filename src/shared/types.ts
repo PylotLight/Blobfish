@@ -107,6 +107,8 @@ export interface ListBlobsArgs {
   pageSize?: number
   /** Include soft-deleted blobs (blob storage only). */
   includeDeleted?: boolean
+  /** Opaque marker from the previous page's `continuationToken`. */
+  continuationToken?: string
 }
 
 export interface ListBlobsResult {
@@ -114,6 +116,19 @@ export interface ListBlobsResult {
   /** Effective prefix actually listed (base prefix + navigation). */
   prefix: string
   items: StorageBlobItem[]
+  /** Set when the folder has more entries than this page; pass it back to get the next one. */
+  continuationToken?: string
+}
+
+/** What `storage:list-blobs` actually sends over IPC: the items stay a JSON
+ *  string from the listing worker to the preload, so the main process never
+ *  walks or re-serializes 5,000 objects per page. */
+export interface ListBlobsWire {
+  container: string
+  prefix: string
+  itemsJson: string
+  count: number
+  continuationToken?: string
 }
 
 /* ---------- CRUD ---------- */
