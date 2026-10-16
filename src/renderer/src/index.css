@@ -2769,6 +2769,7 @@ li.done .wiz-num {
   margin-top: 12px;
   max-height: 38vh;
   overflow-y: auto;
+  overflow-anchor: none; /* virtualized, same as .explorer-body-scroll */
   flex-shrink: 0;
 }
 
@@ -3634,6 +3635,9 @@ th.wide {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* virtual list owns its scroll position; chrome's scroll anchoring fights the
+     spacer resizes and loops the layout effect on fast scroll (React #185) */
+  overflow-anchor: none;
   padding: 14px 18px 22px;
   display: flex;
   flex-direction: column;

@@ -1,10 +1,10 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ActivityEntry, TransferInfo, TransfersDelta } from '../../../shared/types'
 import { onPanelAction } from '../palette-bus'
 import { Icon } from './Icon'
 import { formatBytes, formatDuration, formatEta, formatPct, formatSpeed } from '../../../shared/format'
 import { applyTransfersDelta, viewFromSnapshot, type TransfersView } from '../../../shared/transfers-delta'
-import { virtualWindow } from '../../../shared/virtual-window'
+import { rowPitch as measurePitch, syncBudget, virtualWindow } from '../../../shared/virtual-window'
 
 /* Above this many rows only the visible slice is mounted (5,000 queued files used to
  * mean 5,000 <li>s re-rendered on every progress tick). */
@@ -309,15 +309,24 @@ export default function TransfersPanel(props: { onOpenSettings: () => void }): R
     return () => ro.disconnect()
   }, [virtual, measureViewport])
 
-  // Rows are fixed-height (one-line name + bar + one-line status), so one measured
-  // row (+ its margin) sizes them all.
+  // Rows are fixed-height (one-line name + bar + one-line status), so a few
+  // measured rows (top-to-top, margins included) size them all. Capped per frame
+  // like Explorer's, so a layout that won't settle can't loop into React #185.
+  const takeSyncMeasure = useMemo(() => syncBudget(), [])
   useLayoutEffect(() => {
     if (!virtual) return
+    if (!takeSyncMeasure()) return onPanelScroll()
     measureViewport()
-    const row = topSpacerRef.current?.nextElementSibling as HTMLElement | null
-    if (!row) return
-    const h = row.getBoundingClientRect().height + (parseFloat(getComputedStyle(row).marginBottom) || 0)
-    if (h > 0 && Math.abs(h - rowPitch) > 0.5) setRowPitch(h)
+    const tops: number[] = []
+    for (let r = topSpacerRef.current?.nextElementSibling; r && tops.length < 8 && !r.classList.contains('t-spacer'); r = r.nextElementSibling) {
+      tops.push(r.getBoundingClientRect().top)
+    }
+    let h = measurePitch(tops, 0)
+    if (tops.length === 1) {
+      const row = topSpacerRef.current!.nextElementSibling as HTMLElement
+      h = row.getBoundingClientRect().height + (parseFloat(getComputedStyle(row).marginBottom) || 0)
+    }
+    if (h > 0 && Math.abs(h - rowPitch) > 0.1) setRowPitch(h)
   })
 
   // ⌘K: toggle the dock / jump to activity (pinned, so it stays open even when empty).

@@ -9,7 +9,7 @@ import { ConfirmDialog, FolderPickerDialog, PromptDialog, VersionHistoryDialog }
 import PreviewDialog from './Preview'
 import { Icon, type IconName } from './Icon'
 import { formatBytes } from '../../../shared/format'
-import { virtualWindow } from '../../../shared/virtual-window'
+import { rowPitch, syncBudget, virtualWindow } from '../../../shared/virtual-window'
 import { parseStorageError, type ExplorerError } from './errors'
 import ErrorCallout from './ErrorCallout'
 import ListingStatus from './ListingStatus'
@@ -503,14 +503,21 @@ export default function Explorer(props: {
     return () => ro.disconnect()
   }, [virtual, measureViewport])
 
-  // Rows are single-line (nowrap), so one measured row sizes them all; density
-  // changes are picked up on the next render.
+  // Rows are single-line (nowrap), so a few measured rows size them all; density
+  // changes are picked up on the next render. This runs every commit and can
+  // setState, so it's capped per frame: past the budget it hands off to rAF
+  // (fast scroll on a 10k folder used to chain here into React #185).
+  const takeSyncMeasure = useMemo(() => syncBudget(), [])
   useLayoutEffect(() => {
     if (!virtual) return
+    if (!takeSyncMeasure()) return onBodyScroll()
     measureViewport()
-    const row = topSpacerRef.current?.nextElementSibling as HTMLElement | null
-    const h = row?.getBoundingClientRect().height ?? 0
-    if (h > 0 && Math.abs(h - rowHeight) > 0.5) setRowHeight(h)
+    const tops: number[] = []
+    for (let r = topSpacerRef.current?.nextElementSibling; r && tops.length < 8 && !r.classList.contains('virtual-spacer'); r = r.nextElementSibling) {
+      tops.push(r.getBoundingClientRect().top)
+    }
+    const h = rowPitch(tops, 0)
+    if (h > 0 && Math.abs(h - rowHeight) > 0.1) setRowHeight(h)
   })
 
   const { start: windowStart, end: windowEnd } = virtual
