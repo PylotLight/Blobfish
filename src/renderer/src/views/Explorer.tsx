@@ -14,6 +14,7 @@ import ErrorCallout from './ErrorCallout'
 import ListingStatus from './ListingStatus'
 import { useBlobListing } from './useBlobListing'
 import { isPartial } from '../../../shared/listing-pager'
+import { useExplorerKeys } from './useExplorerKeys'
 import { onExplorerAction, publishExplorer, type ExplorerAction } from '../palette-bus'
 import logoUrl from '../assets/logo.png'
 
@@ -514,6 +515,45 @@ export default function Explorer(props: {
   const { start: windowStart, end: windowEnd } = virtual
     ? virtualWindow(visibleBlobs.length, viewport.offset, viewport.height, rowHeight, VIRTUAL_OVERSCAN)
     : { start: 0, end: visibleBlobs.length }
+
+  /* ---------- keyboard nav (Finder-style; logic in useExplorerKeys) ---------- */
+
+  const [quickLook, setQuickLook] = useState<StorageBlobItem | null>(null)
+  const leafLabels = useMemo(() => visibleBlobs.map((b) => b.leaf), [visibleBlobs])
+  const nav = useExplorerKeys({
+    keys: orderedKeys,
+    labels: leafLabels,
+    selection,
+    setSelection,
+    anchorRef: lastSelectedRef,
+    scrollRef: bodyScrollRef,
+    rowHeight,
+    modalOpen: Boolean(confirm || prompt || moveCopy || historyFor),
+    onOpen: (i) => {
+      setQuickLook(null)
+      const item = visibleBlobs[i]
+      if (item) openRow(item)
+    },
+    onUp: () => {
+      setQuickLook(null)
+      goUp()
+    },
+    onQuickLook: (i) => {
+      const item = visibleBlobs[i]
+      if (!item || item.isPrefix) return
+      if (item.deleted) return flash('That blob is deleted — restore it first.')
+      setQuickLook((cur) => (cur?.name === item.name ? null : item))
+    },
+    onDelete: () => {
+      if (busy === null) onDelete()
+    }
+  })
+  // Quick Look follows the arrow keys, like Finder.
+  useEffect(() => {
+    const item = visibleBlobs[nav.activeIndex]
+    if (quickLook && item && !item.isPrefix && !item.deleted && item.name !== quickLook.name) setQuickLook(item)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nav.activeIndex])
 
   const visibleContainers = useMemo(() => {
     const q = filter.trim().toLowerCase()
@@ -1548,7 +1588,7 @@ export default function Explorer(props: {
             </div>
           </div>
         ) : (
-          <table className="blob-table table-in" style={{ tableLayout: 'fixed' }}>
+          <table className="blob-table table-in" style={{ tableLayout: 'fixed' }} {...nav.gridProps}>
             <thead>
               <tr>
                 <th className="check-col">
@@ -1620,6 +1660,8 @@ export default function Explorer(props: {
                         item={item}
                         rowKey={key}
                         index={windowStart + n}
+                        id={nav.rowId(windowStart + n)}
+                        active={nav.activeIndex === windowStart + n}
                         selected={selection.has(key)}
                         animate={!virtual}
                         handlers={rowHandlers}
@@ -1679,6 +1721,20 @@ export default function Explorer(props: {
           onSubmit={submitMoveCopy}
         />
       )}
+      {quickLook && accountId && container && (
+        <PreviewDialog
+          key={quickLook.name}
+          accountId={accountId}
+          container={container}
+          name={quickLook.name}
+          size={quickLook.size}
+          onClose={() => {
+            setQuickLook(null)
+            nav.focus()
+          }}
+          onDownload={() => onPreviewDownload(container, quickLook.name)}
+        />
+      )}
       {historyFor && accountId && (
         <VersionHistoryDialog
           accountId={accountId}
@@ -1705,6 +1761,8 @@ const BlobRow = memo(function BlobRow(props: {
   item: StorageBlobItem
   rowKey: string
   index: number
+  id: string
+  active: boolean
   selected: boolean
   animate: boolean
   handlers: RowHandlers
@@ -1712,7 +1770,11 @@ const BlobRow = memo(function BlobRow(props: {
   const { item, rowKey: key, handlers } = props
   return (
     <tr
-      className={`row-in${props.animate ? '' : ' no-anim'} clickable${props.selected ? ' selected' : ''}${item.deleted ? ' deleted' : ''}`}
+      id={props.id}
+      data-index={props.index}
+      aria-rowindex={props.index + 2}
+      aria-selected={props.selected}
+      className={`row-in${props.animate ? '' : ' no-anim'} clickable${props.selected ? ' selected' : ''}${props.active ? ' kb-active' : ''}${item.deleted ? ' deleted' : ''}`}
       style={props.animate ? { animationDelay: `${Math.min(props.index, 10) * 12}ms` } : undefined}
       onClick={(e) => handlers.click(e, key)}
       onDoubleClick={() => handlers.open(item)}
