@@ -3,12 +3,17 @@
 //  1. no `-webkit-backdrop-filter` in renderer source css: Electron 45 ignores it, and
 //     lightningcss (cssMinify) collapses a prefixed+unprefixed pair down to the prefixed one.
 //  2. if a build exists, the minified css must still carry the unprefixed property.
+//  3. backdrop-filter only on the floating overlays below (Surffish rule: never on in-flow
+//     panels/cards, never inside another blurred surface). new overlay? add it here on purpose.
 // usage: bun scripts/ci/check-css.ts   (run after `bun run build` to also check out/)
 import { Glob } from 'bun'
 
 const PREFIXED = /-webkit-backdrop-filter\s*:/g
-const UNPREFIXED = /(?<![-\w])backdrop-filter\s*:\s*(?!none)/g
+const UNPREFIXED = /(?<![-\w])backdrop-filter\s*:\s*(?!\s|none\b)/g
 const problems: string[] = []
+
+// selectors allowed to carry a real backdrop-filter. everything else is in-flow / nested.
+const BLUR_ALLOW = new Set(['.modal-backdrop', '.glass', '.ctx-menu'])
 
 async function scan(pattern: string, cwd: string): Promise<{ file: string; text: string }[]> {
   const out: { file: string; text: string }[] = []
@@ -24,6 +29,18 @@ for (const { file, text } of sources) {
     if (PREFIXED.test(line)) problems.push(`${file}:${i + 1}: -webkit-backdrop-filter (use the unprefixed property)`)
     PREFIXED.lastIndex = 0
   })
+}
+for (const { file, text } of sources) {
+  const css = text.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '))
+  for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const [, selText = '', body = ''] = m
+    if (!/(?<![-\w])backdrop-filter\s*:\s*(?!\s|none\b)/.test(body)) continue
+    const bad = selText.split(',').map((x) => x.trim()).filter((x) => x && !BLUR_ALLOW.has(x))
+    if (bad.length) {
+      const line = css.slice(0, (m.index ?? 0) + selText.length).split('\n').length
+      problems.push(`${file}:${line}: backdrop-filter on ${bad.join(', ')} (only floating overlays may blur: ${[...BLUR_ALLOW].join(' ')})`)
+    }
+  }
 }
 const srcBlurs = sources.reduce((n, s) => n + (s.text.match(UNPREFIXED)?.length ?? 0), 0)
 
