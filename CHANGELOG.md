@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2026-10-17
+
+### Fixed
+
+- **(home)** Drop the recent activity card (#20) ([1f60c38](https://github.com/PylotLight/Blobfish/commit/1f60c38eaef26b1641d2a6a0a83127fdf5a18350))
+- **(ui)** Transfers dock is one solid surface, blur only on floating overlays (#21) ([192af5a](https://github.com/PylotLight/Blobfish/commit/192af5ab36d482ba86dacae332c8340b093cd551))
+
 ## [0.2.3] - 2026-10-16
 
 ### Added
@@ -138,6 +145,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Blobfish identity on starter template (config, package, readme) ([9718d04](https://github.com/PylotLight/Blobfish/commit/9718d04614759cf98264fabd561785edc44b67a8))
 - Add app build/icon assets ([d4780b7](https://github.com/PylotLight/Blobfish/commit/d4780b7d445fc77be83edf8161ff639de448e3cb))
 
+[0.2.4]: https://github.com/PylotLight/Blobfish/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/PylotLight/Blobfish/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/PylotLight/Blobfish/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/PylotLight/Blobfish/compare/v0.2.0...v0.2.1
