@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react'
-import type { AccountSummary, ActivityEntry } from '../../../shared/types'
+import type { AccountSummary } from '../../../shared/types'
 import logoUrl from '../assets/logo.png'
 import { APP_NAME, APP_TAGLINE } from '../../../shared/config'
 import { Icon } from './Icon'
@@ -26,14 +25,6 @@ export default function HomeView(props: {
   onNewConnection: () => void
   onSelect: (accountId: string) => void
 }): React.JSX.Element {
-  const [activities, setActivities] = useState<ActivityEntry[]>([])
-
-  useEffect(() => {
-    window.api.activity.list().then(setActivities).catch(console.error)
-    return window.api.activity.onUpdate(setActivities)
-  }, [])
-
-  const recent = activities.slice(0, 8)
   const pinned = props.accounts.filter((a) => a.pinned)
 
   return (
@@ -91,24 +82,6 @@ export default function HomeView(props: {
         </section>
       )}
 
-      {recent.length > 0 && (
-        <section className="card home-section">
-          <h3>Recent activity</h3>
-          <ul className="activity-list">
-            {recent.map((e) => (
-              <li key={e.id} className="activity-row">
-                <span className={`a-dot ${e.status}`} aria-hidden>
-                  <Icon name={e.status === 'success' ? 'check' : 'close'} size={11} />
-                </span>
-                <div className="a-main">
-                  <div>{e.text}</div>
-                  <div className="muted small">{new Date(e.at).toLocaleString()}</div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
     </div>
   )
 }
