@@ -113,6 +113,7 @@ describe('settings + feed URL', () => {
       'https://github.com/PylotLight/Blobfish/releases/download/v0.2.5/Blobfish-0.2.5-mac-arm64.zip'
     ])
     expect(releaseAssetCandidates('https://github.com/PylotLight/Blobfish/releases/tag/v0.2.5', '0.2.5', 'linux', 'x64')).toEqual([])
+    expect(releaseAssetCandidates('https://github.com/PylotLight/Blobfish/releases/tag/v0.2.5', '0.2.5', 'darwin', 'x64')).toEqual([])
   })
   test('preferences parse defensively', () => {
     expect(parseUpdatePreferences(null)).toEqual(DEFAULT_UPDATE_PREFERENCES)
