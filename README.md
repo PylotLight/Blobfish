@@ -26,7 +26,7 @@ brew tap pylotlight/blobfish https://github.com/PylotLight/Blobfish.git
 brew install --cask blobfish
 ```
 
-Or download binaries (macOS dmg/zip, Apple Silicon + Intel) from
+Or download binaries (macOS dmg/zip, Apple Silicon only) from
 [Releases](https://github.com/PylotLight/Blobfish/releases). Builds are unsigned
 for now — macOS Gatekeeper (stricter on macOS 26/Tahoe) may report
 ““Blobfish” is damaged and can’t be opened”. That means unsigned + quarantined,

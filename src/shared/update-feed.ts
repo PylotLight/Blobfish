@@ -400,7 +400,7 @@ export function describeFeedHttpFailure(httpStatus: number, feedUrl: string): Fe
 /**
  * Direct asset URLs worth probing for a GitHub release page ("…/releases/tag/<tag>"), using the
  * electron-builder artifact name (Blobfish-<version>-mac-<arch>.<ext>); .dmg first, then .zip.
- * Empty for non-GitHub feeds or non-macOS platforms (the release page opens instead).
+ * Empty for non-GitHub feeds, non-macOS platforms or non-arm64 Macs (arm64-only builds) (the release page opens instead).
  */
 export function releaseAssetCandidates(releaseLink: string, version: string, platform: string, arch: string, productName = 'Blobfish'): string[] {
   if (platform !== 'darwin') return []
@@ -410,8 +410,9 @@ export function releaseAssetCandidates(releaseLink: string, version: string, pla
   const match = /^\/([^/]+)\/([^/]+)\/releases\/tag\/([^/]+)\/?$/.exec(url.pathname)
   if (!match || !parseSemver(normalizeVersionTag(version))) return []
   const [, owner, repo, tag] = match
-  const macArch = arch === 'x64' ? 'x64' : 'arm64'
-  const base = `https://github.com/${owner}/${repo}/releases/download/${tag}/${productName}-${normalizeVersionTag(version)}-mac-${macArch}`
+  // arm64-only builds: no x64 asset to point at, the release page opens instead.
+  if (arch !== 'arm64') return []
+  const base = `https://github.com/${owner}/${repo}/releases/download/${tag}/${productName}-${normalizeVersionTag(version)}-mac-arm64`
   return [`${base}.dmg`, `${base}.zip`]
 }
 
