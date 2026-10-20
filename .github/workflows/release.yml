@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   build:
-    name: build (${{ matrix.name }})
+    name: "Blobfish · Release · build ${{ matrix.name }} · ${{ github.ref_name }}"
     strategy:
       fail-fast: false
       matrix:
@@ -58,7 +58,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    name: github release
+    name: "Blobfish · Release · github release · ${{ github.ref_name }}"
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -94,7 +94,7 @@ jobs:
   # Casks/blobfish.rb on main with the built-in GITHUB_TOKEN — no extra
   # secrets. Token pushes don't re-trigger workflows, so no loop.
   homebrew:
-    name: homebrew cask
+    name: "Blobfish · Release · homebrew cask · ${{ github.ref_name }}"
     needs: release
     runs-on: ubuntu-latest
     steps:
