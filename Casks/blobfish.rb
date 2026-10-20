@@ -1,8 +1,8 @@
 # Updated automatically by .github/workflows/release.yml on every release.
 # Edit Casks/blobfish.rb.tmpl instead — this file is rendered from it.
 cask "blobfish" do
-  version "0.2.4"
-  sha256 "7a0a144aa1a3eae4c7ad49d604303af01e7a9aca086454255f9192e5144bf2f2"
+  version "0.2.5"
+  sha256 "356a2d1daeda5fec2bd9b2b7bfbd58265e61896be7ed2e903d512f8b7f69e5d1"
 
   url "https://github.com/PylotLight/Blobfish/releases/download/v#{version}/Blobfish-#{version}-mac-arm64.zip"
   name "Blobfish"
