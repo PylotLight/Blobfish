@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] - 2026-10-20
+
+### Fixed
+
+- **(ui)** Collapsed sidebar gets a title-bar lane, expand button sits beside the traffic lights (#23) ([c815360](https://github.com/PylotLight/Blobfish/commit/c815360825eca346488054754c600aef660e283d))
+
 ## [0.2.4] - 2026-10-17
 
 ### Fixed
@@ -145,6 +151,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Blobfish identity on starter template (config, package, readme) ([9718d04](https://github.com/PylotLight/Blobfish/commit/9718d04614759cf98264fabd561785edc44b67a8))
 - Add app build/icon assets ([d4780b7](https://github.com/PylotLight/Blobfish/commit/d4780b7d445fc77be83edf8161ff639de448e3cb))
 
+[0.2.5]: https://github.com/PylotLight/Blobfish/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/PylotLight/Blobfish/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/PylotLight/Blobfish/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/PylotLight/Blobfish/compare/v0.2.1...v0.2.2
