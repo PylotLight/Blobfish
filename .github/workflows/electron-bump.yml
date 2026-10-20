@@ -53,6 +53,7 @@ permissions:
 
 jobs:
   bump:
+    name: "Blobfish · Electron bump · ${{ github.event_name == 'workflow_dispatch' && format('manual {0}{1}', inputs.version || inputs.policy || 'beta', inputs.dry_run && ' · dry run' || '') || 'scheduled' }}"
     # GitHub-hosted on purpose: never a self-hosted runner.
     runs-on: ubuntu-latest
     timeout-minutes: 15
