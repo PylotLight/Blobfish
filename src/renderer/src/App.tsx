@@ -132,6 +132,12 @@ export default function App(): React.JSX.Element {
         e.preventDefault()
         setSidebarCollapsed((v) => !v)
       }
+      // ⌘, opens Settings (sidebar footer gear).
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key === ',') {
+        if (document.querySelector('.modal-backdrop')) return
+        e.preventDefault()
+        setShowSettings(true)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -534,24 +540,25 @@ export default function App(): React.JSX.Element {
             </div>
             <p className="brand-tagline">{APP_TAGLINE}</p>
           </div>
-          <button
-            className="mini-btn sidebar-collapse-btn"
-            onClick={() => setSidebarCollapsed(true)}
-            title="Collapse sidebar (⌘B)"
-            aria-label="Collapse sidebar"
-          >
-            <Icon name="sidebar" size={16} />
-          </button>
         </div>
 
-        <div className="side-actions">
-          <button className={`btn ghost home-cta${selectedId === null ? ' active-opt' : ''}`} onClick={goHome}>
-            <Icon name="home" size={15} /> Home
+        <nav className="side-nav" aria-label="Sidebar">
+          <button
+            className={`side-nav-btn${selectedId === null && !showSettings ? ' is-current' : ''}`}
+            aria-current={selectedId === null && !showSettings ? 'page' : undefined}
+            onClick={() => {
+              setShowSettings(false)
+              goHome()
+            }}
+          >
+            <Icon name="home" size={15} />
+            <span>Home</span>
           </button>
-          <button className="btn mint attach-cta" onClick={() => setShowWizard(true)}>
-            <Icon name="plus" size={15} /> New connection
+          <button className="side-nav-btn side-nav-new" onClick={() => setShowWizard(true)}>
+            <Icon name="plus" size={15} />
+            <span>New connection</span>
           </button>
-        </div>
+        </nav>
         {encAvailable === false && (
           <p className="error-text small">Keychain encryption unavailable — attach disabled.</p>
         )}
@@ -603,26 +610,32 @@ export default function App(): React.JSX.Element {
         </div>
 
         <div className="side-foot">
-          <div className="side-foot-row">
-            <button className="settings-btn" onClick={() => setShowSettings(true)}>
-              <Icon name="settings" size={15} /> Settings
-              {updateBadge && <span className="update-dot" aria-label="Update available" title="Update available" />}
-            </button>
-            <button
-              className="quit-btn"
-              onClick={() => window.api.app.quit()}
-              title="Quit Blobfish"
-              aria-label="Quit Blobfish"
-            >
-              <Icon name="power" size={15} />
-            </button>
-          </div>
-          <span
-            className="status-sub"
-            title={`Electron ${window.api.versions.electron()} · Chromium ${window.api.versions.chrome()} · Node ${window.api.versions.node()}`}
+          <button
+            className="side-foot-btn side-foot-collapse"
+            onClick={() => setSidebarCollapsed(true)}
+            title="Collapse sidebar (⌘B)"
+            aria-label="Collapse sidebar"
           >
-            {accounts.length} {accounts.length === 1 ? 'connection' : 'connections'} · OS Keychain encrypted{appVersion ? ` · v${appVersion}` : ''}
-          </span>
+            <Icon name="sidebar" size={17} />
+          </button>
+          <button
+            className={`side-foot-btn${showSettings ? ' is-current' : ''}`}
+            aria-current={showSettings ? 'page' : undefined}
+            onClick={() => setShowSettings(true)}
+            title={`Settings (⌘,)\n${accounts.length} ${accounts.length === 1 ? 'connection' : 'connections'} · OS Keychain encrypted${appVersion ? ` · v${appVersion}` : ''}`}
+            aria-label={updateBadge ? 'Settings, update available' : 'Settings'}
+          >
+            <Icon name="settings" size={17} />
+            {updateBadge && <span className="update-dot" aria-hidden />}
+          </button>
+          <button
+            className="side-foot-btn side-foot-quit"
+            onClick={() => window.api.app.quit()}
+            title="Quit Blobfish"
+            aria-label="Quit Blobfish"
+          >
+            <Icon name="power" size={17} />
+          </button>
         </div>
       </aside>
 

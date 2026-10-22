@@ -122,13 +122,6 @@ code {
   display: none;
 }
 
-.sidebar-collapse-btn {
-  margin-left: auto;
-  flex-shrink: 0;
-  font-size: var(--fs-md);
-  padding: 4px 8px;
-  -webkit-app-region: no-drag;
-}
 
 /* Collapsed sidebar: the content's top row turns into the title bar. The traffic
  * lights and the expand button get their own lane there instead of sitting on top
@@ -295,31 +288,12 @@ code {
 }
 
 .side-foot {
-  margin-top: auto;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
   -webkit-app-region: no-drag;
 }
 
-.status-pill {
-  align-self: flex-start;
-  font-size: var(--fs-xs);
-  color: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 4px 12px;
-}
 
-.status-pill.on {
-  color: var(--mint);
-  border-color: rgba(126, 226, 168, 0.35);
-}
 
-.status-sub {
-  font-size: var(--fs-xs);
-  color: var(--muted);
-}
 
 /* ---------- content + topbar ---------- */
 
@@ -1258,11 +1232,6 @@ textarea.secret-input {
   animation: fadeSlideIn 0.22s ease both;
 }
 
-.attach-cta {
-  width: 100%;
-  margin-top: 14px;
-  -webkit-app-region: no-drag;
-}
 
 .tree-scroll {
   margin-top: 18px;
@@ -2249,58 +2218,11 @@ li.done .wiz-num {
   opacity: 1;
 }
 
-.settings-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  color: var(--muted);
-  padding: 9px 12px;
-  font-size: var(--fs-sm);
-  cursor: pointer;
-  transition: color 0.13s ease, background 0.13s ease;
-}
 
-.settings-btn:hover {
-  color: var(--text);
-  background: var(--panel);
-}
 
-.side-foot-row {
-  display: flex;
-  gap: 8px;
-}
 
-.side-foot-row .settings-btn {
-  flex: 1;
-  min-width: 0;
-}
 
-.quit-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 38px;
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  color: var(--muted);
-  opacity: 0.55;
-  font-size: var(--fs-md);
-  cursor: pointer;
-  transition: color 0.13s ease, background 0.13s ease, opacity 0.13s ease, border-color 0.13s ease;
-}
 
-.quit-btn:hover {
-  opacity: 1;
-  color: var(--danger);
-  background: var(--panel);
-  border-color: var(--border);
-}
 
 /* ---------- Home / dashboard ---------- */
 
@@ -2409,30 +2331,9 @@ li.done .wiz-num {
   flex-direction: column;
 }
 
-.home-cta {
-  margin-bottom: 0;
-  -webkit-app-region: no-drag;
-}
 
-.side-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 14px;
-  -webkit-app-region: no-drag;
-}
 
-.side-actions .home-cta {
-  flex: 0 0 auto;
-}
 
-.side-actions .attach-cta {
-  margin-top: 0;
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
 .dialog {
   width: 440px;
@@ -3138,7 +3039,6 @@ li.done .wiz-num {
 .nav-btn,
 .mini-btn,
 .icon-btn,
-.quit-btn,
 .sidebar-expand-btn,
 .csv-opt-btn,
 .tab-strip .tab-close {
@@ -4418,9 +4318,6 @@ th.wide {
   flex: none;
 }
 
-.settings-btn .update-dot {
-  margin-left: auto;
-}
 
 /* ---------- Settings › Connections backup ---------- */
 .conn-backup-form {
@@ -4447,4 +4344,120 @@ th.wide {
 .conn-backup .setting-row.inline > .row,
 .conn-backup-form .row .row {
   margin-top: 0;
+}
+
+/* ---------- Sidebar nav + footer (Surffish sidebar design) ----------
+ * Quiet rows instead of pill buttons: Home / New connection are 34px nav rows that
+ * line up with the tree, and the footer is a divider + three icon-only buttons
+ * (collapse left; settings + quit right), same metrics as Surffish's sidebar-footer. */
+.side-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 16px;
+  -webkit-app-region: no-drag;
+}
+
+.side-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(245, 247, 250, 0.72);
+  font-size: var(--fs-md);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.13s ease, color 0.13s ease;
+}
+
+.side-nav-btn .icon {
+  flex: none;
+  opacity: 0.8;
+}
+
+.side-nav-btn span {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.side-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.side-nav-btn.is-current {
+  background: rgba(255, 255, 255, 0.075);
+  color: #fff;
+  box-shadow: inset 2px 0 var(--mint);
+}
+
+.side-nav-new .icon {
+  color: var(--mint);
+  opacity: 1;
+}
+
+.side-foot {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin: auto -16px -20px -20px;
+  padding: 8px 11px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.065);
+  background: rgba(4, 6, 9, 0.1);
+}
+
+.side-foot-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(245, 247, 250, 0.64);
+  cursor: pointer;
+  transition: background 0.13s ease, color 0.13s ease;
+}
+
+.side-foot-btn:hover,
+.side-foot-btn.is-current {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+}
+
+.side-foot-btn.is-current {
+  box-shadow: inset 2px 0 var(--mint);
+}
+
+.side-foot-collapse {
+  margin-right: auto;
+}
+
+.side-foot-quit:hover {
+  background: rgba(255, 107, 117, 0.1);
+  color: #ffc0c5;
+}
+
+.side-foot-btn .update-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+
+/* tree starts closer to the nav now that the CTAs are rows */
+.side-nav + .tree-scroll,
+.side-nav ~ .tree-scroll {
+  margin-top: 14px;
 }
