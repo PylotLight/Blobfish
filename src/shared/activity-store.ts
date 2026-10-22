@@ -70,6 +70,19 @@ export function parseActivityEntry(value: unknown): ActivityEntry | null {
   return entry;
 }
 
+/**
+ * Failed reads (list containers / blobs / versions, logged as kind "connection") are
+ * point-in-time: they already show inline where they happened (sidebar node with Retry,
+ * explorer callout) and say nothing about the next launch. Persisting them replayed a
+ * stale "self signed certificate" failure into the dock every start, so they stay in
+ * this session's feed only.
+ */
+export function isPersistable(
+  entry: Pick<ActivityEntry, "kind" | "status">,
+): boolean {
+  return !(entry.kind === "connection" && entry.status === "failed");
+}
+
 /** Newest-first, de-duplicated by id, capped, and without entries older than ACTIVITY_MAX_AGE_MS. */
 export function parsePersistedActivities(
   value: unknown,
@@ -86,10 +99,11 @@ export function parsePersistedActivities(
   const out: ActivityEntry[] = [];
   for (const raw of record.entries) {
     const entry = parseActivityEntry(raw);
-    if (!entry || seen.has(entry.id)) continue;
+    if (!entry || seen.has(entry.id) || !isPersistable(entry)) continue;
     if (entry.at > now + 60_000 || now - entry.at > ACTIVITY_MAX_AGE_MS)
       continue;
     seen.add(entry.id);
+    entry.restored = true;
     out.push(entry);
   }
   out.sort((a, b) => b.at - a.at);
@@ -99,6 +113,9 @@ export function parsePersistedActivities(
 export function serializeActivities(entries: readonly ActivityEntry[]): string {
   return JSON.stringify({
     version: ACTIVITY_STORE_VERSION,
-    entries: entries.slice(0, ACTIVITY_PERSIST_LIMIT),
+    entries: entries
+      .filter(isPersistable)
+      .slice(0, ACTIVITY_PERSIST_LIMIT)
+      .map(({ restored: _restored, ...rest }) => rest),
   });
 }

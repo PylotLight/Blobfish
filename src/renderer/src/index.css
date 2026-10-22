@@ -2695,54 +2695,6 @@ li.done .wiz-num {
 
 /* ---------- Transfers + activity dock ---------- */
 
-.transfers-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  margin-top: 12px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  color: var(--text);
-  padding: 9px 14px;
-  font-size: var(--fs-sm);
-  cursor: pointer;
-  flex-shrink: 0;
-  animation: fadeSlideIn 0.22s ease backwards;
-}
-
-.transfers-bar:hover {
-  background: var(--panel-strong);
-}
-
-.transfers-bar .t-stats {
-  display: flex;
-  gap: 8px;
-  font-weight: 600;
-}
-
-.transfers-bar .t-stats > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.transfers-bar .t-mini-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--muted);
-  text-align: left;
-}
-
-.transfers-bar .t-speed {
-  color: var(--mint);
-  font-variant-numeric: tabular-nums;
-}
-
 .transfers-panel {
   margin-top: 12px;
   max-height: 38vh;
@@ -2773,7 +2725,9 @@ li.done .wiz-num {
 .conn-pill {
   font-size: var(--fs-2xs);
   color: var(--mint);
-  border-color: rgba(126, 226, 168, 0.35);
+  border: 1px solid color-mix(in srgb, var(--mint) 35%, transparent);
+  border-radius: 999px;
+  padding: 2px 8px;
   white-space: nowrap;
 }
 
@@ -2787,7 +2741,7 @@ li.done .wiz-num {
 .activity-links {
   margin-left: auto;
   display: flex;
-  gap: 14px;
+  gap: 2px;
 }
 
 .linklike.small {
@@ -2931,45 +2885,6 @@ li.done .wiz-num {
   color: var(--mint);
   font-size: var(--fs-md);
   padding: 3px 6px;
-}
-
-.activity-row {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  font-size: var(--fs-sm);
-  padding: 8px 2px;
-  border-bottom: 1px solid var(--border);
-}
-
-.activity-row:last-child {
-  border-bottom: none;
-}
-
-.a-dot {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--fs-xs);
-  flex-shrink: 0;
-}
-
-.a-dot.success {
-  background: var(--mint-dim);
-  color: var(--mint);
-}
-
-.a-dot.failed {
-  background: rgba(229, 99, 111, 0.14);
-  color: var(--danger);
-}
-
-.a-main {
-  min-width: 0;
-  word-break: break-word;
 }
 
 .shell[data-motion="reduced"] *,
@@ -3321,10 +3236,6 @@ th.wide {
 
 .tab-strip::-webkit-scrollbar {
   display: none;
-}
-
-.transfers-bar .t-stats > .t-failed {
-  color: var(--danger);
 }
 
 .tab-strip .tab {
@@ -3880,46 +3791,332 @@ th.wide {
   position: relative;
 }
 
+/* Collapsed dock: a compact pill in the bottom-right corner, never a full-width strip.
+ * One solid per-theme fill (--sheet-bg), no backdrop-filter: the dock floats over
+ * explorer rows and must not let them read through (same rule as the modal sheets). */
 .transfers-bar {
   position: absolute;
   bottom: 18px;
-  left: 28px;
   right: 28px;
-  width: auto;
-  max-width: none;
-  margin-top: 0;
   z-index: 40;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(520px, calc(100% - 56px));
+  height: 32px;
+  padding: 0 10px 0 12px;
+  border-radius: 999px;
+  color: var(--text);
+  font-size: var(--fs-xs);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  animation: fadeSlideIn 0.22s ease backwards;
 }
 
+.transfers-bar .tb-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.transfers-bar.tone-busy .tb-dot {
+  background: var(--accent);
+  opacity: 1;
+  animation: tbPulse 1.4s ease-in-out infinite;
+}
+
+.transfers-bar.tone-done .tb-dot {
+  background: var(--mint);
+  opacity: 1;
+}
+
+.transfers-bar.tone-failed .tb-dot {
+  background: var(--danger);
+  opacity: 1;
+}
+
+@keyframes tbPulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.transfers-bar .tb-label {
+  font-weight: 600;
+}
+
+.transfers-bar .tb-status {
+  color: var(--muted);
+}
+
+.transfers-bar.tone-failed .tb-status {
+  color: var(--danger);
+}
+
+.transfers-bar .tb-stats {
+  display: inline-flex;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.transfers-bar .tb-stats > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.transfers-bar .tb-name {
+  min-width: 0;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+}
+
+.transfers-bar .tb-num {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.transfers-bar .tb-speed {
+  color: var(--mint);
+}
+
+.transfers-bar .tb-chev {
+  display: inline-flex;
+  color: var(--muted);
+  margin-left: 2px;
+}
+
+.transfers-bar:hover .tb-chev {
+  color: var(--text);
+}
+
+.transfers-bar:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Expanded dock: right-anchored sheet, same corner as the pill. */
 .transfers-panel {
   position: absolute;
   bottom: 18px;
-  left: 28px;
   right: 28px;
-  width: auto;
+  left: auto;
+  width: min(760px, calc(100% - 56px));
   max-width: none;
   max-height: 46vh;
   margin-top: 0;
+  padding: 10px 14px 12px;
   z-index: 40;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
-  transform-origin: bottom center;
+  transform-origin: bottom right;
 }
 
 /* The dock is ONE solid surface (no alpha, so nothing behind can show through) and
  * no backdrop-filter. It used to be a 5.5% `.card` wash + an 18px blur on a scrolling,
  * animating (will-change) layer: when that blur doesn't land (macOS), explorer rows
  * behind read straight through the dock text, and every progress tick re-ran a
- * full-panel blur. Same bug class as `.ctx-menu.glass.strong` below.
- * Specificity (0,2,0) so it beats `.card` / `.transfers-bar:hover`. */
+ * full-panel blur. Same bug class as `.ctx-menu.glass.strong` below. The fill is the
+ * theme's --sheet-bg (Midnight / Abyss / Slate), not a hard-coded Midnight gradient.
+ * Specificity (0,2,0) so it beats `.card`. */
 .transfers-panel.card,
 .transfers-bar.transfers-bar {
-  background: linear-gradient(170deg, rgb(29, 34, 44), rgb(19, 23, 31));
+  background: var(--sheet-bg);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .transfers-bar.transfers-bar:hover {
-  background: linear-gradient(170deg, rgb(35, 41, 53), rgb(23, 28, 37));
+  border-color: rgba(255, 255, 255, 0.18);
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.04)),
+    var(--sheet-bg);
+}
+
+.transfers-panel .transfers-head {
+  min-height: 28px;
+}
+
+.transfers-state {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.transfers-empty {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+.mini-btn.icon-only {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+}
+
+.transfers-head .mini-btn,
+.activity-head .mini-btn {
+  white-space: nowrap;
+}
+
+.transfers-head .transfers-head-actions {
+  flex-shrink: 0;
+}
+
+.transfers-panel .t-name > .muted {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transfers-panel .t-name strong {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.transfers-panel::-webkit-scrollbar {
+  width: 10px;
+}
+
+.transfers-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.transfers-panel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+.transfers-panel::-webkit-scrollbar-button {
+  display: none;
+}
+
+.activity-head {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  min-height: 28px;
+}
+
+.activity-sep {
+  margin: 8px 0 2px;
+  font-size: var(--fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  opacity: 0.8;
+}
+
+.activity-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: var(--fs-sm);
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.activity-row:last-child,
+.activity-row:has(+ .activity-sep) {
+  border-bottom: none;
+}
+
+.a-dot {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.a-dot.success {
+  background: var(--mint-dim);
+  color: var(--mint);
+}
+
+.a-dot.failed {
+  background: rgba(229, 99, 111, 0.16);
+  color: var(--danger);
+}
+
+.a-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.a-line {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+
+.a-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.a-when {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.a-detail {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.a-detail[role="button"] {
+  cursor: pointer;
+}
+
+.a-detail.is-error {
+  color: color-mix(in srgb, var(--danger) 78%, var(--text));
+}
+
+.a-detail.open {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.activity-file-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 2px;
+}
+
+.activity-file-actions .linklike.small {
+  font-size: var(--fs-xs);
 }
 
 @keyframes dockIn {
@@ -4216,11 +4413,6 @@ th.wide {
 
 .csv-resizer:hover {
   background: rgba(126, 226, 168, 0.35);
-}
-
-.activity-file-actions {
-  gap: 12px;
-  margin-top: 4px;
 }
 
 /* ---------- Version history ---------- */

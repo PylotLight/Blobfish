@@ -8,6 +8,7 @@ import type {
   DataLakeServiceClient,
 } from "@azure/storage-file-datalake";
 import { createRequire } from "node:module";
+import { ensureSystemCertificates } from "./system-ca";
 
 /* The Azure SDKs cost ~120-160 ms of synchronous module loading, which used to
  * sit in front of app ready on every launch. They load on first use instead
@@ -16,12 +17,19 @@ const requireSdk = createRequire(import.meta.url);
 let blobSdk: typeof BlobSdk | null = null;
 let dataLakeSdk: typeof DataLakeSdk | null = null;
 
+/* Every SDK client is built through these two, in the main process and the listing
+ * worker alike, so this is where the OS trust store gets merged in (system-ca.ts):
+ * once per thread, before the first request. */
 export function blobApi(): typeof BlobSdk {
-  return (blobSdk ??= requireSdk("@azure/storage-blob") as typeof BlobSdk);
+  if (blobSdk) return blobSdk;
+  ensureSystemCertificates();
+  return (blobSdk = requireSdk("@azure/storage-blob") as typeof BlobSdk);
 }
 
 export function dataLakeApi(): typeof DataLakeSdk {
-  return (dataLakeSdk ??= requireSdk(
+  if (dataLakeSdk) return dataLakeSdk;
+  ensureSystemCertificates();
+  return (dataLakeSdk = requireSdk(
     "@azure/storage-file-datalake",
   ) as typeof DataLakeSdk);
 }
