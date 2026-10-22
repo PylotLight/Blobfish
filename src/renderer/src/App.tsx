@@ -1,296 +1,382 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import { APP_NAME, APP_TAGLINE } from '../../shared/config'
-import type { AccountSummary, StorageContainer, SysInfo } from '../../shared/types'
-import logoUrl from './assets/logo.png'
-import Explorer from './views/Explorer'
-import HomeView from './views/Home'
-import ConnectWizard from './views/ConnectWizard'
-import TransfersPanel from './views/TransfersPanel'
-import { ConfirmDialog, PromptDialog } from './views/Dialogs'
-import { DEFAULT_PREFS, accentVars, loadPrefs, savePrefs, SettingsView, type Prefs } from './views/Settings'
-import { REVEAL_UPDATES_KEY } from './views/UpdateSettings'
-import { sendPanelAction } from './palette-bus'
-import { BrandEasterEgg, useBrandTripleClick } from './views/easter-egg/BrandEasterEgg'
-import { Icon } from './views/Icon'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { APP_NAME, APP_TAGLINE } from "../../shared/config";
+import type {
+  AccountSummary,
+  StorageContainer,
+  SysInfo,
+} from "../../shared/types";
+import logoUrl from "./assets/logo.png";
+import Explorer from "./views/Explorer";
+import HomeView from "./views/Home";
+import ConnectWizard from "./views/ConnectWizard";
+import TransfersPanel from "./views/TransfersPanel";
+import { ConfirmDialog, PromptDialog } from "./views/Dialogs";
+import {
+  DEFAULT_PREFS,
+  accentVars,
+  loadPrefs,
+  savePrefs,
+  SettingsView,
+  type Prefs,
+} from "./views/Settings";
+import { REVEAL_UPDATES_KEY } from "./views/UpdateSettings";
+import { sendPanelAction } from "./palette-bus";
+import {
+  BrandEasterEgg,
+  useBrandTripleClick,
+} from "./views/easter-egg/BrandEasterEgg";
+import { Icon } from "./views/Icon";
 
-const CommandPalette = lazy(() => import('./views/CommandPalette'))
+const CommandPalette = lazy(() => import("./views/CommandPalette"));
 
 export interface SelectionTarget {
-  accountId: string
-  container: string | null
+  accountId: string;
+  container: string | null;
   /** Folder to open inside `container` (⌘K recent folders). */
-  prefix?: string
-  tick: number
+  prefix?: string;
+  tick: number;
 }
 
 export default function App(): React.JSX.Element {
-  const [accounts, setAccounts] = useState<AccountSummary[]>([])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [target, setTarget] = useState<SelectionTarget | null>(null)
-  const [showWizard, setShowWizard] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
+  const [accounts, setAccounts] = useState<AccountSummary[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [target, setTarget] = useState<SelectionTarget | null>(null);
+  const [showWizard, setShowWizard] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   // Update notifications: dot on the Settings button; a notification click opens About & updates.
-  const [updateBadge, setUpdateBadge] = useState(false)
+  const [updateBadge, setUpdateBadge] = useState(false);
   useEffect(() => {
-    void window.api.updates.get().then((u) => setUpdateBadge(u.showBadge)).catch(() => undefined)
-    const offChanged = window.api.updates.onChanged((u) => setUpdateBadge(u.showBadge))
+    void window.api.updates
+      .get()
+      .then((u) => setUpdateBadge(u.showBadge))
+      .catch(() => undefined);
+    const offChanged = window.api.updates.onChanged((u) =>
+      setUpdateBadge(u.showBadge),
+    );
     const offReveal = window.api.updates.onReveal(() => {
-      sessionStorage.setItem(REVEAL_UPDATES_KEY, '1')
-      setShowSettings(true)
-    })
+      sessionStorage.setItem(REVEAL_UPDATES_KEY, "1");
+      setShowSettings(true);
+    });
     return () => {
-      offChanged()
-      offReveal()
-    }
-  }, [])
-  const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs())
-  const brandEgg = useBrandTripleClick()
-  const [platform, setPlatform] = useState<SysInfo['platform'] | null>(null)
-  const [encAvailable, setEncAvailable] = useState<boolean | null>(null)
-  const [appVersion, setAppVersion] = useState<string | null>(null)
+      offChanged();
+      offReveal();
+    };
+  }, []);
+  const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs());
+  const brandEgg = useBrandTripleClick();
+  const [platform, setPlatform] = useState<SysInfo["platform"] | null>(null);
+  const [encAvailable, setEncAvailable] = useState<boolean | null>(null);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
-    const saved = localStorage.getItem('blobfish.sidebarWidth')
+    const saved = localStorage.getItem("blobfish.sidebarWidth");
     if (saved) {
-      const parsed = parseInt(saved, 10)
-      if (!Number.isNaN(parsed) && parsed >= 260 && parsed <= 600) return parsed
+      const parsed = parseInt(saved, 10);
+      if (!Number.isNaN(parsed) && parsed >= 260 && parsed <= 600)
+        return parsed;
     }
-    return 340
-  })
-  const [isDraggingSidebar, setIsDraggingSidebar] = useState(false)
+    return 340;
+  });
+  const [isDraggingSidebar, setIsDraggingSidebar] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('blobfish.sidebarCollapsed') === '1'
+      return localStorage.getItem("blobfish.sidebarCollapsed") === "1";
     } catch {
-      return false
+      return false;
     }
-  })
+  });
 
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-  const [containersCache, setContainersCache] = useState<Record<string, StorageContainer[]>>({})
-  const [containersFailed, setContainersFailed] = useState<Record<string, boolean>>({})
-  const [loadingContainers, setLoadingContainers] = useState<Record<string, boolean>>({})
-  const [renamingId, setRenamingId] = useState<string | null>(null)
-  const [renameValue, setRenameValue] = useState('')
-  const [detachFor, setDetachFor] = useState<AccountSummary | null>(null)
-  const [createFor, setCreateFor] = useState<string | null>(null)
-  const [renameContainerFor, setRenameContainerFor] = useState<{ accountId: string; name: string } | null>(null)
-  const [deleteContainerFor, setDeleteContainerFor] = useState<{ accountId: string; name: string } | null>(null)
-  const [quickOpen, setQuickOpen] = useState(true)
-  const [allOpen, setAllOpen] = useState(true)
-  const [attachedOpen, setAttachedOpen] = useState(true)
-  const [copiedSecretId, setCopiedSecretId] = useState<string | null>(null)
-  const [secretError, setSecretError] = useState<string | null>(null)
-  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [containersCache, setContainersCache] = useState<
+    Record<string, StorageContainer[]>
+  >({});
+  const [containersFailed, setContainersFailed] = useState<
+    Record<string, boolean>
+  >({});
+  const [loadingContainers, setLoadingContainers] = useState<
+    Record<string, boolean>
+  >({});
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [detachFor, setDetachFor] = useState<AccountSummary | null>(null);
+  const [createFor, setCreateFor] = useState<string | null>(null);
+  const [renameContainerFor, setRenameContainerFor] = useState<{
+    accountId: string;
+    name: string;
+  } | null>(null);
+  const [deleteContainerFor, setDeleteContainerFor] = useState<{
+    accountId: string;
+    name: string;
+  } | null>(null);
+  const [quickOpen, setQuickOpen] = useState(true);
+  const [allOpen, setAllOpen] = useState(true);
+  const [attachedOpen, setAttachedOpen] = useState(true);
+  const [copiedSecretId, setCopiedSecretId] = useState<string | null>(null);
+  const [secretError, setSecretError] = useState<string | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const refreshAccounts = useCallback(() => {
     window.api.accounts
       .list()
       .then((list) => {
-        setAccounts(list)
+        setAccounts(list);
         // Launch (and removals) land on the dashboard — never auto-pick.
-        setSelectedId((prev) => (prev && list.some((a) => a.id === prev) ? prev : null))
+        setSelectedId((prev) =>
+          prev && list.some((a) => a.id === prev) ? prev : null,
+        );
       })
-      .catch(console.error)
-  }, [])
+      .catch(console.error);
+  }, []);
 
   useEffect(() => {
-    refreshAccounts()
-    window.api.sys.info().then((s) => setPlatform(s.platform)).catch(console.error)
-    window.api.accounts.encryption().then(setEncAvailable).catch(() => setEncAvailable(false))
-    window.api.app.version().then(setAppVersion).catch(() => setAppVersion(null))
-  }, [refreshAccounts])
+    refreshAccounts();
+    window.api.sys
+      .info()
+      .then((s) => setPlatform(s.platform))
+      .catch(console.error);
+    window.api.accounts
+      .encryption()
+      .then(setEncAvailable)
+      .catch(() => setEncAvailable(false));
+    window.api.app
+      .version()
+      .then(setAppVersion)
+      .catch(() => setAppVersion(null));
+  }, [refreshAccounts]);
 
   // Persist prefs + apply native vibrancy (macOS only; harmless elsewhere).
   // Persist prefs + apply native vibrancy (macOS only; harmless elsewhere).
   // Transfer tuning is debounced — slider drags would otherwise spam IPC.
   useEffect(() => {
-    savePrefs(prefs)
-    if (platform === 'darwin') {
-      window.api.glass.set(prefs.vibrancy ? 'fullscreen-ui' : null).catch(console.error)
+    savePrefs(prefs);
+    if (platform === "darwin") {
+      window.api.glass
+        .set(prefs.vibrancy ? "fullscreen-ui" : null)
+        .catch(console.error);
     }
     const timer = window.setTimeout(() => {
       window.api.transfers
-        .configure({ uploadConcurrency: prefs.uploadConcurrency, maxParallel: prefs.maxParallel })
-        .catch(console.error)
-    }, 250)
-    return () => window.clearTimeout(timer)
-  }, [prefs, platform])
+        .configure({
+          uploadConcurrency: prefs.uploadConcurrency,
+          maxParallel: prefs.maxParallel,
+        })
+        .catch(console.error);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [prefs, platform]);
 
   // Drag-to-resize sidebar width
   useEffect(() => {
     try {
-      localStorage.setItem('blobfish.sidebarCollapsed', sidebarCollapsed ? '1' : '0')
+      localStorage.setItem(
+        "blobfish.sidebarCollapsed",
+        sidebarCollapsed ? "1" : "0",
+      );
     } catch {
       // Storage blocked — collapse state just won't persist.
     }
-  }, [sidebarCollapsed])
+  }, [sidebarCollapsed]);
 
   // ⌘B / Ctrl+B toggles the sidebar; Esc re-opens nothing, it just closes menus.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
-        e.preventDefault()
-        setSidebarCollapsed((v) => !v)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        setSidebarCollapsed((v) => !v);
       }
       // ⌘, opens Settings (sidebar footer gear).
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key === ',') {
-        if (document.querySelector('.modal-backdrop')) return
-        e.preventDefault()
-        setShowSettings(true)
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        !e.shiftKey &&
+        !e.altKey &&
+        e.key === ","
+      ) {
+        if (document.querySelector(".modal-backdrop")) return;
+        e.preventDefault();
+        setShowSettings(true);
       }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // ⌘K / Ctrl+K toggles the command palette. Capture phase so inputs can't swallow it;
   // ignored while another modal (wizard, confirm, preview) owns the screen.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'k') return
-      if (document.querySelector('.modal-backdrop:not(.palette-backdrop)')) return
-      e.preventDefault()
-      e.stopPropagation()
-      setPaletteOpen((v) => !v)
-    }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [])
+      if (
+        !(e.metaKey || e.ctrlKey) ||
+        e.shiftKey ||
+        e.altKey ||
+        e.key.toLowerCase() !== "k"
+      )
+        return;
+      if (document.querySelector(".modal-backdrop:not(.palette-backdrop)"))
+        return;
+      e.preventDefault();
+      e.stopPropagation();
+      setPaletteOpen((v) => !v);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
 
   // Drag-to-resize sidebar width. The live width is mirrored to a ref so
   // mouse-up persists the final value, not the stale closure at drag start.
-  const sidebarWidthRef = useRef(sidebarWidth)
-  sidebarWidthRef.current = sidebarWidth
+  const sidebarWidthRef = useRef(sidebarWidth);
+  sidebarWidthRef.current = sidebarWidth;
   useEffect(() => {
-    if (!isDraggingSidebar || sidebarCollapsed) return
+    if (!isDraggingSidebar || sidebarCollapsed) return;
     const handleMouseMove = (e: MouseEvent) => {
-      const maxW = Math.min(640, Math.floor(window.innerWidth * 0.55))
-      const newWidth = Math.max(260, Math.min(maxW, e.clientX))
-      setSidebarWidth(newWidth)
-    }
+      const maxW = Math.min(640, Math.floor(window.innerWidth * 0.55));
+      const newWidth = Math.max(260, Math.min(maxW, e.clientX));
+      setSidebarWidth(newWidth);
+    };
     const handleMouseUp = () => {
-      setIsDraggingSidebar(false)
+      setIsDraggingSidebar(false);
       try {
-        localStorage.setItem('blobfish.sidebarWidth', String(sidebarWidthRef.current))
+        localStorage.setItem(
+          "blobfish.sidebarWidth",
+          String(sidebarWidthRef.current),
+        );
       } catch {
         // Storage blocked — width just won't persist.
       }
-    }
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-  }, [isDraggingSidebar, sidebarCollapsed])
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [isDraggingSidebar, sidebarCollapsed]);
 
   function updatePrefs(next: Prefs): void {
     // Reset to defaults keeps one obvious escape hatch if a theme misbehaves.
-    setPrefs({ ...DEFAULT_PREFS, ...next })
+    setPrefs({ ...DEFAULT_PREFS, ...next });
   }
 
   const ensureContainers = useCallback((accountId: string) => {
     // Guard against duplicate in-flight fetches: expanding a row and the
     // explorer mounting for the same account used to fire listContainers
     // twice, which — off VPN — meant duplicate 403 activity entries.
-    let shouldFetch = false
+    let shouldFetch = false;
     setContainersCache((prev) => {
-      if (prev[accountId]) return prev
-      shouldFetch = true
-      return prev
-    })
-    if (!shouldFetch) return
+      if (prev[accountId]) return prev;
+      shouldFetch = true;
+      return prev;
+    });
+    if (!shouldFetch) return;
     setLoadingContainers((prev) => {
       if (prev[accountId]) {
-        shouldFetch = false
-        return prev
+        shouldFetch = false;
+        return prev;
       }
-      return { ...prev, [accountId]: true }
-    })
-    if (!shouldFetch) return
+      return { ...prev, [accountId]: true };
+    });
+    if (!shouldFetch) return;
     void window.api.storage
       .listContainers(accountId)
       .then((cs) => {
-        setContainersCache((p) => ({ ...p, [accountId]: cs }))
-        setContainersFailed((p) => ({ ...p, [accountId]: false }))
+        setContainersCache((p) => ({ ...p, [accountId]: cs }));
+        setContainersFailed((p) => ({ ...p, [accountId]: false }));
       })
       .catch(() => {
         // A failed listing (e.g. 403 — SAS without account-level list) is
         // cached as a failure, not an empty account, so the sidebar says
         // so instead of the misleading "No containers."
-        setContainersCache((p) => ({ ...p, [accountId]: [] }))
-        setContainersFailed((p) => ({ ...p, [accountId]: true }))
+        setContainersCache((p) => ({ ...p, [accountId]: [] }));
+        setContainersFailed((p) => ({ ...p, [accountId]: true }));
       })
-      .finally(() => setLoadingContainers((p) => ({ ...p, [accountId]: false })))
-  }, [])
+      .finally(() =>
+        setLoadingContainers((p) => ({ ...p, [accountId]: false })),
+      );
+  }, []);
 
   function toggleExpand(accountId: string): void {
-    const a = accounts.find((x) => x.id === accountId)
+    const a = accounts.find((x) => x.id === accountId);
     // Container attachments open straight into their container — nothing to expand.
-    if (a && a.kind !== 'account') return
+    if (a && a.kind !== "account") return;
     setExpanded((prev) => {
-      const next = !prev[accountId]
-      if (next) ensureContainers(accountId)
-      return { ...prev, [accountId]: next }
-    })
+      const next = !prev[accountId];
+      if (next) ensureContainers(accountId);
+      return { ...prev, [accountId]: next };
+    });
   }
 
-  function selectAccount(accountId: string, container: string | null = null, prefix?: string): void {
-    const a = accounts.find((x) => x.id === accountId)
+  function selectAccount(
+    accountId: string,
+    container: string | null = null,
+    prefix?: string,
+  ): void {
+    const a = accounts.find((x) => x.id === accountId);
     const resolved =
-      container ?? (a && a.kind !== 'account' ? (a.containerName ?? null) : null)
-    setSelectedId(accountId)
-    setTarget((t) => ({ accountId, container: resolved, prefix, tick: (t?.tick ?? 0) + 1 }))
+      container ??
+      (a && a.kind !== "account" ? (a.containerName ?? null) : null);
+    setSelectedId(accountId);
+    setTarget((t) => ({
+      accountId,
+      container: resolved,
+      prefix,
+      tick: (t?.tick ?? 0) + 1,
+    }));
   }
 
   function goHome(): void {
-    setSelectedId(null)
-    setTarget(null)
+    setSelectedId(null);
+    setTarget(null);
   }
 
   function invalidateContainers(accountId: string): void {
     setContainersCache((prev) => {
-      const next = { ...prev }
-      delete next[accountId]
-      return next
-    })
+      const next = { ...prev };
+      delete next[accountId];
+      return next;
+    });
     setContainersFailed((prev) => {
-      const next = { ...prev }
-      delete next[accountId]
-      return next
-    })
-    if (expanded[accountId]) ensureContainers(accountId)
+      const next = { ...prev };
+      delete next[accountId];
+      return next;
+    });
+    if (expanded[accountId]) ensureContainers(accountId);
   }
 
   async function commitRename(id: string): Promise<void> {
-    const value = renameValue.trim()
-    setRenamingId(null)
-    if (value === '') return
+    const value = renameValue.trim();
+    setRenamingId(null);
+    if (value === "") return;
     try {
-      await window.api.accounts.update(id, { name: value })
-      refreshAccounts()
+      await window.api.accounts.update(id, { name: value });
+      refreshAccounts();
     } catch (err) {
-      console.error(err)
+      console.error(err);
     }
   }
 
-  const selected = accounts.find((a) => a.id === selectedId) ?? null
-  const pinned = accounts.filter((a) => a.pinned)
-  const visible = pinned.length > 0 ? accounts.filter((a) => !a.pinned) : accounts
-  const visibleAccounts = visible.filter((a) => a.kind === 'account')
-  const visibleContainers = visible.filter((a) => a.kind !== 'account')
+  const selected = accounts.find((a) => a.id === selectedId) ?? null;
+  const pinned = accounts.filter((a) => a.pinned);
+  const visible =
+    pinned.length > 0 ? accounts.filter((a) => !a.pinned) : accounts;
+  const visibleAccounts = visible.filter((a) => a.kind === "account");
+  const visibleContainers = visible.filter((a) => a.kind !== "account");
   const pinnedContainerKeys = new Set(
     pinned
       .filter((a) => a.containerName)
-      .map((a) => `${a.endpoint}::${(a.containerName ?? '').toLowerCase()}`)
-  )
+      .map((a) => `${a.endpoint}::${(a.containerName ?? "").toLowerCase()}`),
+  );
 
   function isContainerPinned(endpoint: string, container: string): boolean {
-    return pinnedContainerKeys.has(`${endpoint}::${container.toLowerCase()}`)
+    return pinnedContainerKeys.has(`${endpoint}::${container.toLowerCase()}`);
   }
 
   function toggleContainerPin(source: AccountSummary, container: string): void {
@@ -298,83 +384,96 @@ export default function App(): React.JSX.Element {
       (a) =>
         a.containerName &&
         a.endpoint === source.endpoint &&
-        a.containerName.toLowerCase() === container.toLowerCase()
-    )
+        a.containerName.toLowerCase() === container.toLowerCase(),
+    );
     if (match?.pinned) {
-      window.api.accounts.pin(match.id, false).then(() => refreshAccounts()).catch(console.error)
+      window.api.accounts
+        .pin(match.id, false)
+        .then(() => refreshAccounts())
+        .catch(console.error);
     } else if (match) {
-      window.api.accounts.pin(match.id, true).then(() => refreshAccounts()).catch(console.error)
+      window.api.accounts
+        .pin(match.id, true)
+        .then(() => refreshAccounts())
+        .catch(console.error);
     } else {
       window.api.accounts
         .pinContainer(source.id, container)
         .then(() => refreshAccounts())
-        .catch(console.error)
+        .catch(console.error);
     }
   }
 
   function copySecret(id: string): void {
     // Secret never enters renderer JS — main decrypts and writes clipboard directly.
-    setSecretError(null)
+    setSecretError(null);
     window.api.accounts
       .copySecret(id)
       .then(() => {
-        setCopiedSecretId(id)
-        window.setTimeout(() => setCopiedSecretId((cur) => (cur === id ? null : cur)), 1600)
+        setCopiedSecretId(id);
+        window.setTimeout(
+          () => setCopiedSecretId((cur) => (cur === id ? null : cur)),
+          1600,
+        );
       })
       .catch((err: unknown) => {
-        console.error(err)
-        setSecretError(err instanceof Error ? err.message : String(err))
-      })
+        console.error(err);
+        setSecretError(err instanceof Error ? err.message : String(err));
+      });
   }
 
   function exportSecret(id: string): void {
-    setSecretError(null)
-    window.api.accounts
-      .exportSecret(id)
-      .catch((err: unknown) => {
-        console.error(err)
-        setSecretError(err instanceof Error ? err.message : String(err))
-      })
+    setSecretError(null);
+    window.api.accounts.exportSecret(id).catch((err: unknown) => {
+      console.error(err);
+      setSecretError(err instanceof Error ? err.message : String(err));
+    });
   }
 
-  const [rowMenu, setRowMenu] = useState<{ x: number; y: number; account: AccountSummary } | null>(null)
+  const [rowMenu, setRowMenu] = useState<{
+    x: number;
+    y: number;
+    account: AccountSummary;
+  } | null>(null);
 
   function openRowMenu(e: React.MouseEvent, a: AccountSummary): void {
-    e.preventDefault()
-    e.stopPropagation()
-    setRowMenu({ x: e.clientX, y: e.clientY, account: a })
+    e.preventDefault();
+    e.stopPropagation();
+    setRowMenu({ x: e.clientX, y: e.clientY, account: a });
   }
 
   // Escape closes the row menu.
   useEffect(() => {
-    if (!rowMenu) return
+    if (!rowMenu) return;
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setRowMenu(null)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [rowMenu])
+      if (e.key === "Escape") setRowMenu(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [rowMenu]);
 
   function accountRow(a: AccountSummary): React.JSX.Element {
-    const isActive = a.id === selectedId
-    const isOpen = expanded[a.id] ?? false
-    const cached = containersCache[a.id]
-    const loading = loadingContainers[a.id] ?? false
-    const listFailed = containersFailed[a.id] ?? false
-    const canManageContainers = a.kind === 'account' && !a.containerName
-    const isScopedContainer = a.kind !== 'account'
+    const isActive = a.id === selectedId;
+    const isOpen = expanded[a.id] ?? false;
+    const cached = containersCache[a.id];
+    const loading = loadingContainers[a.id] ?? false;
+    const listFailed = containersFailed[a.id] ?? false;
+    const canManageContainers = a.kind === "account" && !a.containerName;
+    const isScopedContainer = a.kind !== "account";
     const leaves = (
       <>
         {loading && <li className="tree-loading">Loading…</li>}
         {!loading && cached?.length === 0 && (
           <li className="tree-loading">
-            {listFailed ? 'Cannot list containers — SAS may lack permission.' : 'No containers.'}
+            {listFailed
+              ? "Cannot list containers — SAS may lack permission."
+              : "No containers."}
           </li>
         )}
         {cached?.map((c) => (
           <li key={c.name} className="tree-leaf-row">
             <button
-              className={`tree-leaf${target?.accountId === a.id && target.container === c.name ? ' active' : ''}`}
+              className={`tree-leaf${target?.accountId === a.id && target.container === c.name ? " active" : ""}`}
               onClick={() => selectAccount(a.id, c.name)}
               title={c.name}
             >
@@ -384,23 +483,33 @@ export default function App(): React.JSX.Element {
             {canManageContainers && (
               <span className="leaf-actions">
                 <button
-                  className={`mini-btn${isContainerPinned(a.endpoint, c.name) ? ' on' : ''}`}
+                  className={`mini-btn${isContainerPinned(a.endpoint, c.name) ? " on" : ""}`}
                   title={
                     isContainerPinned(a.endpoint, c.name)
                       ? `Unpin container "${c.name}" from Quick Access`
                       : `Pin container "${c.name}" to Quick Access`
                   }
-                  aria-label={isContainerPinned(a.endpoint, c.name) ? `Unpin ${c.name}` : `Pin ${c.name}`}
+                  aria-label={
+                    isContainerPinned(a.endpoint, c.name)
+                      ? `Unpin ${c.name}`
+                      : `Pin ${c.name}`
+                  }
                   aria-pressed={isContainerPinned(a.endpoint, c.name)}
                   onClick={() => toggleContainerPin(a, c.name)}
                 >
-                  <Icon name="star" size={14} filled={isContainerPinned(a.endpoint, c.name)} />
+                  <Icon
+                    name="star"
+                    size={14}
+                    filled={isContainerPinned(a.endpoint, c.name)}
+                  />
                 </button>
                 <button
                   className="mini-btn"
                   title={`Rename container "${c.name}"`}
                   aria-label={`Rename container ${c.name}`}
-                  onClick={() => setRenameContainerFor({ accountId: a.id, name: c.name })}
+                  onClick={() =>
+                    setRenameContainerFor({ accountId: a.id, name: c.name })
+                  }
                 >
                   <Icon name="pencil" size={14} />
                 </button>
@@ -408,7 +517,9 @@ export default function App(): React.JSX.Element {
                   className="mini-btn danger-x"
                   title={`Delete container "${c.name}"`}
                   aria-label={`Delete container ${c.name}`}
-                  onClick={() => setDeleteContainerFor({ accountId: a.id, name: c.name })}
+                  onClick={() =>
+                    setDeleteContainerFor({ accountId: a.id, name: c.name })
+                  }
                 >
                   <Icon name="trash" size={14} />
                 </button>
@@ -417,15 +528,15 @@ export default function App(): React.JSX.Element {
           </li>
         ))}
       </>
-    )
+    );
     return (
       <li key={a.id} className="tree-account">
-        <div className={`tree-row${isActive ? ' active' : ''}`}>
+        <div className={`tree-row${isActive ? " active" : ""}`}>
           {isScopedContainer ? (
             <span className="twisty leaf-spacer" aria-hidden />
           ) : (
             <button
-              className={`twisty${isOpen ? ' open' : ''}`}
+              className={`twisty${isOpen ? " open" : ""}`}
               onClick={() => toggleExpand(a.id)}
               aria-label={isOpen ? `Collapse ${a.name}` : `Expand ${a.name}`}
               aria-expanded={isOpen}
@@ -436,10 +547,13 @@ export default function App(): React.JSX.Element {
           <button
             className="tree-main"
             onClick={() => {
-              selectAccount(a.id, a.kind === 'account' ? null : (a.containerName ?? null))
-              if (!isOpen && !isScopedContainer) toggleExpand(a.id)
+              selectAccount(
+                a.id,
+                a.kind === "account" ? null : (a.containerName ?? null),
+              );
+              if (!isOpen && !isScopedContainer) toggleExpand(a.id);
             }}
-            title={`${a.name}\n${a.containerName ? `Container: ${a.containerName}\n` : ''}Endpoint: ${a.endpoint}`}
+            title={`${a.name}\n${a.containerName ? `Container: ${a.containerName}\n` : ""}Endpoint: ${a.endpoint}`}
           >
             <span className={`kind-ico ${a.kind}`} aria-hidden />
             <span className="tree-text">
@@ -451,24 +565,35 @@ export default function App(): React.JSX.Element {
                   onChange={(e) => setRenameValue(e.target.value)}
                   onBlur={() => void commitRename(a.id)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') void commitRename(a.id)
-                    if (e.key === 'Escape') setRenamingId(null)
+                    if (e.key === "Enter") void commitRename(a.id);
+                    if (e.key === "Escape") setRenamingId(null);
                   }}
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
-                <span className="account-name" title={a.name}>{a.name}</span>
+                <span className="account-name" title={a.name}>
+                  {a.name}
+                </span>
               )}
-              <span className="account-sub" title={a.containerName ?? a.accountName ?? hostOf(a.endpoint)}>
+              <span
+                className="account-sub"
+                title={a.containerName ?? a.accountName ?? hostOf(a.endpoint)}
+              >
                 {a.containerName ?? a.accountName ?? hostOf(a.endpoint)}
               </span>
             </span>
           </button>
           <span className="tree-actions">
             <button
-              className={`mini-btn${a.pinned ? ' on' : ''}`}
-              title={a.pinned ? 'Unpin from Quick Access' : 'Pin to Quick Access'}
-              aria-label={a.pinned ? `Unpin ${a.name} from Quick Access` : `Pin ${a.name} to Quick Access`}
+              className={`mini-btn${a.pinned ? " on" : ""}`}
+              title={
+                a.pinned ? "Unpin from Quick Access" : "Pin to Quick Access"
+              }
+              aria-label={
+                a.pinned
+                  ? `Unpin ${a.name} from Quick Access`
+                  : `Pin ${a.name} to Quick Access`
+              }
               aria-pressed={Boolean(a.pinned)}
               onClick={() =>
                 window.api.accounts
@@ -489,7 +614,7 @@ export default function App(): React.JSX.Element {
             </button>
           </span>
         </div>
-        {isOpen && a.kind === 'account' && (
+        {isOpen && a.kind === "account" && (
           <ul className="tree-containers">
             <li className="group-row">
               <span className="kind-ico service" aria-hidden />
@@ -508,15 +633,21 @@ export default function App(): React.JSX.Element {
           </ul>
         )}
       </li>
-    )
+    );
   }
 
   return (
     <div
-      className={`shell${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}
-      data-platform={platform ?? 'unknown'}
+      className={`shell${sidebarCollapsed ? " sidebar-collapsed" : ""}`}
+      data-platform={platform ?? "unknown"}
       data-theme={prefs.theme}
-      data-vibrancy={platform === null ? undefined : platform === 'darwin' && prefs.vibrancy ? 'on' : 'off'}
+      data-vibrancy={
+        platform === null
+          ? undefined
+          : platform === "darwin" && prefs.vibrancy
+            ? "on"
+            : "off"
+      }
       data-accent={prefs.accent}
       data-density={prefs.density}
       data-motion={prefs.motion}
@@ -531,7 +662,12 @@ export default function App(): React.JSX.Element {
         <div className="brand">
           {/* Psst: triple-click the logo (views/easter-egg). */}
           <div className="brand-logo-frame" onClick={brandEgg.onClick}>
-            <img src={logoUrl} alt="Blobfish" className="brand-logo-img" draggable={false} />
+            <img
+              src={logoUrl}
+              alt="Blobfish"
+              className="brand-logo-img"
+              draggable={false}
+            />
           </div>
           <div className="brand-details">
             <div className="brand-name-row">
@@ -544,67 +680,103 @@ export default function App(): React.JSX.Element {
 
         <nav className="side-nav" aria-label="Sidebar">
           <button
-            className={`side-nav-btn${selectedId === null && !showSettings ? ' is-current' : ''}`}
-            aria-current={selectedId === null && !showSettings ? 'page' : undefined}
+            className={`side-nav-btn${selectedId === null && !showSettings ? " is-current" : ""}`}
+            aria-current={
+              selectedId === null && !showSettings ? "page" : undefined
+            }
             onClick={() => {
-              setShowSettings(false)
-              goHome()
+              setShowSettings(false);
+              goHome();
             }}
           >
             <Icon name="home" size={15} />
             <span>Home</span>
           </button>
-          <button className="side-nav-btn side-nav-new" onClick={() => setShowWizard(true)}>
+          <button
+            className="side-nav-btn side-nav-new"
+            onClick={() => setShowWizard(true)}
+          >
             <Icon name="plus" size={15} />
             <span>New connection</span>
           </button>
         </nav>
         {encAvailable === false && (
-          <p className="error-text small">Keychain encryption unavailable — attach disabled.</p>
+          <p className="error-text small">
+            Keychain encryption unavailable — attach disabled.
+          </p>
         )}
         {secretError && (
-          <p className="error-text small">Secret action failed: {secretError}</p>
+          <p className="error-text small">
+            Secret action failed: {secretError}
+          </p>
         )}
 
         <div className="tree-scroll">
           {pinned.length > 0 && (
             <section className="tree-section">
-              <button className="section-toggle" onClick={() => setQuickOpen((v) => !v)}>
-                <span className={`twisty${quickOpen ? ' open' : ''}`} aria-hidden><Icon name="chevronRight" size={13} /></span>
-                <span className="star" aria-hidden><Icon name="star" size={13} filled /></span> Quick Access
+              <button
+                className="section-toggle"
+                onClick={() => setQuickOpen((v) => !v)}
+              >
+                <span
+                  className={`twisty${quickOpen ? " open" : ""}`}
+                  aria-hidden
+                >
+                  <Icon name="chevronRight" size={13} />
+                </span>
+                <span className="star" aria-hidden>
+                  <Icon name="star" size={13} filled />
+                </span>{" "}
+                Quick Access
               </button>
               {quickOpen && <ul className="tree">{pinned.map(accountRow)}</ul>}
             </section>
           )}
 
           <section className="tree-section">
-            <button className="section-toggle" onClick={() => setAllOpen((v) => !v)}>
-              <span className={`twisty${allOpen ? ' open' : ''}`} aria-hidden><Icon name="chevronRight" size={13} /></span>
+            <button
+              className="section-toggle"
+              onClick={() => setAllOpen((v) => !v)}
+            >
+              <span className={`twisty${allOpen ? " open" : ""}`} aria-hidden>
+                <Icon name="chevronRight" size={13} />
+              </span>
               Storage accounts
               <span className="count">{visibleAccounts.length}</span>
             </button>
-            {allOpen && (
-              visibleAccounts.length === 0 && visibleContainers.length === 0 ? (
+            {allOpen &&
+              (visibleAccounts.length === 0 &&
+              visibleContainers.length === 0 ? (
                 <div className="empty-sidebar-card">
                   <p className="empty-sidebar-title">No storage accounts</p>
                   <p className="muted small empty-note">
-                    Connect with a connection string, SAS URL, or account key to get started.
+                    Connect with a connection string, SAS URL, or account key to
+                    get started.
                   </p>
                 </div>
               ) : (
                 <ul className="tree">{visibleAccounts.map(accountRow)}</ul>
-              )
-            )}
+              ))}
           </section>
 
           {visibleContainers.length > 0 && (
             <section className="tree-section">
-              <button className="section-toggle" onClick={() => setAttachedOpen((v) => !v)}>
-                <span className={`twisty${attachedOpen ? ' open' : ''}`} aria-hidden><Icon name="chevronRight" size={13} /></span>
+              <button
+                className="section-toggle"
+                onClick={() => setAttachedOpen((v) => !v)}
+              >
+                <span
+                  className={`twisty${attachedOpen ? " open" : ""}`}
+                  aria-hidden
+                >
+                  <Icon name="chevronRight" size={13} />
+                </span>
                 Attached containers
                 <span className="count">{visibleContainers.length}</span>
               </button>
-              {attachedOpen && <ul className="tree">{visibleContainers.map(accountRow)}</ul>}
+              {attachedOpen && (
+                <ul className="tree">{visibleContainers.map(accountRow)}</ul>
+              )}
             </section>
           )}
         </div>
@@ -619,11 +791,11 @@ export default function App(): React.JSX.Element {
             <Icon name="sidebar" size={17} />
           </button>
           <button
-            className={`side-foot-btn${showSettings ? ' is-current' : ''}`}
-            aria-current={showSettings ? 'page' : undefined}
+            className={`side-foot-btn${showSettings ? " is-current" : ""}`}
+            aria-current={showSettings ? "page" : undefined}
             onClick={() => setShowSettings(true)}
-            title={`Settings (⌘,)\n${accounts.length} ${accounts.length === 1 ? 'connection' : 'connections'} · OS Keychain encrypted${appVersion ? ` · v${appVersion}` : ''}`}
-            aria-label={updateBadge ? 'Settings, update available' : 'Settings'}
+            title={`Settings (⌘,)\n${accounts.length} ${accounts.length === 1 ? "connection" : "connections"} · OS Keychain encrypted${appVersion ? ` · v${appVersion}` : ""}`}
+            aria-label={updateBadge ? "Settings, update available" : "Settings"}
           >
             <Icon name="settings" size={17} />
             {updateBadge && <span className="update-dot" aria-hidden />}
@@ -640,13 +812,13 @@ export default function App(): React.JSX.Element {
       </aside>
 
       <div
-        className={`sidebar-resizer${isDraggingSidebar ? ' dragging' : ''}`}
+        className={`sidebar-resizer${isDraggingSidebar ? " dragging" : ""}`}
         onMouseDown={(e) => {
-          e.preventDefault()
-          setIsDraggingSidebar(true)
+          e.preventDefault();
+          setIsDraggingSidebar(true);
         }}
         onDoubleClick={() => {
-          setSidebarWidth((w) => (w > 360 ? 300 : 440))
+          setSidebarWidth((w) => (w > 360 ? 300 : 440));
         }}
         title="Drag to resize sidebar · Double-click to toggle width"
         aria-label="Resize sidebar"
@@ -667,7 +839,7 @@ export default function App(): React.JSX.Element {
           {showSettings ? (
             <SettingsView
               prefs={prefs}
-              vibrancySupported={platform === 'darwin'}
+              vibrancySupported={platform === "darwin"}
               connectionCount={accounts.length}
               onConnectionsChanged={refreshAccounts}
               onChange={updatePrefs}
@@ -679,7 +851,7 @@ export default function App(): React.JSX.Element {
               account={selected}
               target={target?.accountId === selected?.id ? target : null}
               onOpenContainer={(c) => {
-                if (selected) selectAccount(selected.id, c)
+                if (selected) selectAccount(selected.id, c);
               }}
               onChanged={refreshAccounts}
               onContainersChanged={invalidateContainers}
@@ -693,13 +865,15 @@ export default function App(): React.JSX.Element {
             />
           )}
         </main>
-        {!showSettings && <TransfersPanel onOpenSettings={() => setShowSettings(true)} />}
+        {!showSettings && (
+          <TransfersPanel onOpenSettings={() => setShowSettings(true)} />
+        )}
       </div>
 
       {paletteOpen && (
         <Suspense fallback={null}>
           <CommandPalette
-            platform={platform ?? 'darwin'}
+            platform={platform ?? "darwin"}
             accounts={accounts}
             containersCache={containersCache}
             selectedId={selectedId}
@@ -708,22 +882,22 @@ export default function App(): React.JSX.Element {
             app={{
               newConnection: () => setShowWizard(true),
               goHome: () => {
-                setShowSettings(false)
-                goHome()
+                setShowSettings(false);
+                goHome();
               },
               openSettings: () => setShowSettings(true),
               toggleSidebar: () => setSidebarCollapsed((v) => !v),
               setTheme: (theme) => updatePrefs({ ...prefs, theme }),
               open: (accountId, container, prefix) => {
-                setShowSettings(false)
-                selectAccount(accountId, container, prefix)
+                setShowSettings(false);
+                selectAccount(accountId, container, prefix);
               },
               copySecret,
               panel: (action) => {
                 // The dock only exists outside Settings; let it mount first.
-                setShowSettings(false)
-                window.setTimeout(() => sendPanelAction(action), 0)
-              }
+                setShowSettings(false);
+                window.setTimeout(() => sendPanelAction(action), 0);
+              },
             }}
           />
         </Suspense>
@@ -733,11 +907,11 @@ export default function App(): React.JSX.Element {
         <ConnectWizard
           onClose={() => setShowWizard(false)}
           onAdded={(a) => {
-            refreshAccounts()
-            selectAccount(a.id, a.containerName ?? null)
-            if (a.kind === 'account') {
-              setExpanded((p) => ({ ...p, [a.id]: true }))
-              ensureContainers(a.id)
+            refreshAccounts();
+            selectAccount(a.id, a.containerName ?? null);
+            if (a.kind === "account") {
+              setExpanded((p) => ({ ...p, [a.id]: true }));
+              ensureContainers(a.id);
             }
           }}
         />
@@ -750,19 +924,19 @@ export default function App(): React.JSX.Element {
           confirmLabel="Detach"
           onCancel={() => setDetachFor(null)}
           onConfirm={async () => {
-            const id = detachFor.id
-            await window.api.accounts.remove(id)
+            const id = detachFor.id;
+            await window.api.accounts.remove(id);
             setContainersCache((p) => {
-              const next = { ...p }
-              delete next[id]
-              return next
-            })
+              const next = { ...p };
+              delete next[id];
+              return next;
+            });
             setContainersFailed((p) => {
-              const next = { ...p }
-              delete next[id]
-              return next
-            })
-            refreshAccounts()
+              const next = { ...p };
+              delete next[id];
+              return next;
+            });
+            refreshAccounts();
           }}
         />
       )}
@@ -776,7 +950,7 @@ export default function App(): React.JSX.Element {
             aria-label={`Actions for ${rowMenu.account.name}`}
             style={{
               left: `${Math.min(rowMenu.x, window.innerWidth - 240)}px`,
-              top: `${Math.min(rowMenu.y, window.innerHeight - 280)}px`
+              top: `${Math.min(rowMenu.y, window.innerHeight - 280)}px`,
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -786,16 +960,20 @@ export default function App(): React.JSX.Element {
               title="Copy the SAS URL / connection string to the clipboard"
             >
               {copiedSecretId === rowMenu.account.id ? (
-                <><Icon name="check" size={14} /> Copied to clipboard</>
+                <>
+                  <Icon name="check" size={14} /> Copied to clipboard
+                </>
               ) : (
-                <><Icon name="copy" size={14} /> Copy connection secret</>
+                <>
+                  <Icon name="copy" size={14} /> Copy connection secret
+                </>
               )}
             </button>
             <button
               role="menuitem"
               onClick={() => {
-                setRowMenu(null)
-                exportSecret(rowMenu.account.id)
+                setRowMenu(null);
+                exportSecret(rowMenu.account.id);
               }}
             >
               <Icon name="fileDown" size={14} /> Export secret to file…
@@ -803,9 +981,9 @@ export default function App(): React.JSX.Element {
             <button
               role="menuitem"
               onClick={() => {
-                setRowMenu(null)
-                setRenamingId(rowMenu.account.id)
-                setRenameValue(rowMenu.account.name)
+                setRowMenu(null);
+                setRenamingId(rowMenu.account.id);
+                setRenameValue(rowMenu.account.name);
               }}
             >
               <Icon name="pencil" size={14} /> Rename…
@@ -815,8 +993,8 @@ export default function App(): React.JSX.Element {
               role="menuitem"
               className="danger"
               onClick={() => {
-                setRowMenu(null)
-                setDetachFor(rowMenu.account)
+                setRowMenu(null);
+                setDetachFor(rowMenu.account);
               }}
             >
               <Icon name="close" size={14} /> Detach…
@@ -835,14 +1013,17 @@ export default function App(): React.JSX.Element {
           validate={(v) =>
             /^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$/.test(v)
               ? null
-              : 'Use 3–63 lowercase letters, numbers and dashes.'
+              : "Use 3–63 lowercase letters, numbers and dashes."
           }
           onCancel={() => setCreateFor(null)}
           onSubmit={async (v) => {
-            const id = createFor
-            await window.api.storage.createContainer({ accountId: id, container: v })
-            setExpanded((p) => ({ ...p, [id]: true }))
-            invalidateContainers(id)
+            const id = createFor;
+            await window.api.storage.createContainer({
+              accountId: id,
+              container: v,
+            });
+            setExpanded((p) => ({ ...p, [id]: true }));
+            invalidateContainers(id);
           }}
         />
       )}
@@ -858,19 +1039,19 @@ export default function App(): React.JSX.Element {
           validate={(v) =>
             /^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$/.test(v)
               ? null
-              : 'Use 3–63 lowercase letters, numbers and dashes.'
+              : "Use 3–63 lowercase letters, numbers and dashes."
           }
           onCancel={() => setRenameContainerFor(null)}
           onSubmit={async (v) => {
-            const { accountId, name } = renameContainerFor
+            const { accountId, name } = renameContainerFor;
             const dest = await window.api.storage.renameContainer({
               accountId,
               source: name,
-              dest: v
-            })
-            invalidateContainers(accountId)
+              dest: v,
+            });
+            invalidateContainers(accountId);
             if (target?.accountId === accountId && target.container === name) {
-              selectAccount(accountId, dest)
+              selectAccount(accountId, dest);
             }
           }}
         />
@@ -884,26 +1065,33 @@ export default function App(): React.JSX.Element {
           confirmLabel="Delete"
           onCancel={() => setDeleteContainerFor(null)}
           onConfirm={async () => {
-            const { accountId, name } = deleteContainerFor
-            await window.api.storage.deleteContainer({ accountId, container: name })
-            invalidateContainers(accountId)
+            const { accountId, name } = deleteContainerFor;
+            await window.api.storage.deleteContainer({
+              accountId,
+              container: name,
+            });
+            invalidateContainers(accountId);
             if (target?.accountId === accountId && target.container === name) {
-              selectAccount(accountId, null)
+              selectAccount(accountId, null);
             }
           }}
         />
       )}
       {brandEgg.open && (
-        <BrandEasterEgg logoUrl={logoUrl} reducedMotion={prefs.motion === 'reduced'} onClose={brandEgg.close} />
+        <BrandEasterEgg
+          logoUrl={logoUrl}
+          reducedMotion={prefs.motion === "reduced"}
+          onClose={brandEgg.close}
+        />
       )}
     </div>
-  )
+  );
 }
 
 function hostOf(endpoint: string): string {
   try {
-    return new URL(endpoint).host
+    return new URL(endpoint).host;
   } catch {
-    return endpoint
+    return endpoint;
   }
 }

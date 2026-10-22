@@ -1,170 +1,194 @@
-import { app, safeStorage } from 'electron'
-import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { app, safeStorage } from "electron";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type {
   AccountCreateInput,
   AccountSummary,
   AccountUpdateInput,
   AuthType,
-  StorageKind
-} from '../shared/types'
+  StorageKind,
+} from "../shared/types";
 import {
   cleanPrefix,
   isConnectionString,
   joinPrefix,
   parseConnectionString,
   parseSasUrl,
-  suggestDisplayName
-} from '../shared/parse'
-import { connectionKey, validEntry, type BackupEntry } from './backup'
-import { ensureEncryption as ensureAsyncEncryption, migrateSecrets, openSecret, sealSecret } from './secret-seal'
+  suggestDisplayName,
+} from "../shared/parse";
+import { connectionKey, validEntry, type BackupEntry } from "./backup";
+import {
+  ensureEncryption as ensureAsyncEncryption,
+  migrateSecrets,
+  openSecret,
+  sealSecret,
+} from "./secret-seal";
 
-export { isConnectionString, parseConnectionString, parseSasUrl }
+export { isConnectionString, parseConnectionString, parseSasUrl };
 
 interface StoredAccount extends AccountSummary {
-  encryptedSecret: string
+  encryptedSecret: string;
 }
 
 interface AccountsFile {
-  version: 1
-  accounts: StoredAccount[]
+  version: 1;
+  accounts: StoredAccount[];
 }
 
-const FILE_NAME = 'accounts.json'
+const FILE_NAME = "accounts.json";
 
 function accountsPath(): string {
-  return join(app.getPath('userData'), FILE_NAME)
+  return join(app.getPath("userData"), FILE_NAME);
 }
 
 function readFile(): AccountsFile {
-  const p = accountsPath()
-  if (!existsSync(p)) return { version: 1, accounts: [] }
+  const p = accountsPath();
+  if (!existsSync(p)) return { version: 1, accounts: [] };
   try {
-    const raw = readFileSync(p, 'utf8')
-    const parsed = JSON.parse(raw) as AccountsFile
-    if (!Array.isArray(parsed.accounts)) return { version: 1, accounts: [] }
-    return { version: 1, accounts: parsed.accounts }
+    const raw = readFileSync(p, "utf8");
+    const parsed = JSON.parse(raw) as AccountsFile;
+    if (!Array.isArray(parsed.accounts)) return { version: 1, accounts: [] };
+    return { version: 1, accounts: parsed.accounts };
   } catch {
-    return { version: 1, accounts: [] }
+    return { version: 1, accounts: [] };
   }
 }
 
 function writeFile(data: AccountsFile): void {
-  mkdirSync(app.getPath('userData'), { recursive: true })
-  writeFileSync(accountsPath(), JSON.stringify(data, null, 2), 'utf8')
+  mkdirSync(app.getPath("userData"), { recursive: true });
+  writeFileSync(accountsPath(), JSON.stringify(data, null, 2), "utf8");
 }
 
 // Electron 45: async safeStorage only (the sync calls are deprecated). See secret-seal.ts.
 function ensureEncryption(): Promise<void> {
-  return ensureAsyncEncryption(safeStorage)
+  return ensureAsyncEncryption(safeStorage);
 }
 
 /** Persist a re-sealed secret onto a fresh read, only if the entry still holds the old ciphertext. */
 function persistReseal(id: string, prev: string, next: string): void {
-  const data = readFile()
-  const entry = data.accounts.find((a) => a.id === id)
-  if (!entry || entry.encryptedSecret !== prev) return
-  entry.encryptedSecret = next
-  writeFile(data)
+  const data = readFile();
+  const entry = data.accounts.find((a) => a.id === id);
+  if (!entry || entry.encryptedSecret !== prev) return;
+  entry.encryptedSecret = next;
+  writeFile(data);
 }
 
 function stripSecret(stored: StoredAccount): AccountSummary {
-  const { encryptedSecret: _drop, ...summary } = stored
-  return summary
+  const { encryptedSecret: _drop, ...summary } = stored;
+  return summary;
 }
 
 /* ---------- store ---------- */
 
 export function listAccounts(): AccountSummary[] {
-  return readFile().accounts.map(stripSecret)
+  return readFile().accounts.map(stripSecret);
 }
 
 export function getStoredAccount(id: string): StoredAccount {
-  const found = readFile().accounts.find((a) => a.id === id)
-  if (!found) throw new Error('Storage account not found.')
-  return found
+  const found = readFile().accounts.find((a) => a.id === id);
+  if (!found) throw new Error("Storage account not found.");
+  return found;
 }
 
 /** Decrypt the connection secret for an account. Main-process only. */
-export async function decryptSecret(id: string): Promise<{ profile: AccountSummary; secret: string }> {
-  const stored = getStoredAccount(id)
-  const prev = stored.encryptedSecret
-  const secret = await openSecret(safeStorage, prev, (next) => persistReseal(id, prev, next))
-  return { profile: stripSecret(stored), secret }
+export async function decryptSecret(
+  id: string,
+): Promise<{ profile: AccountSummary; secret: string }> {
+  const stored = getStoredAccount(id);
+  const prev = stored.encryptedSecret;
+  const secret = await openSecret(safeStorage, prev, (next) =>
+    persistReseal(id, prev, next),
+  );
+  return { profile: stripSecret(stored), secret };
 }
 
-let migrated = false
+let migrated = false;
 /**
  * Once per launch (after app ready): re-seal any stored secrets the async
  * decryptor flags for re-encryption. Existing sync-API ciphertext reads fine
  * either way, so this is housekeeping, never a blocker.
  */
 export function migrateAccountSecrets(): void {
-  if (migrated) return
-  migrated = true
-  const data = readFile()
-  if (data.accounts.length === 0) return
-  const before = new Map(data.accounts.map((a) => [a.id, a.encryptedSecret]))
+  if (migrated) return;
+  migrated = true;
+  const data = readFile();
+  if (data.accounts.length === 0) return;
+  const before = new Map(data.accounts.map((a) => [a.id, a.encryptedSecret]));
   void migrateSecrets(safeStorage, data.accounts, () => {
     // Merge onto a fresh read so anything added/removed meanwhile isn't clobbered.
-    const fresh = readFile()
+    const fresh = readFile();
     for (const a of fresh.accounts) {
-      const next = data.accounts.find((x) => x.id === a.id)?.encryptedSecret
-      if (next !== undefined && a.encryptedSecret === before.get(a.id)) a.encryptedSecret = next
+      const next = data.accounts.find((x) => x.id === a.id)?.encryptedSecret;
+      if (next !== undefined && a.encryptedSecret === before.get(a.id))
+        a.encryptedSecret = next;
     }
-    writeFile(fresh)
+    writeFile(fresh);
   }).catch((err: unknown) => {
-    console.warn('[accounts] secret migration failed', err instanceof Error ? err.message : String(err))
-  })
+    console.warn(
+      "[accounts] secret migration failed",
+      err instanceof Error ? err.message : String(err),
+    );
+  });
 }
 
-export async function addAccount(input: AccountCreateInput): Promise<AccountSummary> {
-  await ensureEncryption()
-  const kind: StorageKind = input.kind
-  const secret = input.secret.trim()
-  if (secret === '') throw new Error('Connection string or SAS URL is required.')
+export async function addAccount(
+  input: AccountCreateInput,
+): Promise<AccountSummary> {
+  await ensureEncryption();
+  const kind: StorageKind = input.kind;
+  const secret = input.secret.trim();
+  if (secret === "")
+    throw new Error("Connection string or SAS URL is required.");
 
-  let endpoint: string
-  let accountName: string | undefined
-  let authType: AuthType
-  let containerName: string | undefined
-  let prefix: string | undefined
-  let sasExpiry: string | null | undefined
+  let endpoint: string;
+  let accountName: string | undefined;
+  let authType: AuthType;
+  let containerName: string | undefined;
+  let prefix: string | undefined;
+  let sasExpiry: string | null | undefined;
 
   if (isConnectionString(secret)) {
-    authType = 'connection-string'
-    const parsed = parseConnectionString(secret)
-    endpoint = parsed.endpoint
-    accountName = parsed.accountName
-    containerName = input.containerName?.trim() || undefined
-    prefix = cleanPrefix(input.prefix)
-    if (kind !== 'account' && !containerName) {
-      throw new Error('Container name is required when attaching with a connection string.')
+    authType = "connection-string";
+    const parsed = parseConnectionString(secret);
+    endpoint = parsed.endpoint;
+    accountName = parsed.accountName;
+    containerName = input.containerName?.trim() || undefined;
+    prefix = cleanPrefix(input.prefix);
+    if (kind !== "account" && !containerName) {
+      throw new Error(
+        "Container name is required when attaching with a connection string.",
+      );
     }
   } else {
-    authType = 'sas'
-    const parsed = parseSasUrl(secret)
-    endpoint = parsed.endpoint
-    accountName = parsed.accountName
-    sasExpiry = parsed.sasExpiry
+    authType = "sas";
+    const parsed = parseSasUrl(secret);
+    endpoint = parsed.endpoint;
+    accountName = parsed.accountName;
+    sasExpiry = parsed.sasExpiry;
     // Explicit fields win; otherwise derive container/prefix from the URL path.
-    containerName = input.containerName?.trim() || parsed.containerName
-    prefix = joinPrefix(parsed.prefix, input.prefix) ?? cleanPrefix(input.prefix)
-    if (kind !== 'account' && !containerName) {
-      throw new Error('That SAS URL has no container path. Attach as account/service instead, or add a container name.')
+    containerName = input.containerName?.trim() || parsed.containerName;
+    prefix =
+      joinPrefix(parsed.prefix, input.prefix) ?? cleanPrefix(input.prefix);
+    if (kind !== "account" && !containerName) {
+      throw new Error(
+        "That SAS URL has no container path. Attach as account/service instead, or add a container name.",
+      );
     }
   }
 
   // Normalise dfs vs blob host per kind (informational; azure.ts picks the SDK).
-  if (kind === 'adls-container' && endpoint.includes('.blob.')) {
-    endpoint = endpoint.replace('.blob.', '.dfs.')
+  if (kind === "adls-container" && endpoint.includes(".blob.")) {
+    endpoint = endpoint.replace(".blob.", ".dfs.");
   }
 
   const stored: StoredAccount = {
     id: randomUUID(),
     // Empty name → derive from the secret (AccountName=…, SAS host/container).
-    name: input.name.trim() || suggestDisplayName(secret, containerName, prefix) || 'Storage',
+    name:
+      input.name.trim() ||
+      suggestDisplayName(secret, containerName, prefix) ||
+      "Storage",
     kind,
     endpoint,
     containerName,
@@ -174,46 +198,49 @@ export async function addAccount(input: AccountCreateInput): Promise<AccountSumm
     createdAt: Date.now(),
     sasExpiry: sasExpiry ?? null,
     pinned: false,
-    encryptedSecret: await sealSecret(safeStorage, secret)
-  }
-  const data = readFile()
-  data.accounts.push(stored)
-  writeFile(data)
-  return stripSecret(stored)
+    encryptedSecret: await sealSecret(safeStorage, secret),
+  };
+  const data = readFile();
+  data.accounts.push(stored);
+  writeFile(data);
+  return stripSecret(stored);
 }
 
 export function removeAccount(id: string): boolean {
-  const data = readFile()
-  const next = data.accounts.filter((a) => a.id !== id)
-  if (next.length === data.accounts.length) return false
-  writeFile({ version: 1, accounts: next })
-  return true
+  const data = readFile();
+  const next = data.accounts.filter((a) => a.id !== id);
+  if (next.length === data.accounts.length) return false;
+  writeFile({ version: 1, accounts: next });
+  return true;
 }
 
-export function updateAccount(id: string, patch: AccountUpdateInput): AccountSummary {
-  const data = readFile()
-  const idx = data.accounts.findIndex((a) => a.id === id)
-  if (idx === -1) throw new Error('Storage account not found.')
-  const current = data.accounts[idx]!
+export function updateAccount(
+  id: string,
+  patch: AccountUpdateInput,
+): AccountSummary {
+  const data = readFile();
+  const idx = data.accounts.findIndex((a) => a.id === id);
+  if (idx === -1) throw new Error("Storage account not found.");
+  const current = data.accounts[idx]!;
   if (patch.name !== undefined) {
-    const name = patch.name.trim()
-    if (name === '') throw new Error('Display name cannot be empty.')
-    current.name = name
+    const name = patch.name.trim();
+    if (name === "") throw new Error("Display name cannot be empty.");
+    current.name = name;
   }
   if (patch.prefix !== undefined) {
-    current.prefix = cleanPrefix(patch.prefix)
+    current.prefix = cleanPrefix(patch.prefix);
   }
-  writeFile(data)
-  return stripSecret(current)
+  writeFile(data);
+  return stripSecret(current);
 }
 
 export function setPinned(id: string, pinned: boolean): AccountSummary {
-  const data = readFile()
-  const idx = data.accounts.findIndex((a) => a.id === id)
-  if (idx === -1) throw new Error('Storage account not found.')
-  data.accounts[idx]!.pinned = pinned
-  writeFile(data)
-  return stripSecret(data.accounts[idx]!)
+  const data = readFile();
+  const idx = data.accounts.findIndex((a) => a.id === id);
+  if (idx === -1) throw new Error("Storage account not found.");
+  data.accounts[idx]!.pinned = pinned;
+  writeFile(data);
+  return stripSecret(data.accounts[idx]!);
 }
 
 /**
@@ -222,21 +249,28 @@ export function setPinned(id: string, pinned: boolean): AccountSummary {
  * needed. Idempotent — returns the existing attachment when one already
  * covers the same endpoint + container.
  */
-export async function pinContainerAttachment(sourceId: string, containerRaw: string): Promise<AccountSummary> {
-  await ensureEncryption()
-  const container = containerRaw.trim()
-  if (container === '') throw new Error('Container name is required.')
-  const { profile, secret } = await decryptSecret(sourceId)
-  const data = readFile()
+export async function pinContainerAttachment(
+  sourceId: string,
+  containerRaw: string,
+): Promise<AccountSummary> {
+  await ensureEncryption();
+  const container = containerRaw.trim();
+  if (container === "") throw new Error("Container name is required.");
+  const { profile, secret } = await decryptSecret(sourceId);
+  const data = readFile();
   const existing = data.accounts.find(
-    (a) => a.endpoint === profile.endpoint && (a.containerName ?? '').toLowerCase() === container.toLowerCase()
-  )
+    (a) =>
+      a.endpoint === profile.endpoint &&
+      (a.containerName ?? "").toLowerCase() === container.toLowerCase(),
+  );
   if (existing) {
-    existing.pinned = true
-    writeFile(data)
-    return stripSecret(existing)
+    existing.pinned = true;
+    writeFile(data);
+    return stripSecret(existing);
   }
-  const kind: StorageKind = profile.endpoint.includes('.dfs.') ? 'adls-container' : 'blob-container'
+  const kind: StorageKind = profile.endpoint.includes(".dfs.")
+    ? "adls-container"
+    : "blob-container";
   const stored: StoredAccount = {
     id: randomUUID(),
     name: `${profile.name} / ${container}`,
@@ -249,24 +283,24 @@ export async function pinContainerAttachment(sourceId: string, containerRaw: str
     createdAt: Date.now(),
     sasExpiry: profile.sasExpiry ?? null,
     pinned: true,
-    encryptedSecret: await sealSecret(safeStorage, secret)
-  }
-  data.accounts.push(stored)
-  writeFile(data)
-  return stripSecret(stored)
+    encryptedSecret: await sealSecret(safeStorage, secret),
+  };
+  data.accounts.push(stored);
+  writeFile(data);
+  return stripSecret(stored);
 }
 
 export function encryptionAvailable(): Promise<boolean> {
-  return safeStorage.isAsyncEncryptionAvailable()
+  return safeStorage.isAsyncEncryptionAvailable();
 }
 
 /* ---------- backup / restore (see backup.ts) ---------- */
 
 /** Every connection with its secret in the clear. Main-process only; goes straight into encryptBackup. */
 export async function exportAllForBackup(): Promise<BackupEntry[]> {
-  const out: BackupEntry[] = []
+  const out: BackupEntry[] = [];
   for (const a of readFile().accounts) {
-    const { secret } = await decryptSecret(a.id)
+    const { secret } = await decryptSecret(a.id);
     out.push({
       name: a.name,
       kind: a.kind,
@@ -278,67 +312,69 @@ export async function exportAllForBackup(): Promise<BackupEntry[]> {
       createdAt: a.createdAt,
       sasExpiry: a.sasExpiry ?? null,
       pinned: a.pinned ?? false,
-      secret
-    })
+      secret,
+    });
   }
-  return out
+  return out;
 }
 
 export interface RestoreResult {
-  added: number
-  skipped: number
-  invalid: number
+  added: number;
+  skipped: number;
+  invalid: number;
 }
 
 /**
  * Merge backed-up connections into the store: never replaces or deletes anything. A connection
  * already here (same kind/endpoint/container/prefix/secret) is skipped, so restoring twice is a no-op.
  */
-export async function restoreFromBackup(entries: unknown[]): Promise<RestoreResult> {
-  await ensureEncryption()
-  const existing = new Set<string>()
+export async function restoreFromBackup(
+  entries: unknown[],
+): Promise<RestoreResult> {
+  await ensureEncryption();
+  const existing = new Set<string>();
   for (const a of readFile().accounts) {
     try {
-      const { secret } = await decryptSecret(a.id)
-      existing.add(connectionKey(a, secret))
+      const { secret } = await decryptSecret(a.id);
+      existing.add(connectionKey(a, secret));
     } catch {
       // unreadable local secret: can't be a duplicate of anything
     }
   }
-  const fresh: StoredAccount[] = []
-  let skipped = 0
-  let invalid = 0
+  const fresh: StoredAccount[] = [];
+  let skipped = 0;
+  let invalid = 0;
   for (const e of entries) {
     if (!validEntry(e)) {
-      invalid++
-      continue
+      invalid++;
+      continue;
     }
-    const secret = e.secret.trim()
-    const key = connectionKey(e, secret)
+    const secret = e.secret.trim();
+    const key = connectionKey(e, secret);
     if (existing.has(key)) {
-      skipped++
-      continue
+      skipped++;
+      continue;
     }
-    existing.add(key)
+    existing.add(key);
     fresh.push({
       id: randomUUID(),
-      name: e.name.trim() || 'Storage',
+      name: e.name.trim() || "Storage",
       kind: e.kind,
       endpoint: e.endpoint,
       containerName: e.containerName || undefined,
       prefix: cleanPrefix(e.prefix),
-      authType: isConnectionString(secret) ? 'connection-string' : 'sas',
+      authType: isConnectionString(secret) ? "connection-string" : "sas",
       accountName: e.accountName,
-      createdAt: typeof e.createdAt === 'number' ? e.createdAt : Date.now(),
+      createdAt: typeof e.createdAt === "number" ? e.createdAt : Date.now(),
       sasExpiry: e.sasExpiry ?? null,
       pinned: e.pinned === true,
-      encryptedSecret: await sealSecret(safeStorage, secret)
-    })
+      encryptedSecret: await sealSecret(safeStorage, secret),
+    });
   }
   if (fresh.length) {
-    const data = readFile()
-    data.accounts.push(...fresh)
-    writeFile(data)
+    const data = readFile();
+    data.accounts.push(...fresh);
+    writeFile(data);
   }
-  return { added: fresh.length, skipped, invalid }
+  return { added: fresh.length, skipped, invalid };
 }

@@ -8,7 +8,7 @@ Explorer. Bun + Electron + React + Vite + TypeScript.
 
 ![Blobfish browsing fictional Northwind Demo files in the product-assets container](docs/screenshots/explorer-synthetic-data.png)
 
-*Example screenshot using fictional data only; no live Azure account or credentials are used.*
+_Example screenshot using fictional data only; no live Azure account or credentials are used._
 
 ## Why
 
@@ -44,6 +44,7 @@ it, install normally then clear the flag yourself (Homebrew removed its
 brew install --cask blobfish
 xattr -cr /Applications/Blobfish.app
 ```
+
 Linux isn't packaged in releases yet; run from source below.
 
 **npm / Bun (convenience):**
@@ -62,6 +63,7 @@ release asset above.
 
 ```bash
 bun install
+bun run format:check # check formatting (requires Bun >= 1.4.4)
 bun run dev
 bun run build && bun run start
 ```
@@ -74,20 +76,22 @@ Template docs (architecture, bridge rules, vibrancy, troubleshooting) live in `d
 and apply as-is. Cutting a release: `bun run release` — see
 [docs/releasing.md](docs/releasing.md).
 
+Formatting: run `bun run format`; CI checks it with `bun run format:check` (Bun >= 1.4.4).
+
 ## Roadmap
 
 - [x] **Accounts** — connection strings, SAS URLs, account key + custom endpoint;
-  secrets in the OS keychain via `safeStorage`, never on disk in plaintext
+      secrets in the OS keychain via `safeStorage`, never on disk in plaintext
 - [x] **Browse** — containers → blob hierarchy, prefix navigation, search,
-  sorting, breadcrumb + back/forward, Quick Access pins, collapsible sidebar
+      sorting, breadcrumb + back/forward, Quick Access pins, collapsible sidebar
 - [x] **Transfer** — parallel block-blob upload/download with progress dock,
-  cancel/retry, background completion in the tray
+      cancel/retry, background completion in the tray
 - [x] **Preview** — range-based text/CSV preview tabs in-app
 - [x] **Azurite** — one-click local emulator profile for development
 - [x] **Polish** — themes/accents/density/motion settings, tray icons,
-  expiry-aware SAS warnings, transfer + activity history
+      expiry-aware SAS warnings, transfer + activity history
 - [ ] **Scale** — virtualized lists, server-side paging indicators, short-TTL
-  blob-list cache (see [docs/roadmap.md](docs/roadmap.md) §1.2/§3)
+      blob-list cache (see [docs/roadmap.md](docs/roadmap.md) §1.2/§3)
 
 All UI goes through the typed `window.api` bridge; Azure SDK calls stay in
 `src/main`.

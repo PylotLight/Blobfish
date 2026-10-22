@@ -94,7 +94,11 @@
   font-weight: 650;
 }
 .palette-kbd {
-  font: 11px ui-monospace, 'SF Mono', Menlo, monospace;
+  font:
+    11px ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
   color: var(--muted);
   border: 1px solid var(--border);
   border-radius: 5px;

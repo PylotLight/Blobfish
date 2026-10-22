@@ -3,24 +3,24 @@
 // clone this template for a real app.
 
 /** Display name shown in the UI, tray, and notifications. */
-export const APP_NAME = 'Blobfish'
+export const APP_NAME = "Blobfish";
 
 /** One-liner shown under the brand in the sidebar. */
-export const APP_TAGLINE = 'Azure Blob Storage Explorer'
+export const APP_TAGLINE = "Azure Blob Storage Explorer";
 
 /**
  * Reverse-DNS id used for setAppUserModelId (Windows notifications/tasks).
  * Change to your own id, e.g. 'com.yourname.yourapp'.
  */
-export const APP_ID = 'com.pylotlight.blobfish'
+export const APP_ID = "com.pylotlight.blobfish";
 
 /** Default BrowserWindow geometry. */
 export const WINDOW = {
   width: 1240,
   height: 820,
   minWidth: 980,
-  minHeight: 640
-} as const
+  minHeight: 640,
+} as const;
 
 /** Tooltip for the system tray icon. */
-export const TRAY_TOOLTIP = `${APP_NAME} — click for menu`
+export const TRAY_TOOLTIP = `${APP_NAME} — click for menu`;

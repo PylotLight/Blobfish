@@ -16,7 +16,12 @@
   --radius: 18px;
   --header-blur-bg: rgba(14, 18, 25, 0.88);
   --sheet-bg: linear-gradient(170deg, rgb(29, 34, 44), rgb(19, 23, 31));
-  font-family: ui-sans-serif, system-ui, -apple-system, 'SF Pro Text', sans-serif;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "SF Pro Text",
+    sans-serif;
 }
 
 /* Type scale (Surffish/Inkfish-style): every font-size in the app comes from
@@ -78,7 +83,11 @@ code {
   display: flex;
   height: 100vh;
   overflow: hidden;
-  background: linear-gradient(165deg, rgba(30, 34, 42, 0.42), rgba(10, 12, 15, 0.55));
+  background: linear-gradient(
+    165deg,
+    rgba(30, 34, 42, 0.42),
+    rgba(10, 12, 15, 0.55)
+  );
 }
 
 /* ---------- sidebar ---------- */
@@ -107,7 +116,9 @@ code {
   position: relative;
   flex-shrink: 0;
   background: transparent;
-  transition: background 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease;
   -webkit-app-region: no-drag;
 }
 
@@ -122,7 +133,6 @@ code {
   display: none;
 }
 
-
 /* Collapsed sidebar: the content's top row turns into the title bar. The traffic
  * lights and the expand button get their own lane there instead of sitting on top
  * of the explorer card's corner, and the empty strip still drags the window. */
@@ -131,7 +141,7 @@ code {
 }
 
 .shell.sidebar-collapsed .content::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
@@ -154,11 +164,14 @@ code {
   padding: 6px 8px;
   cursor: pointer;
   -webkit-app-region: no-drag;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 /* macOS: line up with the inset traffic lights (x 16, y 16, ~52px wide). */
-.shell[data-platform='darwin'] .sidebar-expand-btn {
+.shell[data-platform="darwin"] .sidebar-expand-btn {
   top: 7px;
   left: 82px;
 }
@@ -174,7 +187,7 @@ code {
   display: none;
 }
 
-.shell[data-platform='darwin'] .traffic-spacer {
+.shell[data-platform="darwin"] .traffic-spacer {
   display: block;
 }
 
@@ -291,9 +304,6 @@ code {
   display: flex;
   -webkit-app-region: no-drag;
 }
-
-
-
 
 /* ---------- content + topbar ---------- */
 
@@ -446,10 +456,10 @@ code {
   color: var(--mint);
 }
 
-input[type='text'],
-input[type='password'],
+input[type="text"],
+input[type="password"],
 input:not([type]),
-input[type='number'],
+input[type="number"],
 select {
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--border);
@@ -471,7 +481,7 @@ input.narrow {
   width: 76px;
 }
 
-input[type='range'] {
+input[type="range"] {
   width: 100%;
   accent-color: var(--mint);
 }
@@ -537,7 +547,9 @@ input[type='range'] {
   height: 18px;
   border-radius: 50%;
   background: var(--muted);
-  transition: left 0.15s ease, background 0.15s ease;
+  transition:
+    left 0.15s ease,
+    background 0.15s ease;
 }
 
 .switch.on .knob {
@@ -608,7 +620,9 @@ input[type='range'] {
 .modal-backdrop .glass.strong {
   background: var(--sheet-bg);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), inset 0 1px rgba(255, 255, 255, 0.05);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.5),
+    inset 0 1px rgba(255, 255, 255, 0.05);
   backdrop-filter: none;
 }
 
@@ -836,24 +850,24 @@ input[type='range'] {
   flex-shrink: 0;
 }
 
-.steps li[data-status='run'] {
+.steps li[data-status="run"] {
   color: var(--text);
 }
 
-.steps li[data-status='run'] .dot {
+.steps li[data-status="run"] .dot {
   background: var(--accent);
   animation: pulse 1s ease-in-out infinite;
 }
 
-.steps li[data-status='done'] {
+.steps li[data-status="done"] {
   color: var(--text);
 }
 
-.steps li[data-status='done'] .dot {
+.steps li[data-status="done"] .dot {
   background: var(--ok);
 }
 
-.steps li[data-status='error'] .dot {
+.steps li[data-status="error"] .dot {
   background: var(--danger);
 }
 
@@ -1159,7 +1173,13 @@ tr.virtual-spacer {
 }
 
 .kind-icon.account {
-  background: linear-gradient(180deg, #7ee2c4 0 30%, #f2f4f6 30% 55%, #2e9e7b 55% 75%, #1d6e55 75% 100%);
+  background: linear-gradient(
+    180deg,
+    #7ee2c4 0 30%,
+    #f2f4f6 30% 55%,
+    #2e9e7b 55% 75%,
+    #1d6e55 75% 100%
+  );
 }
 
 .kind-icon.blob-container,
@@ -1234,7 +1254,6 @@ textarea.secret-input {
 .fade-in {
   animation: fadeSlideIn 0.22s ease backwards;
 }
-
 
 .tree-scroll {
   margin-top: 18px;
@@ -1322,7 +1341,9 @@ textarea.secret-input {
   border-radius: 12px;
   padding: 6px 8px;
   border: 1px solid transparent;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
   min-width: 0;
 }
 
@@ -1357,7 +1378,13 @@ textarea.secret-input {
 }
 
 .kind-ico.account {
-  background: linear-gradient(180deg, #7ee2c4 0 30%, #f2f4f6 30% 55%, #2e9e7b 55% 75%, #1d6e55 75% 100%);
+  background: linear-gradient(
+    180deg,
+    #7ee2c4 0 30%,
+    #f2f4f6 30% 55%,
+    #2e9e7b 55% 75%,
+    #1d6e55 75% 100%
+  );
 }
 
 .kind-ico.blob-container,
@@ -1450,7 +1477,9 @@ textarea.secret-input {
   padding: 7px 10px;
   cursor: pointer;
   text-align: left;
-  transition: background 0.13s ease, color 0.13s ease;
+  transition:
+    background 0.13s ease,
+    color 0.13s ease;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1701,7 +1730,7 @@ textarea.secret-input {
   flex-wrap: wrap;
 }
 
-input[type='range'].slider-inline {
+input[type="range"].slider-inline {
   width: 220px;
   max-width: 100%;
   flex: 0 0 auto;
@@ -1713,7 +1742,7 @@ input[type='range'].slider-inline {
     flex-direction: column;
   }
 
-  input[type='range'].slider-inline {
+  input[type="range"].slider-inline {
     width: 100%;
   }
 }
@@ -1969,7 +1998,12 @@ input[type='range'].slider-inline {
 .skeleton li {
   height: 34px;
   border-radius: 10px;
-  background: linear-gradient(90deg, var(--panel) 25%, var(--panel-strong) 50%, var(--panel) 75%);
+  background: linear-gradient(
+    90deg,
+    var(--panel) 25%,
+    var(--panel-strong) 50%,
+    var(--panel) 75%
+  );
   background-size: 200% 100%;
   animation: shimmerSlide 1.4s ease-in-out infinite;
 }
@@ -2221,12 +2255,6 @@ li.done .wiz-num {
   opacity: 1;
 }
 
-
-
-
-
-
-
 /* ---------- Home / dashboard ---------- */
 
 .home {
@@ -2333,10 +2361,6 @@ li.done .wiz-num {
   display: flex;
   flex-direction: column;
 }
-
-
-
-
 
 .dialog {
   width: 440px;
@@ -2475,7 +2499,9 @@ li.done .wiz-num {
   color: var(--text);
   font-size: var(--fs-sm);
   cursor: pointer;
-  transition: border-color 0.13s ease, background 0.13s ease;
+  transition:
+    border-color 0.13s ease,
+    background 0.13s ease;
 }
 
 .seg.selected {
@@ -2564,32 +2590,40 @@ li.done .wiz-num {
 
 /* ---------- Themes ---------- */
 
-.shell[data-theme='abyss'] {
+.shell[data-theme="abyss"] {
   --accent: #8ab4ff;
   --mint: #7ee2a8;
   --header-blur-bg: rgba(6, 10, 15, 0.92);
   --sheet-bg: linear-gradient(170deg, rgb(16, 20, 27), rgb(7, 9, 13));
-  background: linear-gradient(165deg, rgba(6, 9, 13, 0.72), rgba(0, 0, 0, 0.85));
+  background: linear-gradient(
+    165deg,
+    rgba(6, 9, 13, 0.72),
+    rgba(0, 0, 0, 0.85)
+  );
 }
 
-.shell[data-theme='slate'] {
+.shell[data-theme="slate"] {
   --accent: #b79cff;
   --mint: #8fe3c0;
   --header-blur-bg: rgba(22, 19, 29, 0.9);
   --sheet-bg: linear-gradient(170deg, rgb(40, 36, 51), rgb(23, 20, 31));
-  background: linear-gradient(165deg, rgba(44, 40, 54, 0.5), rgba(16, 14, 22, 0.62));
+  background: linear-gradient(
+    165deg,
+    rgba(44, 40, 54, 0.5),
+    rgba(16, 14, 22, 0.62)
+  );
 }
 
 /* macOS with vibrancy switched off in Settings: the window is still transparent, so
  * without this the tint would sit on the raw desktop. Lay it over a solid base (same
  * colour as the non-mac BrowserWindow backgroundColor, which already gives
  * Linux/Windows their opaque base). */
-.shell[data-platform='darwin'][data-vibrancy='off'] {
+.shell[data-platform="darwin"][data-vibrancy="off"] {
   background-color: #101418;
 }
 
 /* Accent overrides — applied on top of the theme. */
-.shell[data-accent='mint'] {
+.shell[data-accent="mint"] {
   --accent: #7ee2a8;
   --accent-ink: #0d2317;
   --mint: #7ee2a8;
@@ -2597,7 +2631,7 @@ li.done .wiz-num {
   --mint-ink: #0d2317;
 }
 
-.shell[data-accent='sky'] {
+.shell[data-accent="sky"] {
   --accent: #6ea8fe;
   --accent-ink: #0b1526;
   --mint: #6ea8fe;
@@ -2605,7 +2639,7 @@ li.done .wiz-num {
   --mint-ink: #0b1526;
 }
 
-.shell[data-accent='violet'] {
+.shell[data-accent="violet"] {
   --accent: #b79cff;
   --accent-ink: #1c1330;
   --mint: #b79cff;
@@ -2613,7 +2647,7 @@ li.done .wiz-num {
   --mint-ink: #1c1330;
 }
 
-.shell[data-accent='amber'] {
+.shell[data-accent="amber"] {
   --accent: #f0b429;
   --accent-ink: #241a05;
   --mint: #f0b429;
@@ -2621,7 +2655,7 @@ li.done .wiz-num {
   --mint-ink: #241a05;
 }
 
-.shell[data-accent='coral'] {
+.shell[data-accent="coral"] {
   --accent: #ff8a7a;
   --accent-ink: #2a0f0b;
   --mint: #ff8a7a;
@@ -2631,31 +2665,31 @@ li.done .wiz-num {
 
 /* ---------- Density ---------- */
 
-.shell[data-density='compact'] .card {
+.shell[data-density="compact"] .card {
   padding: 14px 16px;
 }
 
-.shell[data-density='compact'] .blob-table td {
+.shell[data-density="compact"] .blob-table td {
   padding: 5px 10px;
   font-size: var(--fs-sm);
 }
 
-.shell[data-density='compact'] .tree-row {
+.shell[data-density="compact"] .tree-row {
   padding-top: 3px;
   padding-bottom: 3px;
 }
 
-.shell[data-density='compact'] .tree-leaf {
+.shell[data-density="compact"] .tree-leaf {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-.shell[data-density='compact'] .action {
+.shell[data-density="compact"] .action {
   min-width: 62px;
   padding: 5px 8px;
 }
 
-.shell[data-density='compact'] .sidebar {
+.shell[data-density="compact"] .sidebar {
   width: 272px;
 }
 
@@ -2938,16 +2972,22 @@ li.done .wiz-num {
   word-break: break-word;
 }
 
-.shell[data-motion='reduced'] *,
-.shell[data-motion='reduced'] *::before,
-.shell[data-motion='reduced'] *::after {
+.shell[data-motion="reduced"] *,
+.shell[data-motion="reduced"] *::before,
+.shell[data-motion="reduced"] *::after {
   animation-duration: 0.01ms !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
 }
 
 .kind-ico.service {
-  background: linear-gradient(180deg, #7ee2c4 0 30%, #f2f4f6 30% 55%, #2e9e7b 55% 75%, #1d6e55 75% 100%);
+  background: linear-gradient(
+    180deg,
+    #7ee2c4 0 30%,
+    #f2f4f6 30% 55%,
+    #2e9e7b 55% 75%,
+    #1d6e55 75% 100%
+  );
   width: 20px;
   height: 20px;
   border-radius: 6px;
@@ -2990,7 +3030,9 @@ li.done .wiz-num {
   white-space: nowrap;
   padding: 0 9px;
   cursor: pointer;
-  transition: background 0.13s ease, opacity 0.13s ease;
+  transition:
+    background 0.13s ease,
+    opacity 0.13s ease;
 }
 
 .action:hover:not(:disabled) {
@@ -3002,7 +3044,7 @@ li.done .wiz-num {
   cursor: default;
 }
 
-.action[aria-pressed='true'] {
+.action[aria-pressed="true"] {
   background: var(--mint-dim);
 }
 
@@ -3229,7 +3271,7 @@ th.wide {
 }
 
 .blob-table .col-resizer::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 8px;
   bottom: 8px;
@@ -3395,7 +3437,7 @@ th.wide {
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
 }
 
-.ctx-menu button[role='menuitem'] {
+.ctx-menu button[role="menuitem"] {
   background: none;
   border: none;
   color: var(--text);
@@ -3406,16 +3448,16 @@ th.wide {
   cursor: pointer;
 }
 
-.ctx-menu button[role='menuitem']:hover {
+.ctx-menu button[role="menuitem"]:hover {
   background: rgba(255, 255, 255, 0.07);
 }
 
-.ctx-menu button[role='menuitem']:disabled {
+.ctx-menu button[role="menuitem"]:disabled {
   opacity: 0.45;
   cursor: default;
 }
 
-.ctx-menu button[role='menuitem'].danger {
+.ctx-menu button[role="menuitem"].danger {
   color: #ff8f8f;
 }
 
@@ -3529,7 +3571,9 @@ th.wide {
   font-size: var(--fs-2xs);
   padding: 2px 8px;
   cursor: pointer;
-  transition: color 0.13s ease, border-color 0.13s ease;
+  transition:
+    color 0.13s ease,
+    border-color 0.13s ease;
 }
 
 .endpoint-badge:hover {
@@ -4326,7 +4370,6 @@ th.wide {
   flex: none;
 }
 
-
 /* ---------- Settings › Connections backup ---------- */
 .conn-backup-form {
   gap: 10px;
@@ -4380,7 +4423,9 @@ th.wide {
   font-weight: 500;
   text-align: left;
   cursor: pointer;
-  transition: background 0.13s ease, color 0.13s ease;
+  transition:
+    background 0.13s ease,
+    color 0.13s ease;
 }
 
 .side-nav-btn .icon {
@@ -4436,7 +4481,9 @@ th.wide {
   background: transparent;
   color: rgba(245, 247, 250, 0.64);
   cursor: pointer;
-  transition: background 0.13s ease, color 0.13s ease;
+  transition:
+    background 0.13s ease,
+    color 0.13s ease;
 }
 
 .side-foot-btn:hover,

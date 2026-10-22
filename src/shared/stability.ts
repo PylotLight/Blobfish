@@ -12,24 +12,24 @@
 
 export interface StabilityCounters {
   /** Main process: exceptions nothing caught (Electron would show a modal dialog instead). */
-  uncaughtExceptions: number
+  uncaughtExceptions: number;
   /** Main process: promise rejections nothing handled. */
-  unhandledRejections: number
+  unhandledRejections: number;
   /** App window renderers (the main window) that died. Clean exits are not counted. */
-  rendererGone: number
+  rendererGone: number;
   /** App windows reloaded after their renderer died or hung. */
-  rendererReloads: number
+  rendererReloads: number;
   /** GPU process deaths (Chromium relaunches it; we repaint every window). */
-  gpuGone: number
+  gpuGone: number;
   /** Utility / other child process deaths (network service, audio …). */
-  childGone: number
+  childGone: number;
   /** `unresponsive` events (hung renderers). */
-  unresponsive: number
+  unresponsive: number;
   /** Last few one-line summaries, newest last. */
-  recent: string[]
+  recent: string[];
 }
 
-export const STABILITY_RECENT_LIMIT = 20
+export const STABILITY_RECENT_LIMIT = 20;
 
 export function emptyStabilityCounters(): StabilityCounters {
   return {
@@ -40,71 +40,88 @@ export function emptyStabilityCounters(): StabilityCounters {
     gpuGone: 0,
     childGone: 0,
     unresponsive: 0,
-    recent: []
-  }
+    recent: [],
+  };
 }
 
-type CounterKey = Exclude<keyof StabilityCounters, 'recent'>
+type CounterKey = Exclude<keyof StabilityCounters, "recent">;
 
-export function countStabilityEvent(counters: StabilityCounters, key: CounterKey, summary: string | null, now = Date.now()): void {
-  counters[key] += 1
-  if (summary === null) return
-  counters.recent.push(`${new Date(now).toISOString()} ${key}: ${summary.slice(0, 300)}`)
-  if (counters.recent.length > STABILITY_RECENT_LIMIT) counters.recent.splice(0, counters.recent.length - STABILITY_RECENT_LIMIT)
+export function countStabilityEvent(
+  counters: StabilityCounters,
+  key: CounterKey,
+  summary: string | null,
+  now = Date.now(),
+): void {
+  counters[key] += 1;
+  if (summary === null) return;
+  counters.recent.push(
+    `${new Date(now).toISOString()} ${key}: ${summary.slice(0, 300)}`,
+  );
+  if (counters.recent.length > STABILITY_RECENT_LIMIT)
+    counters.recent.splice(0, counters.recent.length - STABILITY_RECENT_LIMIT);
 }
 
 /** Total of the "something died or threw" counters (reloads and hang events excluded). */
 export function stabilityFailureTotal(counters: StabilityCounters): number {
-  return counters.uncaughtExceptions + counters.unhandledRejections + counters.rendererGone + counters.gpuGone + counters.childGone
+  return (
+    counters.uncaughtExceptions +
+    counters.unhandledRejections +
+    counters.rendererGone +
+    counters.gpuGone +
+    counters.childGone
+  );
 }
 
 /** Log the first `head` occurrences of a signature, then every `every`th one. */
 export class LogThrottle {
-  private readonly seen = new Map<string, number>()
+  private readonly seen = new Map<string, number>();
 
   constructor(
     private readonly head = 5,
     private readonly every = 100,
-    private readonly maxSignatures = 200
+    private readonly maxSignatures = 200,
   ) {}
 
   /** Returns the occurrence number when this one should be logged, else 0. */
   shouldLog(signature: string): number {
-    const count = (this.seen.get(signature) ?? 0) + 1
+    const count = (this.seen.get(signature) ?? 0) + 1;
     if (!this.seen.has(signature) && this.seen.size >= this.maxSignatures) {
       // Unbounded distinct messages: forget the oldest signature rather than grow forever.
-      const oldest = this.seen.keys().next().value
-      if (oldest !== undefined) this.seen.delete(oldest)
+      const oldest = this.seen.keys().next().value;
+      if (oldest !== undefined) this.seen.delete(oldest);
     }
-    this.seen.set(signature, count)
-    return count <= this.head || count % this.every === 0 ? count : 0
+    this.seen.set(signature, count);
+    return count <= this.head || count % this.every === 0 ? count : 0;
   }
 }
 
 /** First line of an error's message (or the value), for de-duplicating repeated failures. */
 export function errorSignature(error: unknown): string {
-  if (error instanceof Error) return `${error.name}: ${error.message.split('\n')[0] ?? ''}`.slice(0, 200)
+  if (error instanceof Error)
+    return `${error.name}: ${error.message.split("\n")[0] ?? ""}`.slice(0, 200);
   try {
-    return (String(error).split('\n')[0] ?? '').slice(0, 200)
+    return (String(error).split("\n")[0] ?? "").slice(0, 200);
   } catch {
-    return 'unprintable value'
+    return "unprintable value";
   }
 }
 
 /** At most `limit` attempts inside `windowMs`; older attempts age out. */
 export class RecoveryBudget {
-  private attempts: number[] = []
+  private attempts: number[] = [];
 
   constructor(
     private readonly limit = 3,
-    private readonly windowMs = 60_000
+    private readonly windowMs = 60_000,
   ) {}
 
   tryTake(now = Date.now()): boolean {
-    this.attempts = this.attempts.filter((time) => now - time < this.windowMs && time <= now)
-    if (this.attempts.length >= this.limit) return false
-    this.attempts.push(now)
-    return true
+    this.attempts = this.attempts.filter(
+      (time) => now - time < this.windowMs && time <= now,
+    );
+    if (this.attempts.length >= this.limit) return false;
+    this.attempts.push(now);
+    return true;
   }
 }
 
@@ -112,14 +129,14 @@ export class RecoveryBudget {
 // Ordered shutdown (Surffish #136): stop what can still write, then persist, then tear down
 
 export interface ShutdownStep {
-  name: string
-  run: () => void | Promise<void>
+  name: string;
+  run: () => void | Promise<void>;
 }
 
 export interface ShutdownResult {
-  name: string
-  ok: boolean
-  error?: string
+  name: string;
+  ok: boolean;
+  error?: string;
 }
 
 /**
@@ -130,47 +147,54 @@ export interface ShutdownResult {
 export function createShutdown(
   steps: readonly ShutdownStep[],
   log: (message: string) => void = () => {},
-  stepTimeoutMs = 5_000
+  stepTimeoutMs = 5_000,
 ): () => Promise<ShutdownResult[]> {
-  let done = false
+  let done = false;
   return async () => {
-    if (done) return []
-    done = true
-    const results: ShutdownResult[] = []
+    if (done) return [];
+    done = true;
+    const results: ShutdownResult[] = [];
     for (const step of steps) {
-      let timer: ReturnType<typeof setTimeout> | null = null
+      let timer: ReturnType<typeof setTimeout> | null = null;
       try {
         await Promise.race([
           Promise.resolve().then(step.run),
           new Promise<never>((_resolve, reject) => {
-            timer = setTimeout(() => reject(new Error(`timed out after ${stepTimeoutMs} ms`)), stepTimeoutMs)
-          })
-        ])
-        results.push({ name: step.name, ok: true })
+            timer = setTimeout(
+              () => reject(new Error(`timed out after ${stepTimeoutMs} ms`)),
+              stepTimeoutMs,
+            );
+          }),
+        ]);
+        results.push({ name: step.name, ok: true });
       } catch (error) {
-        const message = errorSignature(error)
-        log(`[shutdown] ${step.name} failed: ${message}`)
-        results.push({ name: step.name, ok: false, error: message })
+        const message = errorSignature(error);
+        log(`[shutdown] ${step.name} failed: ${message}`);
+        results.push({ name: step.name, ok: false, error: message });
       } finally {
-        if (timer) clearTimeout(timer)
+        if (timer) clearTimeout(timer);
       }
     }
-    return results
-  }
+    return results;
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
 // Quit with transfers running
 
 /** Text for the "transfers still running" quit prompt, or null when nothing is in flight. */
-export function quitWarning(active: number, queued: number): { message: string; detail: string } | null {
-  const total = Math.max(0, active) + Math.max(0, queued)
-  if (total === 0) return null
-  const parts: string[] = []
-  if (active > 0) parts.push(`${active} running`)
-  if (queued > 0) parts.push(`${queued} queued`)
+export function quitWarning(
+  active: number,
+  queued: number,
+): { message: string; detail: string } | null {
+  const total = Math.max(0, active) + Math.max(0, queued);
+  if (total === 0) return null;
+  const parts: string[] = [];
+  if (active > 0) parts.push(`${active} running`);
+  if (queued > 0) parts.push(`${queued} queued`);
   return {
-    message: `${total} ${total === 1 ? 'transfer is' : 'transfers are'} still in progress (${parts.join(', ')}).`,
-    detail: 'Quitting cancels them. Partial downloads are removed; you can find what was cancelled in Activity next time.'
-  }
+    message: `${total} ${total === 1 ? "transfer is" : "transfers are"} still in progress (${parts.join(", ")}).`,
+    detail:
+      "Quitting cancels them. Partial downloads are removed; you can find what was cancelled in Activity next time.",
+  };
 }

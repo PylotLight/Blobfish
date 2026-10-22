@@ -1,138 +1,170 @@
-import { UpdateSettings } from './UpdateSettings'
-import { Icon } from './Icon'
-import { ConnectionsBackup } from './ConnectionsBackup'
+import { UpdateSettings } from "./UpdateSettings";
+import { Icon } from "./Icon";
+import { ConnectionsBackup } from "./ConnectionsBackup";
 
-export type ThemeName = 'midnight' | 'abyss' | 'slate'
-export type DensityName = 'comfortable' | 'compact'
-export type MotionName = 'full' | 'reduced'
-export type AccentName = 'mint' | 'sky' | 'violet' | 'amber' | 'coral' | 'custom'
+export type ThemeName = "midnight" | "abyss" | "slate";
+export type DensityName = "comfortable" | "compact";
+export type MotionName = "full" | "reduced";
+export type AccentName =
+  "mint" | "sky" | "violet" | "amber" | "coral" | "custom";
 
 export interface Prefs {
-  theme: ThemeName
-  density: DensityName
-  motion: MotionName
-  accent: AccentName
+  theme: ThemeName;
+  density: DensityName;
+  motion: MotionName;
+  accent: AccentName;
   /** Custom accent hex (`#rrggbb`) used when `accent === 'custom'`. */
-  customAccent: string
-  vibrancy: boolean
+  customAccent: string;
+  vibrancy: boolean;
   /** Parallel connections per file, uploads and downloads (1–16). */
-  uploadConcurrency: number
+  uploadConcurrency: number;
   /** Simultaneous transfers (1–4). */
-  maxParallel: number
+  maxParallel: number;
 }
 
 export const DEFAULT_PREFS: Prefs = {
-  theme: 'midnight',
-  density: 'comfortable',
-  motion: 'full',
-  accent: 'mint',
-  customAccent: '#7ee2a8',
+  theme: "midnight",
+  density: "comfortable",
+  motion: "full",
+  accent: "mint",
+  customAccent: "#7ee2a8",
   vibrancy: true,
   uploadConcurrency: 8,
-  maxParallel: 2
-}
+  maxParallel: 2,
+};
 
-const KEY = 'blobfish.settings.v1'
+const KEY = "blobfish.settings.v1";
 
-function clampInt(v: unknown, min: number, max: number, fallback: number): number {
-  return typeof v === 'number' && Number.isFinite(v)
+function clampInt(
+  v: unknown,
+  min: number,
+  max: number,
+  fallback: number,
+): number {
+  return typeof v === "number" && Number.isFinite(v)
     ? Math.min(max, Math.max(min, Math.floor(v)))
-    : fallback
+    : fallback;
 }
 
-const ACCENTS: AccentName[] = ['mint', 'sky', 'violet', 'amber', 'coral', 'custom']
-const THEMES: ThemeName[] = ['midnight', 'abyss', 'slate']
+const ACCENTS: AccentName[] = [
+  "mint",
+  "sky",
+  "violet",
+  "amber",
+  "coral",
+  "custom",
+];
+const THEMES: ThemeName[] = ["midnight", "abyss", "slate"];
 
 function isTheme(v: unknown): v is ThemeName {
-  return v === 'midnight' || v === 'abyss' || v === 'slate'
+  return v === "midnight" || v === "abyss" || v === "slate";
 }
 
 function isAccent(v: unknown): v is AccentName {
-  return typeof v === 'string' && (ACCENTS as string[]).includes(v)
+  return typeof v === "string" && (ACCENTS as string[]).includes(v);
 }
 
 function isHex(v: unknown): v is string {
-  return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v)
+  return typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v);
 }
 
 /** Custom accent → CSS variable overrides applied inline on `.shell`. */
 export function accentVars(prefs: Prefs): Record<string, string> {
-  if (prefs.accent !== 'custom' || !isHex(prefs.customAccent)) return {}
-  const hex = prefs.customAccent
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
+  if (prefs.accent !== "custom" || !isHex(prefs.customAccent)) return {};
+  const hex = prefs.customAccent;
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
   // Relative luminance picks readable button text for any chosen color.
-  const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
-  const ink = lum > 0.45 ? '#10141a' : '#f2f4f6'
+  const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  const ink = lum > 0.45 ? "#10141a" : "#f2f4f6";
   return {
-    '--accent': hex,
-    '--accent-ink': ink,
-    '--mint': hex,
-    '--mint-ink': ink,
-    '--mint-dim': `rgba(${r}, ${g}, ${b}, 0.16)`
-  }
+    "--accent": hex,
+    "--accent-ink": ink,
+    "--mint": hex,
+    "--mint-ink": ink,
+    "--mint-dim": `rgba(${r}, ${g}, ${b}, 0.16)`,
+  };
 }
 
 export function loadPrefs(): Prefs {
   try {
-    const raw = localStorage.getItem(KEY)
-    if (!raw) return DEFAULT_PREFS
-    const parsed = JSON.parse(raw) as Partial<Prefs>
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return DEFAULT_PREFS;
+    const parsed = JSON.parse(raw) as Partial<Prefs>;
     return {
-      theme: isTheme(parsed.theme) ? parsed.theme : 'midnight',
-      density: parsed.density === 'compact' ? 'compact' : 'comfortable',
-      motion: parsed.motion === 'reduced' ? 'reduced' : 'full',
-      accent: isAccent(parsed.accent) ? parsed.accent : 'mint',
-      customAccent: isHex(parsed.customAccent) ? parsed.customAccent : DEFAULT_PREFS.customAccent,
+      theme: isTheme(parsed.theme) ? parsed.theme : "midnight",
+      density: parsed.density === "compact" ? "compact" : "comfortable",
+      motion: parsed.motion === "reduced" ? "reduced" : "full",
+      accent: isAccent(parsed.accent) ? parsed.accent : "mint",
+      customAccent: isHex(parsed.customAccent)
+        ? parsed.customAccent
+        : DEFAULT_PREFS.customAccent,
       vibrancy: parsed.vibrancy !== false,
-      uploadConcurrency: clampInt(parsed.uploadConcurrency, 1, 16, DEFAULT_PREFS.uploadConcurrency),
-      maxParallel: clampInt(parsed.maxParallel, 1, 4, DEFAULT_PREFS.maxParallel)
-    }
+      uploadConcurrency: clampInt(
+        parsed.uploadConcurrency,
+        1,
+        16,
+        DEFAULT_PREFS.uploadConcurrency,
+      ),
+      maxParallel: clampInt(
+        parsed.maxParallel,
+        1,
+        4,
+        DEFAULT_PREFS.maxParallel,
+      ),
+    };
   } catch {
-    return DEFAULT_PREFS
+    return DEFAULT_PREFS;
   }
 }
 
 export function savePrefs(prefs: Prefs): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(prefs))
+    localStorage.setItem(KEY, JSON.stringify(prefs));
   } catch {
     // Private mode etc. — prefs just won't persist.
   }
 }
 
 const THEME_META: Record<ThemeName, { title: string; desc: string }> = {
-  midnight: { title: 'Midnight', desc: 'Default dark blue-grey.' },
-  abyss: { title: 'Abyss', desc: 'Deeper black, low-glare.' },
-  slate: { title: 'Slate', desc: 'Softer graphite.' }
-}
+  midnight: { title: "Midnight", desc: "Default dark blue-grey." },
+  abyss: { title: "Abyss", desc: "Deeper black, low-glare." },
+  slate: { title: "Slate", desc: "Softer graphite." },
+};
 
 const ACCENT_META: Record<AccentName, { title: string; desc: string }> = {
-  mint: { title: 'Mint', desc: 'Default green.' },
-  sky: { title: 'Sky', desc: 'Cool blue.' },
-  violet: { title: 'Violet', desc: 'Soft purple.' },
-  amber: { title: 'Amber', desc: 'Warm gold.' },
-  coral: { title: 'Coral', desc: 'Warm red-orange.' },
-  custom: { title: 'Custom', desc: 'Pick any color below.' }
-}
+  mint: { title: "Mint", desc: "Default green." },
+  sky: { title: "Sky", desc: "Cool blue." },
+  violet: { title: "Violet", desc: "Soft purple." },
+  amber: { title: "Amber", desc: "Warm gold." },
+  coral: { title: "Coral", desc: "Warm red-orange." },
+  custom: { title: "Custom", desc: "Pick any color below." },
+};
 
-const PRESET_ACCENTS: AccentName[] = ['mint', 'sky', 'violet', 'amber', 'coral']
+const PRESET_ACCENTS: AccentName[] = [
+  "mint",
+  "sky",
+  "violet",
+  "amber",
+  "coral",
+];
 
 /**
  * Full in-app settings view (not a modal) — room to grow as more
  * sections land. Rendered as the main content view.
  */
 export function SettingsView(props: {
-  prefs: Prefs
-  vibrancySupported: boolean
-  connectionCount?: number
-  onConnectionsChanged?: () => void
-  onChange: (prefs: Prefs) => void
-  onBack: () => void
+  prefs: Prefs;
+  vibrancySupported: boolean;
+  connectionCount?: number;
+  onConnectionsChanged?: () => void;
+  onChange: (prefs: Prefs) => void;
+  onBack: () => void;
 }): React.JSX.Element {
-  const { prefs } = props
-  const set = (patch: Partial<Prefs>): void => props.onChange({ ...prefs, ...patch })
+  const { prefs } = props;
+  const set = (patch: Partial<Prefs>): void =>
+    props.onChange({ ...prefs, ...patch });
 
   return (
     <section className="card settings-page fade-in" aria-label="Settings">
@@ -161,7 +193,7 @@ export function SettingsView(props: {
                   key={id}
                   role="radio"
                   aria-checked={prefs.theme === id}
-                  className={`seg${prefs.theme === id ? ' selected' : ''}`}
+                  className={`seg${prefs.theme === id ? " selected" : ""}`}
                   onClick={() => set({ theme: id })}
                   title={THEME_META[id]!.desc}
                 >
@@ -170,18 +202,24 @@ export function SettingsView(props: {
                 </button>
               ))}
             </div>
-            <p className="muted small setting-hint">{THEME_META[prefs.theme]!.desc} Accent applies on top.</p>
+            <p className="muted small setting-hint">
+              {THEME_META[prefs.theme]!.desc} Accent applies on top.
+            </p>
           </div>
 
           <div className="setting-row stacked">
             <span className="setting-label">Accent color</span>
-            <div className="seg-row" role="radiogroup" aria-label="Accent color">
+            <div
+              className="seg-row"
+              role="radiogroup"
+              aria-label="Accent color"
+            >
               {PRESET_ACCENTS.map((id) => (
                 <button
                   key={id}
                   role="radio"
                   aria-checked={prefs.accent === id}
-                  className={`seg${prefs.accent === id ? ' selected' : ''}`}
+                  className={`seg${prefs.accent === id ? " selected" : ""}`}
                   onClick={() => set({ accent: id })}
                   title={ACCENT_META[id]!.desc}
                 >
@@ -191,9 +229,9 @@ export function SettingsView(props: {
               ))}
               <button
                 role="radio"
-                aria-checked={prefs.accent === 'custom'}
-                className={`seg custom-seg${prefs.accent === 'custom' ? ' selected' : ''}`}
-                onClick={() => set({ accent: 'custom' })}
+                aria-checked={prefs.accent === "custom"}
+                className={`seg custom-seg${prefs.accent === "custom" ? " selected" : ""}`}
+                onClick={() => set({ accent: "custom" })}
                 title={ACCENT_META.custom.desc}
               >
                 <span
@@ -204,7 +242,7 @@ export function SettingsView(props: {
                 Custom
               </button>
             </div>
-            {prefs.accent === 'custom' && (
+            {prefs.accent === "custom" && (
               <label className="custom-picker-row">
                 <span>
                   Custom color <code>{prefs.customAccent}</code>
@@ -213,7 +251,9 @@ export function SettingsView(props: {
                   type="color"
                   className="color-input"
                   value={prefs.customAccent}
-                  onChange={(e) => set({ accent: 'custom', customAccent: e.target.value })}
+                  onChange={(e) =>
+                    set({ accent: "custom", customAccent: e.target.value })
+                  }
                   aria-label="Pick a custom accent color"
                 />
               </label>
@@ -226,18 +266,20 @@ export function SettingsView(props: {
           <div className="setting-row inline">
             <div className="setting-label">
               Density
-              <span className="muted small setting-hint">Comfortable breathes; compact fits more rows.</span>
+              <span className="muted small setting-hint">
+                Comfortable breathes; compact fits more rows.
+              </span>
             </div>
             <div className="seg-row" role="radiogroup" aria-label="Density">
-              {(['comfortable', 'compact'] as DensityName[]).map((d) => (
+              {(["comfortable", "compact"] as DensityName[]).map((d) => (
                 <button
                   key={d}
                   role="radio"
                   aria-checked={prefs.density === d}
-                  className={`seg${prefs.density === d ? ' selected' : ''}`}
+                  className={`seg${prefs.density === d ? " selected" : ""}`}
                   onClick={() => set({ density: d })}
                 >
-                  {d === 'comfortable' ? 'Comfortable' : 'Compact'}
+                  {d === "comfortable" ? "Comfortable" : "Compact"}
                 </button>
               ))}
             </div>
@@ -246,18 +288,20 @@ export function SettingsView(props: {
           <div className="setting-row inline">
             <div className="setting-label">
               Motion
-              <span className="muted small setting-hint">Reduced disables entrance, shimmer and progress animations.</span>
+              <span className="muted small setting-hint">
+                Reduced disables entrance, shimmer and progress animations.
+              </span>
             </div>
             <div className="seg-row" role="radiogroup" aria-label="Motion">
-              {(['full', 'reduced'] as MotionName[]).map((m) => (
+              {(["full", "reduced"] as MotionName[]).map((m) => (
                 <button
                   key={m}
                   role="radio"
                   aria-checked={prefs.motion === m}
-                  className={`seg${prefs.motion === m ? ' selected' : ''}`}
+                  className={`seg${prefs.motion === m ? " selected" : ""}`}
                   onClick={() => set({ motion: m })}
                 >
-                  {m === 'full' ? 'Full' : 'Reduced'}
+                  {m === "full" ? "Full" : "Reduced"}
                 </button>
               ))}
             </div>
@@ -271,7 +315,11 @@ export function SettingsView(props: {
               <span className="setting-title-row">
                 Connections per file: <code>{prefs.uploadConcurrency}</code>
               </span>
-              <span className="muted small setting-hint">Uploads stripe blocks and downloads fetch ranges in parallel (files over 8 MiB). More saturate fast links; fewer are kinder to small networks and Azurite.</span>
+              <span className="muted small setting-hint">
+                Uploads stripe blocks and downloads fetch ranges in parallel
+                (files over 8 MiB). More saturate fast links; fewer are kinder
+                to small networks and Azurite.
+              </span>
             </div>
             <input
               type="range"
@@ -279,7 +327,9 @@ export function SettingsView(props: {
               min={1}
               max={16}
               value={prefs.uploadConcurrency}
-              onChange={(e) => set({ uploadConcurrency: Number(e.target.value) })}
+              onChange={(e) =>
+                set({ uploadConcurrency: Number(e.target.value) })
+              }
               aria-label="Connections per file"
             />
           </div>
@@ -288,7 +338,9 @@ export function SettingsView(props: {
               <span className="setting-title-row">
                 Simultaneous transfers: <code>{prefs.maxParallel}</code>
               </span>
-              <span className="muted small setting-hint">How many files move at once.</span>
+              <span className="muted small setting-hint">
+                How many files move at once.
+              </span>
             </div>
             <input
               type="range"
@@ -306,16 +358,18 @@ export function SettingsView(props: {
           <h4>Window</h4>
           <div className="setting-row inline">
             <div className="setting-label">
-              Native vibrancy blur {props.vibrancySupported ? '(macOS)' : ''}
+              Native vibrancy blur {props.vibrancySupported ? "(macOS)" : ""}
               {!props.vibrancySupported && (
-                <span className="muted small setting-hint">Only available on macOS.</span>
+                <span className="muted small setting-hint">
+                  Only available on macOS.
+                </span>
               )}
             </div>
             <button
               role="switch"
               aria-checked={prefs.vibrancy}
               aria-label="Native vibrancy blur"
-              className={`switch${prefs.vibrancy ? ' on' : ''}`}
+              className={`switch${prefs.vibrancy ? " on" : ""}`}
               disabled={!props.vibrancySupported}
               onClick={() => set({ vibrancy: !prefs.vibrancy })}
             >
@@ -338,15 +392,15 @@ export function SettingsView(props: {
         </button>
       </div>
     </section>
-  )
+  );
 }
 
 /** Back-compat wrapper — new code should use SettingsView directly. */
 export function SettingsDialog(props: {
-  prefs: Prefs
-  vibrancySupported: boolean
-  onChange: (prefs: Prefs) => void
-  onClose: () => void
+  prefs: Prefs;
+  vibrancySupported: boolean;
+  onChange: (prefs: Prefs) => void;
+  onClose: () => void;
 }): React.JSX.Element {
   return (
     <div className="modal-backdrop" onClick={props.onClose}>
@@ -364,5 +418,5 @@ export function SettingsDialog(props: {
         />
       </div>
     </div>
-  )
+  );
 }

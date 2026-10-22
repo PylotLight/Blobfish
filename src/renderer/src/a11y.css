@@ -23,7 +23,7 @@
 
 /* Scrollable regions that take focus (preview text / csv) — inset so the
  * ring isn't clipped by the panel's overflow. */
-[role='region'][tabindex]:focus-visible {
+[role="region"][tabindex]:focus-visible {
   outline-offset: -2px;
 }
 

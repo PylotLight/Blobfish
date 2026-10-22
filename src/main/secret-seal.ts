@@ -14,23 +14,29 @@
  */
 
 export interface AsyncSafeStorage {
-  isAsyncEncryptionAvailable(): Promise<boolean>
-  encryptStringAsync(plainText: string): Promise<Buffer>
-  decryptStringAsync(encrypted: Buffer): Promise<{ shouldReEncrypt: boolean; result: string }>
+  isAsyncEncryptionAvailable(): Promise<boolean>;
+  encryptStringAsync(plainText: string): Promise<Buffer>;
+  decryptStringAsync(
+    encrypted: Buffer,
+  ): Promise<{ shouldReEncrypt: boolean; result: string }>;
 }
 
 export const ENCRYPTION_UNAVAILABLE =
-  'OS keychain encryption is unavailable (safeStorage). ' +
-  'On Linux this usually means libsecret / gnome-keyring is missing.'
+  "OS keychain encryption is unavailable (safeStorage). " +
+  "On Linux this usually means libsecret / gnome-keyring is missing.";
 
 export async function ensureEncryption(ss: AsyncSafeStorage): Promise<void> {
-  if (!(await ss.isAsyncEncryptionAvailable())) throw new Error(ENCRYPTION_UNAVAILABLE)
+  if (!(await ss.isAsyncEncryptionAvailable()))
+    throw new Error(ENCRYPTION_UNAVAILABLE);
 }
 
 /** Encrypt a secret for storage → base64. Throws when there's no keychain (never stores plaintext). */
-export async function sealSecret(ss: AsyncSafeStorage, plain: string): Promise<string> {
-  await ensureEncryption(ss)
-  return (await ss.encryptStringAsync(plain)).toString('base64')
+export async function sealSecret(
+  ss: AsyncSafeStorage,
+  plain: string,
+): Promise<string> {
+  await ensureEncryption(ss);
+  return (await ss.encryptStringAsync(plain)).toString("base64");
 }
 
 /**
@@ -41,18 +47,23 @@ export async function sealSecret(ss: AsyncSafeStorage, plain: string): Promise<s
 export async function openSecret(
   ss: AsyncSafeStorage,
   encrypted: string,
-  onReEncrypt?: (next: string) => void
+  onReEncrypt?: (next: string) => void,
 ): Promise<string> {
-  await ensureEncryption(ss)
-  const { result, shouldReEncrypt } = await ss.decryptStringAsync(Buffer.from(encrypted, 'base64'))
+  await ensureEncryption(ss);
+  const { result, shouldReEncrypt } = await ss.decryptStringAsync(
+    Buffer.from(encrypted, "base64"),
+  );
   if (shouldReEncrypt && onReEncrypt) {
     try {
-      onReEncrypt((await ss.encryptStringAsync(result)).toString('base64'))
+      onReEncrypt((await ss.encryptStringAsync(result)).toString("base64"));
     } catch (err) {
-      console.warn('[accounts] secret re-encrypt failed', err instanceof Error ? err.message : String(err))
+      console.warn(
+        "[accounts] secret re-encrypt failed",
+        err instanceof Error ? err.message : String(err),
+      );
     }
   }
-  return result
+  return result;
 }
 
 /**
@@ -63,20 +74,20 @@ export async function openSecret(
 export async function migrateSecrets(
   ss: AsyncSafeStorage,
   accounts: Array<{ encryptedSecret: string }>,
-  persist: () => void
+  persist: () => void,
 ): Promise<number> {
-  if (!(await ss.isAsyncEncryptionAvailable())) return 0
-  let changed = 0
+  if (!(await ss.isAsyncEncryptionAvailable())) return 0;
+  let changed = 0;
   for (const a of accounts) {
     try {
       await openSecret(ss, a.encryptedSecret, (next) => {
-        a.encryptedSecret = next
-        changed++
-      })
+        a.encryptedSecret = next;
+        changed++;
+      });
     } catch {
       // leave as-is; that connection surfaces its own error when opened
     }
   }
-  if (changed > 0) persist()
-  return changed
+  if (changed > 0) persist();
+  return changed;
 }

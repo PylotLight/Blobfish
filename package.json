@@ -35,7 +35,9 @@
     "dist:linux": "electron-builder --linux",
     "dist:ci": "electron-builder --publish never",
     "release": "bun scripts/release.ts",
-    "postinstall": "install-electron"
+    "postinstall": "install-electron",
+    "format": "bun fmt",
+    "format:check": "bun fmt --check"
   },
   "build": {
     "appId": "com.pylotlight.blobfish",

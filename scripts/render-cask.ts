@@ -8,55 +8,55 @@
 //     --version 1.2.3 \
 //     --sha256 <sha of Blobfish-1.2.3-mac-arm64.zip> \
 //     [--out Casks/blobfish.rb]
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const templatePath = join(root, 'Casks', 'blobfish.rb.tmpl')
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const templatePath = join(root, "Casks", "blobfish.rb.tmpl");
 
 function fail(msg: string): never {
-  console.error(`[render-cask] error: ${msg}`)
-  process.exit(1)
+  console.error(`[render-cask] error: ${msg}`);
+  process.exit(1);
 }
 
 function argValue(flag: string): string | undefined {
-  const i = process.argv.indexOf(flag)
-  return i === -1 ? undefined : process.argv[i + 1]
+  const i = process.argv.indexOf(flag);
+  return i === -1 ? undefined : process.argv[i + 1];
 }
 
-if (process.argv.includes('--help') || process.argv.includes('-h')) {
+if (process.argv.includes("--help") || process.argv.includes("-h")) {
   console.log(
-    'Usage: bun scripts/render-cask.ts --version X.Y.Z --sha256 HEX [--out PATH]'
-  )
-  console.log('Without --out, prints to stdout.')
-  process.exit(0)
+    "Usage: bun scripts/render-cask.ts --version X.Y.Z --sha256 HEX [--out PATH]",
+  );
+  console.log("Without --out, prints to stdout.");
+  process.exit(0);
 }
 
-const version = argValue('--version')
-const sha = argValue('--sha256')
-const out = argValue('--out')
+const version = argValue("--version");
+const sha = argValue("--sha256");
+const out = argValue("--out");
 
 if (!version || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) {
-  fail(`--version is required and must be semver, got '${version}'`)
+  fail(`--version is required and must be semver, got '${version}'`);
 }
-const SHA256 = /^[0-9a-f]{64}$/
+const SHA256 = /^[0-9a-f]{64}$/;
 if (!sha || !SHA256.test(sha)) {
-  fail('--sha256 must be a lowercase hex sha256 (of the mac-arm64 zip)')
+  fail("--sha256 must be a lowercase hex sha256 (of the mac-arm64 zip)");
 }
 
-const cask = readFileSync(templatePath, 'utf8')
-  .replaceAll('{{VERSION}}', version)
-  .replaceAll('{{SHA256}}', sha)
+const cask = readFileSync(templatePath, "utf8")
+  .replaceAll("{{VERSION}}", version)
+  .replaceAll("{{SHA256}}", sha);
 
-if (cask.includes('{{')) {
-  fail('template still has unfilled placeholders')
+if (cask.includes("{{")) {
+  fail("template still has unfilled placeholders");
 }
 
 if (out) {
-  mkdirSync(dirname(out), { recursive: true })
-  writeFileSync(out, cask)
-  console.log(`[render-cask] wrote ${out}`)
+  mkdirSync(dirname(out), { recursive: true });
+  writeFileSync(out, cask);
+  console.log(`[render-cask] wrote ${out}`);
 } else {
-  process.stdout.write(cask)
+  process.stdout.write(cask);
 }

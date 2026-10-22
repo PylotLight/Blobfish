@@ -1,21 +1,21 @@
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig, externalizeDepsPlugin } from "electron-vite";
+import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
   },
   preload: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
   },
   renderer: {
-    root: 'src/renderer',
+    root: "src/renderer",
     plugins: [react()],
     // electron-vite leaves the renderer unminified by default (~760 kB of JS
     // parsed before first paint); ship it minified like Surffish does.
     build: {
       minify: true,
-      cssMinify: true
-    }
-  }
-})
+      cssMinify: true,
+    },
+  },
+});
