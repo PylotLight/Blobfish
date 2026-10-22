@@ -42,7 +42,38 @@ describe("activity store", () => {
       JSON.parse(serializeActivities(list)),
       NOW,
     );
-    expect(parsed).toEqual(list);
+    // Read back = last session's history.
+    expect(parsed).toEqual(list.map((e) => ({ ...e, restored: true })));
+  });
+
+  test("failed reads (list containers etc.) are not persisted or replayed", () => {
+    const list = [
+      entry("ok", NOW - 10),
+      entry("list-fail", NOW - 20, {
+        kind: "connection",
+        status: "failed",
+        text: "List containers in 'acct' failed",
+        detail:
+          "Failed to list containers: self signed certificate in certificate chain",
+      }),
+      entry("sas", NOW - 30, { kind: "connection", text: "Created SAS" }),
+      entry("upload-fail", NOW - 40, { status: "failed" }),
+    ];
+    const json = JSON.parse(serializeActivities(list));
+    expect(json.entries.map((e: ActivityEntry) => e.id)).toEqual([
+      "ok",
+      "sas",
+      "upload-fail",
+    ]);
+    // An old activity.json that already holds one is pruned on load too.
+    const parsed = parsePersistedActivities({ version: 1, entries: list }, NOW);
+    expect(parsed.map((e) => e.id)).toEqual(["ok", "sas", "upload-fail"]);
+    expect(parsed.every((e) => e.restored === true)).toBe(true);
+  });
+
+  test("the restored flag is never written back to disk", () => {
+    const json = serializeActivities([entry("a", NOW, { restored: true })]);
+    expect(json).not.toContain("restored");
   });
 
   test("drops junk, unknown kinds, duplicates, stale and future entries", () => {

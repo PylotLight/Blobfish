@@ -364,6 +364,8 @@ export interface ActivityEntry {
   fileDeleted?: boolean;
   accountId?: string;
   container?: string;
+  /** Read back from activity.json at launch: last session's history, never "new". Not persisted. */
+  restored?: boolean;
 }
 
 /* ---------- SAS + container / service admin (sidebar context menus) ---------- */

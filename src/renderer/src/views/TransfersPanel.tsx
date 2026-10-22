@@ -1,4 +1,5 @@
 import {
+  Fragment,
   memo,
   useCallback,
   useEffect,
@@ -26,7 +27,12 @@ import {
   viewFromSnapshot,
   type TransfersView,
 } from "../../../shared/transfers-delta";
-import { barChips } from "../../../shared/transfers-bar";
+import {
+  dockPill,
+  earlierIndex,
+  hoverMayOpen,
+  relativeWhen,
+} from "../../../shared/dock-view";
 import {
   rowPitch as measurePitch,
   syncBudget,
@@ -249,31 +255,62 @@ const TransferRow = memo(function TransferRow(props: {
   );
 });
 
-function ActivityRow(props: { entry: ActivityEntry }): React.JSX.Element {
-  const { entry } = props;
-  const when = new Date(entry.at).toLocaleString();
+const ActivityRow = memo(function ActivityRow(props: {
+  entry: ActivityEntry;
+  now: number;
+}): React.JSX.Element {
+  const { entry, now } = props;
+  const failed = entry.status === "failed";
+  // Long errors stay one line; click (or Enter) shows the whole message.
+  const [open, setOpen] = useState(false);
+  const exact = new Date(entry.at).toLocaleString();
+  const meta = [
+    entry.durationMs !== undefined ? formatDuration(entry.durationMs) : null,
+  ].filter(Boolean);
   return (
-    <li className="activity-row">
+    <li className={`activity-row${failed ? " failed" : ""}`}>
       <span className={`a-dot ${entry.status}`} aria-hidden>
-        <Icon name={entry.status === "success" ? "check" : "close"} size={11} />
+        <Icon name={failed ? "close" : "check"} size={10} />
       </span>
       <div className="a-main">
-        <div>{entry.text}</div>
-        <div className="muted small">
-          {[
-            entry.detail,
-            `Started at ${when}`,
-            entry.durationMs !== undefined
-              ? `Duration: ${formatDuration(entry.durationMs)}`
-              : null,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
+        <div className="a-line">
+          <span className="a-text" title={entry.text}>
+            {entry.text}
+          </span>
+          <time
+            className="a-when"
+            dateTime={new Date(entry.at).toISOString()}
+            title={exact}
+          >
+            {relativeWhen(entry.at, now)}
+          </time>
         </div>
+        {(entry.detail || meta.length > 0) && (
+          <div
+            className={`a-detail${open ? " open" : ""}${failed ? " is-error" : ""}`}
+            title={open ? undefined : entry.detail}
+            role={entry.detail ? "button" : undefined}
+            tabIndex={entry.detail ? 0 : undefined}
+            aria-expanded={entry.detail ? open : undefined}
+            onClick={entry.detail ? () => setOpen((v) => !v) : undefined}
+            onKeyDown={
+              entry.detail
+                ? (e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setOpen((v) => !v);
+                    }
+                  }
+                : undefined
+            }
+          >
+            {[entry.detail, ...meta].filter(Boolean).join(" · ")}
+          </div>
+        )}
         {entry.localPath &&
           !entry.fileDeleted &&
           entry.transferDirection === "download" && (
-            <div className="row activity-file-actions">
+            <div className="activity-file-actions">
               <button
                 className="linklike small"
                 onClick={() =>
@@ -307,12 +344,12 @@ function ActivityRow(props: { entry: ActivityEntry }): React.JSX.Element {
             </div>
           )}
         {entry.fileDeleted && (
-          <div className="muted small">Downloaded file deleted.</div>
+          <div className="a-detail">Downloaded file deleted.</div>
         )}
       </div>
     </li>
   );
-}
+});
 
 export default function TransfersPanel(props: {
   onOpenSettings: () => void;
@@ -326,10 +363,21 @@ export default function TransfersPanel(props: {
   const [pinned, setPinned] = useState(false);
   const hadActive = useRef(false);
   const hoverTimer = useRef<number | null>(null);
+  const mountedAt = useRef(performance.now());
 
-  // Hover intent: small delay so brushing past the strip doesn't flicker it open.
-  function scheduleOpen(): void {
+  // Hover intent: small delay so brushing past the pill doesn't flicker it open. Armed only
+  // by a real pointer move: at launch Chromium sends a synthetic move when the dock lays out
+  // under a resting cursor, which used to pop the panel open on its own.
+  function scheduleOpen(e: React.MouseEvent): void {
     if (expanded || hoverTimer.current !== null) return;
+    if (
+      !hoverMayOpen(
+        performance.now() - mountedAt.current,
+        e.movementX,
+        e.movementY,
+      )
+    )
+      return;
     hoverTimer.current = window.setTimeout(() => {
       hoverTimer.current = null;
       setExpanded(true);
@@ -460,63 +508,68 @@ export default function TransfersPanel(props: {
   const { up, down } = snap;
 
   if (!expanded) {
-    const chips = barChips(activities, snap.finished);
+    const pill = dockPill(activities, {
+      active: snap.active,
+      queued: snap.queued,
+      leftover: snap.finished,
+      rows: total,
+    });
+    if (!pill.visible) return <></>;
     return (
       <button
-        className="transfers-bar"
+        className={`transfers-bar tone-${pill.tone}`}
         onClick={() => {
           cancelScheduled();
           setPinned(true);
           setExpanded(true);
         }}
-        onMouseEnter={scheduleOpen}
+        onMouseMove={scheduleOpen}
         onMouseLeave={cancelScheduled}
-        title="Transfers and activity — hover to expand, click to pin"
+        title="Transfers and activity"
+        aria-label={`Transfers, ${pill.status}. Show transfers and activity`}
       >
-        <span className="t-stats">
-          {up > 0 && (
-            <span aria-label={`${up} uploading`}>
-              <Icon name="up" size={12} />
-              {up}
+        <span className="tb-dot" aria-hidden />
+        <span className="tb-label">Transfers</span>
+        {firstActive ? (
+          <>
+            <span className="tb-stats">
+              {up > 0 && (
+                <span aria-label={`${up} uploading`}>
+                  <Icon name="up" size={11} />
+                  {up}
+                </span>
+              )}
+              {down > 0 && (
+                <span aria-label={`${down} downloading`}>
+                  <Icon name="down" size={11} />
+                  {down}
+                </span>
+              )}
             </span>
-          )}
-          {down > 0 && (
-            <span aria-label={`${down} downloading`}>
-              <Icon name="down" size={12} />
-              {down}
+            <span className="tb-name">{firstActive.name.split("/").pop()}</span>
+            <span className="tb-num">
+              {formatPct(firstActive.doneBytes, firstActive.totalBytes)}
             </span>
-          )}
-          {chips.done > 0 && (
-            <span aria-label={`${chips.done} done`}>
-              <Icon name="check" size={12} />
-              {chips.done}
-            </span>
-          )}
-          {chips.failed > 0 && (
-            <span
-              className="t-failed"
-              aria-label={`${chips.failed} failed or cancelled`}
-            >
-              <Icon name="close" size={12} />
-              {chips.failed}
-            </span>
-          )}
-        </span>
-        {firstActive && (
-          <span className="t-mini-name">
-            {firstActive.name.split("/").pop()} ·{" "}
-            {formatPct(firstActive.doneBytes, firstActive.totalBytes)}
-          </span>
+            {snap.aggregateBps > 0 && (
+              <span className="tb-num tb-speed">
+                {formatSpeed(snap.aggregateBps)}
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="tb-status">{pill.status}</span>
         )}
-        {snap.aggregateBps > 0 && (
-          <span className="t-speed">{formatSpeed(snap.aggregateBps)}</span>
-        )}
-        <span className="twisty open" aria-hidden>
-          <Icon name="chevronRight" size={13} />
+        <span className="tb-chev" aria-hidden>
+          <Icon name="chevronUp" size={12} />
         </span>
       </button>
     );
   }
+
+  const shown = activities.slice(0, 30);
+  const earlier = earlierIndex(shown);
+  // Relative times are computed per render; the dock re-renders on every update anyway.
+  const now = Date.now();
 
   const { start, end } = virtual
     ? virtualWindow(
@@ -542,23 +595,25 @@ export default function TransfersPanel(props: {
     >
       <header className="transfers-head">
         <strong>Transfers</strong>
-        <span className="muted small">
+        <span className="transfers-state">
           {snap.active > 0
             ? `${snap.active} active · ${snap.queued} queued · ${formatSpeed(snap.aggregateBps)}`
             : snap.queued > 0
               ? `${snap.queued} queued`
               : "idle"}
         </span>
-        <span
-          className="pill conn-pill"
-          title="Parallel connections per file (uploads and downloads) · max simultaneous transfers"
-        >
-          {snap.uploadConcurrency} conn/file · {snap.maxParallel} parallel
-        </span>
+        {snap.active + snap.queued > 0 && (
+          <span
+            className="conn-pill"
+            title="Parallel connections per file (uploads and downloads) · max simultaneous transfers"
+          >
+            {snap.uploadConcurrency} conn/file · {snap.maxParallel} parallel
+          </span>
+        )}
         <span className="transfers-head-actions">
           <button
             className="mini-btn"
-            title="Transfer tuning"
+            title={`Transfer tuning: ${snap.uploadConcurrency} connections per file, ${snap.maxParallel} parallel transfers`}
             onClick={props.onOpenSettings}
           >
             Tuning
@@ -580,7 +635,7 @@ export default function TransfersPanel(props: {
             </button>
           )}
           <button
-            className="mini-btn"
+            className="mini-btn icon-only"
             onClick={() => {
               setPinned(false);
               setExpanded(false);
@@ -621,12 +676,10 @@ export default function TransfersPanel(props: {
       )}
 
       {empty && (
-        <p
-          className="muted small transfers-empty"
-          style={{ margin: "10px 0 0" }}
-        >
-          No transfers or activity yet.
-        </p>
+        <p className="transfers-empty">No transfers or activity yet.</p>
+      )}
+      {!empty && total === 0 && (
+        <p className="transfers-empty">No transfers running.</p>
       )}
 
       {activities.length > 0 && (
@@ -635,22 +688,31 @@ export default function TransfersPanel(props: {
             <strong>Activity</strong>
             <span className="activity-links">
               <button
-                className="linklike small"
-                onClick={() => void window.api.activity.clear("completed")}
-              >
-                Clear completed
-              </button>
-              <button
-                className="linklike small"
+                className="mini-btn"
+                title="Remove successful entries, keep failures"
                 onClick={() => void window.api.activity.clear("successful")}
               >
                 Clear successful
               </button>
+              <button
+                className="mini-btn"
+                title="Remove every entry"
+                onClick={() => void window.api.activity.clear("completed")}
+              >
+                Clear all
+              </button>
             </span>
           </header>
           <ul className="activity-list">
-            {activities.slice(0, 30).map((e) => (
-              <ActivityRow key={e.id} entry={e} />
+            {shown.map((e, i) => (
+              <Fragment key={e.id}>
+                {i === earlier && (
+                  <li className="activity-sep" aria-hidden>
+                    Earlier
+                  </li>
+                )}
+                <ActivityRow entry={e} now={now} />
+              </Fragment>
             ))}
           </ul>
         </>
