@@ -3,6 +3,8 @@ import type {
   AccountCreateInput,
   AccountSummary,
   AccountUpdateInput,
+  BackupRestoreResult,
+  BackupSaveResult,
   ActivityEntry,
   BlobVersionInfo,
   ContainerActionArgs,
@@ -91,7 +93,10 @@ const api = {
     copySecret: (id: string): Promise<boolean> => ipcRenderer.invoke('accounts:copy-secret', id),
     exportSecret: (id: string): Promise<{ saved: boolean; path?: string }> =>
       ipcRenderer.invoke('accounts:export-secret', id),
-    azuriteTemplate: (): Promise<string> => ipcRenderer.invoke('accounts:azurite-template')
+    azuriteTemplate: (): Promise<string> => ipcRenderer.invoke('accounts:azurite-template'),
+    backup: (passphrase: string): Promise<BackupSaveResult> => ipcRenderer.invoke('accounts:backup', passphrase),
+    restore: (passphrase: string): Promise<BackupRestoreResult> =>
+      ipcRenderer.invoke('accounts:restore', passphrase)
   },
   storage: {
     listContainers: (accountId: string): Promise<StorageContainer[]> =>

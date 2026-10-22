@@ -1,5 +1,6 @@
 import { UpdateSettings } from './UpdateSettings'
 import { Icon } from './Icon'
+import { ConnectionsBackup } from './ConnectionsBackup'
 
 export type ThemeName = 'midnight' | 'abyss' | 'slate'
 export type DensityName = 'comfortable' | 'compact'
@@ -125,6 +126,8 @@ const PRESET_ACCENTS: AccentName[] = ['mint', 'sky', 'violet', 'amber', 'coral']
 export function SettingsView(props: {
   prefs: Prefs
   vibrancySupported: boolean
+  connectionCount?: number
+  onConnectionsChanged?: () => void
   onChange: (prefs: Prefs) => void
   onBack: () => void
 }): React.JSX.Element {
@@ -320,6 +323,11 @@ export function SettingsView(props: {
             </button>
           </div>
         </section>
+
+        <ConnectionsBackup
+          count={props.connectionCount ?? 0}
+          onRestored={() => props.onConnectionsChanged?.()}
+        />
 
         <UpdateSettings />
       </div>
