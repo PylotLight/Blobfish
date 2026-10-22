@@ -54,6 +54,8 @@ import {
   StoredPoliciesDialog,
 } from "./views/AdminDialogs";
 import { stripIpcWrapper } from "./views/errors";
+import { createSidebarPeek, type PeekZone } from "../../shared/sidebar-peek";
+import { hoverMayOpen } from "../../shared/dock-view";
 
 const CONTAINER_NAME_RE = /^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$/;
 
@@ -185,6 +187,14 @@ export default function App(): React.JSX.Element {
   const [secretError, setSecretError] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
+  // Collapsed sidebar hover-peek: a floating popover off the toggle / left edge.
+  const [peekOpen, setPeekOpen] = useState(false);
+  const [peek] = useState(() => createSidebarPeek({ onChange: setPeekOpen }));
+  const peekMountedAt = useRef(performance.now());
+  const asideRef = useRef<HTMLElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const sidebarShown = !sidebarCollapsed || peekOpen;
+
   const refreshAccounts = useCallback(() => {
     window.api.accounts
       .list()
@@ -246,6 +256,70 @@ export default function App(): React.JSX.Element {
       // Storage blocked — collapse state just won't persist.
     }
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    peek.setEnabled(sidebarCollapsed);
+  }, [peek, sidebarCollapsed]);
+  useEffect(() => () => peek.dispose(), [peek]);
+
+  // Anything spawned from the peeked sidebar (its context menu, a dialog) keeps it open.
+  const sidebarDialogOpen =
+    showWizard ||
+    sasFor !== null ||
+    adminFor !== null ||
+    openByNameFor !== null ||
+    breakLeaseFor !== null ||
+    detachFor !== null ||
+    createFor !== null ||
+    renameContainerFor !== null ||
+    deleteContainerFor !== null;
+  useEffect(() => {
+    peek.hold("menu", menu !== null);
+  }, [peek, menu]);
+  useEffect(() => {
+    peek.hold("dialog", sidebarDialogOpen);
+  }, [peek, sidebarDialogOpen]);
+
+  // Peek open: Escape or a click outside the popover closes it.
+  useEffect(() => {
+    if (!peekOpen) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (document.querySelector(".ctx-menu, .modal-backdrop")) return;
+      const hadFocus = asideRef.current?.contains(document.activeElement);
+      peek.dismiss();
+      if (hadFocus) toggleRef.current?.focus();
+    };
+    const onDown = (e: PointerEvent): void => {
+      const t = e.target as Element | null;
+      if (!t?.closest) return;
+      if (
+        asideRef.current?.contains(t) ||
+        t.closest(".sidebar-toggle, .ctx-menu, .modal-backdrop")
+      )
+        return;
+      peek.dismiss();
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onDown, true);
+    };
+  }, [peek, peekOpen]);
+
+  // Hover zones only arm on a real pointer move (Chromium sends a synthetic one at launch).
+  function peekMove(zone: PeekZone) {
+    return (e: React.PointerEvent): void =>
+      peek.enter(
+        zone,
+        hoverMayOpen(
+          performance.now() - peekMountedAt.current,
+          e.movementX,
+          e.movementY,
+        ),
+      );
+  }
 
   // ⌘B / Ctrl+B toggles the sidebar; Esc re-opens nothing, it just closes menus.
   useEffect(() => {
@@ -412,6 +486,7 @@ export default function App(): React.JSX.Element {
     const resolved =
       container ??
       (a && a.kind !== "account" ? (a.containerName ?? null) : null);
+    peek.dismiss();
     setSelectedId(accountId);
     setTarget((t) => ({
       accountId,
@@ -423,6 +498,7 @@ export default function App(): React.JSX.Element {
   }
 
   function goHome(): void {
+    peek.dismiss();
     setSelectedId(null);
     setTarget(null);
   }
@@ -1129,7 +1205,7 @@ export default function App(): React.JSX.Element {
 
   return (
     <div
-      className={`shell${sidebarCollapsed ? " sidebar-collapsed" : ""}`}
+      className={`shell${sidebarCollapsed ? " sidebar-collapsed" : ""}${sidebarCollapsed && peekOpen ? " sidebar-peek" : ""}`}
       data-platform={platform ?? "unknown"}
       data-theme={prefs.theme}
       data-vibrancy={
@@ -1144,10 +1220,47 @@ export default function App(): React.JSX.Element {
       data-motion={prefs.motion}
       style={accentVars(prefs) as React.CSSProperties}
     >
+      {/* One toggle, same spot (titlebar row, next to the traffic lights) whether the
+          sidebar is pinned open or collapsed. Hover peeks; click pins / collapses. */}
+      <button
+        ref={toggleRef}
+        className={`sidebar-toggle${peekOpen ? " is-peeking" : ""}`}
+        onClick={() => {
+          peek.suppressUntilLeave();
+          setSidebarCollapsed((v) => !v);
+        }}
+        onPointerMove={sidebarCollapsed ? peekMove("toggle") : undefined}
+        onPointerLeave={() => peek.leave("toggle")}
+        title={sidebarCollapsed ? "Show sidebar (⌘B)" : "Hide sidebar (⌘B)"}
+        aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+        aria-expanded={sidebarShown}
+      >
+        <Icon name="sidebar" size={16} />
+      </button>
+      {sidebarCollapsed && (
+        <div
+          className="sidebar-edge"
+          aria-hidden
+          onPointerMove={peekMove("edge")}
+          onPointerLeave={() => peek.leave("edge")}
+        />
+      )}
       <aside
+        ref={asideRef}
         className="sidebar"
-        style={sidebarCollapsed ? undefined : { width: `${sidebarWidth}px` }}
-        aria-hidden={sidebarCollapsed}
+        style={{ width: `${sidebarWidth}px` }}
+        aria-hidden={!sidebarShown}
+        inert={!sidebarShown}
+        onPointerEnter={() => peek.enter("panel", true)}
+        onPointerLeave={() => peek.leave("panel")}
+        onFocus={(e) => {
+          if (sidebarCollapsed && e.target.matches(":focus-visible"))
+            peek.hold("focus", true);
+        }}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null))
+            peek.hold("focus", false);
+        }}
       >
         <div className="traffic-spacer" aria-hidden />
         <div className="brand">
@@ -1185,7 +1298,10 @@ export default function App(): React.JSX.Element {
           </button>
           <button
             className="side-nav-btn side-nav-new"
-            onClick={() => setShowWizard(true)}
+            onClick={() => {
+              peek.dismiss();
+              setShowWizard(true);
+            }}
           >
             <Icon name="plus" size={15} />
             <span>New connection</span>
@@ -1277,17 +1393,12 @@ export default function App(): React.JSX.Element {
 
         <div className="side-foot">
           <button
-            className="side-foot-btn side-foot-collapse"
-            onClick={() => setSidebarCollapsed(true)}
-            title="Collapse sidebar (⌘B)"
-            aria-label="Collapse sidebar"
-          >
-            <Icon name="sidebar" size={17} />
-          </button>
-          <button
             className={`side-foot-btn${showSettings ? " is-current" : ""}`}
             aria-current={showSettings ? "page" : undefined}
-            onClick={() => setShowSettings(true)}
+            onClick={() => {
+              peek.dismiss();
+              setShowSettings(true);
+            }}
             title={`Settings (⌘,)\n${accounts.length} ${accounts.length === 1 ? "connection" : "connections"} · OS Keychain encrypted${appVersion ? ` · v${appVersion}` : ""}`}
             aria-label={updateBadge ? "Settings, update available" : "Settings"}
           >
@@ -1319,16 +1430,6 @@ export default function App(): React.JSX.Element {
       />
 
       <div className="content no-topbar">
-        {sidebarCollapsed && (
-          <button
-            className="sidebar-expand-btn"
-            onClick={() => setSidebarCollapsed(false)}
-            title="Expand sidebar (⌘B)"
-            aria-label="Expand sidebar"
-          >
-            <Icon name="sidebar" size={16} />
-          </button>
-        )}
         <main className="view">
           {showSettings ? (
             <SettingsView
