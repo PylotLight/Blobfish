@@ -15,6 +15,7 @@
   --ok: #5fbf7f;
   --radius: 18px;
   --header-blur-bg: rgba(14, 18, 25, 0.88);
+  --sheet-bg: linear-gradient(170deg, rgb(29, 34, 44), rgb(19, 23, 31));
   font-family: ui-sans-serif, system-ui, -apple-system, 'SF Pro Text', sans-serif;
 }
 
@@ -574,8 +575,8 @@ input[type='range'] {
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: rgba(4, 6, 9, 0.5);
-  backdrop-filter: blur(12px);
+  background: rgba(4, 6, 9, 0.62);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -622,9 +623,17 @@ input[type='range'] {
   background: var(--panel-strong);
 }
 
-/* The modal backdrop already blurs everything behind the sheet: don't stack a second
- * blur pass on the sheet itself (one blur layer per overlay, never two). */
-.modal-backdrop .glass {
+/* Modal sheets (dialogs, wizard, settings, preview, palette) are SOLID, same recipe as
+ * Inkfish/Surffish popups and the transfers dock. `.glass.strong` is a 10% white wash,
+ * and on macOS the scrim's backdrop-filter over a vibrancy window doesn't always land,
+ * so the explorer/CSV text behind read straight through the sheet. A blur only ever
+ * softens, it never hides: the fill has to. No second blur pass on the sheet either
+ * (one blur layer per overlay). Specificity (0,3,0) beats `.glass.strong`. */
+.modal-backdrop .glass,
+.modal-backdrop .glass.strong {
+  background: var(--sheet-bg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), inset 0 1px rgba(255, 255, 255, 0.05);
   backdrop-filter: none;
 }
 
@@ -2654,6 +2663,7 @@ li.done .wiz-num {
   --accent: #8ab4ff;
   --mint: #7ee2a8;
   --header-blur-bg: rgba(6, 10, 15, 0.92);
+  --sheet-bg: linear-gradient(170deg, rgb(16, 20, 27), rgb(7, 9, 13));
   background: linear-gradient(165deg, rgba(6, 9, 13, 0.72), rgba(0, 0, 0, 0.85));
 }
 
@@ -2661,6 +2671,7 @@ li.done .wiz-num {
   --accent: #b79cff;
   --mint: #8fe3c0;
   --header-blur-bg: rgba(22, 19, 29, 0.9);
+  --sheet-bg: linear-gradient(170deg, rgb(40, 36, 51), rgb(23, 20, 31));
   background: linear-gradient(165deg, rgba(44, 40, 54, 0.5), rgba(16, 14, 22, 0.62));
 }
 
