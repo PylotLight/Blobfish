@@ -3967,6 +3967,46 @@ th.wide {
   padding: 0;
 }
 
+.transfers-head .mini-btn,
+.activity-head .mini-btn {
+  white-space: nowrap;
+}
+
+.transfers-head .transfers-head-actions {
+  flex-shrink: 0;
+}
+
+.transfers-panel .t-name > .muted {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transfers-panel .t-name strong {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.transfers-panel::-webkit-scrollbar {
+  width: 10px;
+}
+
+.transfers-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.transfers-panel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+.transfers-panel::-webkit-scrollbar-button {
+  display: none;
+}
+
 .activity-head {
   margin-top: 12px;
   padding-top: 10px;
