@@ -3410,6 +3410,11 @@ th.wide {
   background: rgba(255, 255, 255, 0.07);
 }
 
+.ctx-menu button[role='menuitem']:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .ctx-menu button[role='menuitem'].danger {
   color: #ff8f8f;
 }

@@ -185,6 +185,7 @@ export default function Explorer(props: {
         filterRef.current?.select()
       } else if (e.key === 'Escape') {
         setCtx(null)
+        setOptsMenu(null)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -196,6 +197,7 @@ export default function Explorer(props: {
     containerRef.current = next
     setActiveTab(null)
     setCtx(null)
+    setOptsMenu(null)
     props.onContainerChange?.(next)
   }
 
@@ -231,6 +233,8 @@ export default function Explorer(props: {
   const [activeTab, setActiveTab] = useState<string | null>(null)
   const [ctx, setCtx] = useState<CtxMenu | null>(null)
   const ctxRef = useRef<HTMLDivElement>(null)
+  // Container options (⋯) in the toolbar: destructive stuff lives here, not as a button.
+  const [optsMenu, setOptsMenu] = useState<{ right: number; top: number } | null>(null)
   // Keep the menu on-screen using its real size (it grows with the selection's actions).
   useLayoutEffect(() => {
     const el = ctxRef.current
@@ -1528,17 +1532,59 @@ export default function Explorer(props: {
         </div>
         <div className="toolbar-right">
           {toolbarFilter}
-          {!scoped && (
-            <button
-              className="btn ghost small"
-              disabled={busy !== null}
-              onClick={() => container && onDeleteContainer(container)}
-              title="Delete this container and everything in it"
-              aria-label="Delete container"
-            >
-              <Icon name="trash" size={14} /><span className="toolbar-btn-label"> Delete container</span>
-            </button>
-          )}
+          <button
+            className="nav-btn"
+            title="Container options"
+            aria-label="Container options"
+            aria-haspopup="menu"
+            aria-expanded={optsMenu !== null}
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect()
+              setOptsMenu(optsMenu ? null : { right: window.innerWidth - r.right, top: r.bottom + 6 })
+            }}
+          >
+            <Icon name="more" size={16} />
+          </button>
+          {optsMenu && container &&
+            createPortal(
+              <>
+                <div className="ctx-overlay" onClick={() => setOptsMenu(null)} onContextMenu={() => setOptsMenu(null)} />
+                <div
+                  className="ctx-menu glass strong"
+                  role="menu"
+                  aria-label="Container options"
+                  style={{ right: `${optsMenu.right}px`, top: `${optsMenu.top}px` }}
+                >
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setOptsMenu(null)
+                      void navigator.clipboard
+                        ?.writeText(`${account.endpoint.split('?')[0]!.replace(/\/$/, '')}/${container}`)
+                        .then(() => flash('Container URL copied'))
+                        .catch(() => undefined)
+                    }}
+                  >
+                    Copy container URL
+                  </button>
+                  <button role="menuitem" onClick={() => { setOptsMenu(null); retryCurrent() }}>Refresh</button>
+                  {!scoped && (
+                    <>
+                      <div className="ctx-sep" aria-hidden />
+                      <button
+                        role="menuitem"
+                        className="danger"
+                        disabled={busy !== null}
+                        onClick={() => { setOptsMenu(null); onDeleteContainer(container) }}
+                      >
+                        Delete container…
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>,
+              document.body
+            )}
         </div>
       </header>
 
