@@ -473,6 +473,7 @@ code {
 }
 
 input[type='text'],
+input[type='password'],
 input:not([type]),
 input[type='number'],
 select {
@@ -4419,4 +4420,31 @@ th.wide {
 
 .settings-btn .update-dot {
   margin-left: auto;
+}
+
+/* ---------- Settings › Connections backup ---------- */
+.conn-backup-form {
+  gap: 10px;
+}
+
+.conn-backup-form input {
+  width: 100%;
+  max-width: 420px;
+}
+
+.conn-backup-msg {
+  margin: 8px 0 0;
+}
+
+.conn-backup-msg.ok {
+  color: var(--ok);
+}
+
+.conn-backup-msg.err {
+  color: var(--danger);
+}
+
+.conn-backup .setting-row.inline > .row,
+.conn-backup-form .row .row {
+  margin-top: 0;
 }

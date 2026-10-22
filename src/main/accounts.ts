@@ -17,6 +17,7 @@ import {
   parseSasUrl,
   suggestDisplayName
 } from '../shared/parse'
+import { connectionKey, validEntry, type BackupEntry } from './backup'
 import { ensureEncryption as ensureAsyncEncryption, migrateSecrets, openSecret, sealSecret } from './secret-seal'
 
 export { isConnectionString, parseConnectionString, parseSasUrl }
@@ -257,4 +258,87 @@ export async function pinContainerAttachment(sourceId: string, containerRaw: str
 
 export function encryptionAvailable(): Promise<boolean> {
   return safeStorage.isAsyncEncryptionAvailable()
+}
+
+/* ---------- backup / restore (see backup.ts) ---------- */
+
+/** Every connection with its secret in the clear. Main-process only; goes straight into encryptBackup. */
+export async function exportAllForBackup(): Promise<BackupEntry[]> {
+  const out: BackupEntry[] = []
+  for (const a of readFile().accounts) {
+    const { secret } = await decryptSecret(a.id)
+    out.push({
+      name: a.name,
+      kind: a.kind,
+      endpoint: a.endpoint,
+      containerName: a.containerName,
+      prefix: a.prefix,
+      authType: a.authType,
+      accountName: a.accountName,
+      createdAt: a.createdAt,
+      sasExpiry: a.sasExpiry ?? null,
+      pinned: a.pinned ?? false,
+      secret
+    })
+  }
+  return out
+}
+
+export interface RestoreResult {
+  added: number
+  skipped: number
+  invalid: number
+}
+
+/**
+ * Merge backed-up connections into the store: never replaces or deletes anything. A connection
+ * already here (same kind/endpoint/container/prefix/secret) is skipped, so restoring twice is a no-op.
+ */
+export async function restoreFromBackup(entries: unknown[]): Promise<RestoreResult> {
+  await ensureEncryption()
+  const existing = new Set<string>()
+  for (const a of readFile().accounts) {
+    try {
+      const { secret } = await decryptSecret(a.id)
+      existing.add(connectionKey(a, secret))
+    } catch {
+      // unreadable local secret: can't be a duplicate of anything
+    }
+  }
+  const fresh: StoredAccount[] = []
+  let skipped = 0
+  let invalid = 0
+  for (const e of entries) {
+    if (!validEntry(e)) {
+      invalid++
+      continue
+    }
+    const secret = e.secret.trim()
+    const key = connectionKey(e, secret)
+    if (existing.has(key)) {
+      skipped++
+      continue
+    }
+    existing.add(key)
+    fresh.push({
+      id: randomUUID(),
+      name: e.name.trim() || 'Storage',
+      kind: e.kind,
+      endpoint: e.endpoint,
+      containerName: e.containerName || undefined,
+      prefix: cleanPrefix(e.prefix),
+      authType: isConnectionString(secret) ? 'connection-string' : 'sas',
+      accountName: e.accountName,
+      createdAt: typeof e.createdAt === 'number' ? e.createdAt : Date.now(),
+      sasExpiry: e.sasExpiry ?? null,
+      pinned: e.pinned === true,
+      encryptedSecret: await sealSecret(safeStorage, secret)
+    })
+  }
+  if (fresh.length) {
+    const data = readFile()
+    data.accounts.push(...fresh)
+    writeFile(data)
+  }
+  return { added: fresh.length, skipped, invalid }
 }

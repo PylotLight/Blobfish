@@ -1,12 +1,14 @@
 import { app, clipboard, dialog, ipcMain, Notification, shell, type IpcMainInvokeEvent } from 'electron'
 import * as os from 'node:os'
-import { writeFileSync } from 'node:fs'
+import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import { getGlassState, getMainWindow, setGlassVibrancy, showWindow } from './window'
 import type {
   AccountCreateInput,
   AccountSummary,
   AccountUpdateInput,
   ActivityEntry,
+  BackupRestoreResult,
+  BackupSaveResult,
   BlobVersionInfo,
   ContainerActionArgs,
   CopyBlobsArgs,
@@ -38,10 +40,13 @@ import {
   encryptionAvailable,
   listAccounts,
   pinContainerAttachment,
+  exportAllForBackup,
   removeAccount,
+  restoreFromBackup,
   setPinned,
   updateAccount
 } from './accounts'
+import { BACKUP_EXT, BackupError, decryptBackup, encryptBackup } from './backup'
 import { clearActivities, deleteDownloadedFile, listActivities, logActivity } from './activity'
 import {
   azuriteConnectionString,
@@ -247,6 +252,72 @@ export function registerIpc(): void {
         status: 'success'
       })
       return { saved: true, path: res.filePath }
+    }
+  )
+  // ----- connections backup / restore (passphrase-encrypted, see backup.ts) -----
+  const backupError = (err: unknown): { ok: false; error: string } => ({
+    ok: false,
+    error: err instanceof BackupError || err instanceof Error ? err.message : String(err)
+  })
+  ipcMain.handle(
+    'accounts:backup',
+    async (_event: IpcMainInvokeEvent, passphrase: string): Promise<BackupSaveResult> => {
+      try {
+        const connections = await exportAllForBackup()
+        if (connections.length === 0) return { ok: false, error: 'No connections to back up yet.' }
+        const text = await encryptBackup(
+          { app: 'blobfish', appVersion: app.getVersion(), exportedAt: Date.now(), connections },
+          passphrase
+        )
+        const win = getMainWindow()
+        const day = new Date().toISOString().slice(0, 10)
+        const opts = {
+          title: 'Back up connections',
+          defaultPath: `blobfish-connections-${day}.${BACKUP_EXT}`,
+          filters: [{ name: 'Blobfish backup', extensions: [BACKUP_EXT] }]
+        }
+        const res = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts)
+        if (res.canceled || !res.filePath) return { ok: false, canceled: true }
+        writeFileSync(res.filePath, text, { encoding: 'utf8', mode: 0o600 })
+        logActivity({
+          kind: 'connection',
+          text: `Backed up ${connections.length} connection${connections.length === 1 ? '' : 's'}`,
+          status: 'success'
+        })
+        return { ok: true, count: connections.length, path: res.filePath }
+      } catch (err) {
+        return backupError(err)
+      }
+    }
+  )
+  ipcMain.handle(
+    'accounts:restore',
+    async (_event: IpcMainInvokeEvent, passphrase: string): Promise<BackupRestoreResult> => {
+      try {
+        const win = getMainWindow()
+        const opts = {
+          title: 'Restore connections',
+          properties: ['openFile' as const],
+          filters: [
+            { name: 'Blobfish backup', extensions: [BACKUP_EXT] },
+            { name: 'All files', extensions: ['*'] }
+          ]
+        }
+        const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+        const file = res.filePaths[0]
+        if (res.canceled || !file) return { ok: false, canceled: true }
+        if (statSync(file).size > 20 * 1024 * 1024) return { ok: false, error: "That file isn't a Blobfish backup." }
+        const payload = await decryptBackup(readFileSync(file, 'utf8'), passphrase)
+        const r = await restoreFromBackup(payload.connections)
+        logActivity({
+          kind: 'connection',
+          text: `Restored ${r.added} connection${r.added === 1 ? '' : 's'} from backup${r.skipped ? ` (${r.skipped} already here)` : ''}`,
+          status: 'success'
+        })
+        return { ok: true, ...r }
+      } catch (err) {
+        return backupError(err)
+      }
     }
   )
   ipcMain.handle(

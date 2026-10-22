@@ -77,6 +77,16 @@ export interface AccountCreateInput {
   prefix?: string
 }
 
+/** Settings › Connections › Back up. `canceled` = user closed the save dialog. */
+export type BackupSaveResult =
+  | { ok: true; count: number; path: string }
+  | { ok: false; canceled?: true; error?: string }
+
+/** Settings › Connections › Restore. Merge only: `skipped` were already here. */
+export type BackupRestoreResult =
+  | { ok: true; added: number; skipped: number; invalid: number }
+  | { ok: false; canceled?: true; error?: string }
+
 export interface AccountUpdateInput {
   name?: string
   prefix?: string

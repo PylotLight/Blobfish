@@ -655,6 +655,8 @@ export default function App(): React.JSX.Element {
             <SettingsView
               prefs={prefs}
               vibrancySupported={platform === 'darwin'}
+              connectionCount={accounts.length}
+              onConnectionsChanged={refreshAccounts}
               onChange={updatePrefs}
               onBack={() => setShowSettings(false)}
             />
