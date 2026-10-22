@@ -16,6 +16,7 @@ import {
   showWindow,
 } from "./window";
 import type {
+  AccountCapabilities,
   AccountCreateInput,
   AccountSummary,
   AccountUpdateInput,
@@ -23,8 +24,11 @@ import type {
   BackupRestoreResult,
   BackupSaveResult,
   BlobVersionInfo,
+  ContainerAccessInfo,
   ContainerActionArgs,
+  ContainerPropertiesInfo,
   CopyBlobsArgs,
+  CorsRuleInfo,
   CreateFolderArgs,
   DeleteBlobsArgs,
   DownloadArgs,
@@ -38,6 +42,9 @@ import type {
   RenameBlobArgs,
   RenameContainerArgs,
   RestoreVersionArgs,
+  SetPublicAccessArgs,
+  SetStoredPoliciesArgs,
+  SoftDeleteInfo,
   StorageContainer,
   SysInfo,
   TransferConfigure,
@@ -89,6 +96,27 @@ import {
   restoreVersion,
   undeleteBlobs,
 } from "./azure";
+import {
+  accountCapabilities,
+  accountKeyForClipboard,
+  acquireContainerLease,
+  breakContainerLease,
+  generateAccountSas,
+  generateContainerSas,
+  getContainerAccess,
+  getContainerProperties,
+  getCors,
+  getSoftDelete,
+  setCors,
+  setPublicAccess,
+  setSoftDelete,
+  setStoredPolicies,
+} from "./container-admin";
+import type {
+  AccountSasRequest,
+  ContainerSasRequest,
+  SasResult,
+} from "../shared/sas";
 import { prewarmListWorker } from "./list-runner";
 import { previewBlob } from "./preview";
 import {
@@ -390,6 +418,99 @@ export function registerIpc(): void {
         return backupError(err);
       }
     },
+  );
+  // ----- SAS + container / service admin (sidebar context menus). Keys stay in main. -----
+  ipcMain.handle(
+    "accounts:capabilities",
+    (_event: IpcMainInvokeEvent, id: string): Promise<AccountCapabilities> =>
+      accountCapabilities(id),
+  );
+  ipcMain.handle(
+    "accounts:copy-key",
+    async (_event: IpcMainInvokeEvent, id: string): Promise<boolean> => {
+      const { name, key } = await accountKeyForClipboard(id);
+      clipboard.writeText(key);
+      logActivity({
+        kind: "connection",
+        text: `Copied account key for '${name}' to clipboard`,
+        status: "success",
+      });
+      return true;
+    },
+  );
+  ipcMain.handle(
+    "sas:account",
+    (_event: IpcMainInvokeEvent, req: AccountSasRequest): Promise<SasResult> =>
+      generateAccountSas(req),
+  );
+  ipcMain.handle(
+    "sas:container",
+    (
+      _event: IpcMainInvokeEvent,
+      req: ContainerSasRequest,
+    ): Promise<SasResult> => generateContainerSas(req),
+  );
+  ipcMain.handle(
+    "container:access",
+    (
+      _event: IpcMainInvokeEvent,
+      args: ContainerActionArgs,
+    ): Promise<ContainerAccessInfo> =>
+      getContainerAccess(args.accountId, args.container),
+  );
+  ipcMain.handle(
+    "container:set-policies",
+    (_event: IpcMainInvokeEvent, args: SetStoredPoliciesArgs): Promise<void> =>
+      setStoredPolicies(args.accountId, args.container, args.policies),
+  );
+  ipcMain.handle(
+    "container:set-public-access",
+    (_event: IpcMainInvokeEvent, args: SetPublicAccessArgs): Promise<void> =>
+      setPublicAccess(args.accountId, args.container, args.level),
+  );
+  ipcMain.handle(
+    "container:properties",
+    (
+      _event: IpcMainInvokeEvent,
+      args: ContainerActionArgs,
+    ): Promise<ContainerPropertiesInfo> =>
+      getContainerProperties(args.accountId, args.container),
+  );
+  ipcMain.handle(
+    "container:acquire-lease",
+    (_event: IpcMainInvokeEvent, args: ContainerActionArgs): Promise<string> =>
+      acquireContainerLease(args.accountId, args.container),
+  );
+  ipcMain.handle(
+    "container:break-lease",
+    (_event: IpcMainInvokeEvent, args: ContainerActionArgs): Promise<void> =>
+      breakContainerLease(args.accountId, args.container),
+  );
+  ipcMain.handle(
+    "service:cors",
+    (_event: IpcMainInvokeEvent, accountId: string): Promise<CorsRuleInfo[]> =>
+      getCors(accountId),
+  );
+  ipcMain.handle(
+    "service:set-cors",
+    (
+      _event: IpcMainInvokeEvent,
+      accountId: string,
+      rules: CorsRuleInfo[],
+    ): Promise<void> => setCors(accountId, rules),
+  );
+  ipcMain.handle(
+    "service:soft-delete",
+    (_event: IpcMainInvokeEvent, accountId: string): Promise<SoftDeleteInfo> =>
+      getSoftDelete(accountId),
+  );
+  ipcMain.handle(
+    "service:set-soft-delete",
+    (
+      _event: IpcMainInvokeEvent,
+      accountId: string,
+      input: SoftDeleteInfo,
+    ): Promise<void> => setSoftDelete(accountId, input),
   );
   ipcMain.handle(
     "storage:list-containers",

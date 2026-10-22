@@ -385,6 +385,14 @@ export default function Explorer(props: {
   // Sidebar picks (account or container rows, or post-wizard selection).
   useEffect(() => {
     if (props.target) {
+      // Sidebar Refresh on what's already open: re-list in place, keep the folder.
+      if (
+        props.target.reload &&
+        props.target.container === containerRef.current
+      ) {
+        retryCurrent();
+        return;
+      }
       switchContainer(props.target.container);
       resetNav();
       // ⌘K recent folders jump straight to a prefix.

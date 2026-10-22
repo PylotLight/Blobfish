@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import type {
+  AccountCapabilities,
   AccountCreateInput,
   AccountSummary,
   AccountUpdateInput,
@@ -7,8 +8,11 @@ import type {
   BackupSaveResult,
   ActivityEntry,
   BlobVersionInfo,
+  ContainerAccessInfo,
   ContainerActionArgs,
+  ContainerPropertiesInfo,
   CopyBlobsArgs,
+  CorsRuleInfo,
   CreateFolderArgs,
   DeleteBlobsArgs,
   DownloadArgs,
@@ -24,6 +28,9 @@ import type {
   RenameBlobArgs,
   RenameContainerArgs,
   RestoreVersionArgs,
+  SetPublicAccessArgs,
+  SetStoredPoliciesArgs,
+  SoftDeleteInfo,
   StorageContainer,
   SysInfo,
   TransferConfigure,
@@ -35,6 +42,11 @@ import type {
   VibrancyName,
 } from "../shared/types";
 import type { UpdateSettingsResult, UpdateState } from "../shared/update-feed";
+import type {
+  AccountSasRequest,
+  ContainerSasRequest,
+  SasResult,
+} from "../shared/sas";
 
 export interface Versions {
   node: () => string;
@@ -105,6 +117,42 @@ const api = {
       ipcRenderer.invoke("accounts:backup", passphrase),
     restore: (passphrase: string): Promise<BackupRestoreResult> =>
       ipcRenderer.invoke("accounts:restore", passphrase),
+    capabilities: (id: string): Promise<AccountCapabilities> =>
+      ipcRenderer.invoke("accounts:capabilities", id),
+    /** Main writes the key to the clipboard itself; it never crosses into the renderer. */
+    copyKey: (id: string): Promise<boolean> =>
+      ipcRenderer.invoke("accounts:copy-key", id),
+  },
+  /** SAS signing happens in main with the account key; only the finished SAS comes back. */
+  sas: {
+    account: (req: AccountSasRequest): Promise<SasResult> =>
+      ipcRenderer.invoke("sas:account", req),
+    container: (req: ContainerSasRequest): Promise<SasResult> =>
+      ipcRenderer.invoke("sas:container", req),
+  },
+  container: {
+    access: (args: ContainerActionArgs): Promise<ContainerAccessInfo> =>
+      ipcRenderer.invoke("container:access", args),
+    setPolicies: (args: SetStoredPoliciesArgs): Promise<void> =>
+      ipcRenderer.invoke("container:set-policies", args),
+    setPublicAccess: (args: SetPublicAccessArgs): Promise<void> =>
+      ipcRenderer.invoke("container:set-public-access", args),
+    properties: (args: ContainerActionArgs): Promise<ContainerPropertiesInfo> =>
+      ipcRenderer.invoke("container:properties", args),
+    acquireLease: (args: ContainerActionArgs): Promise<string> =>
+      ipcRenderer.invoke("container:acquire-lease", args),
+    breakLease: (args: ContainerActionArgs): Promise<void> =>
+      ipcRenderer.invoke("container:break-lease", args),
+  },
+  service: {
+    cors: (accountId: string): Promise<CorsRuleInfo[]> =>
+      ipcRenderer.invoke("service:cors", accountId),
+    setCors: (accountId: string, rules: CorsRuleInfo[]): Promise<void> =>
+      ipcRenderer.invoke("service:set-cors", accountId, rules),
+    softDelete: (accountId: string): Promise<SoftDeleteInfo> =>
+      ipcRenderer.invoke("service:soft-delete", accountId),
+    setSoftDelete: (accountId: string, input: SoftDeleteInfo): Promise<void> =>
+      ipcRenderer.invoke("service:set-soft-delete", accountId, input),
   },
   storage: {
     listContainers: (accountId: string): Promise<StorageContainer[]> =>
