@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.7] - 2026-10-22
+
+### Added
+
+- **(preview)** Refresh button to re-read a replaced/updated blob (#32) ([4bdd4c3](https://github.com/PylotLight/Blobfish/commit/4bdd4c318719c7a97d86e02f5fd101d22d4bce10))
+
+### Fixed
+
+- **(ui)** Right-click menu opens at the cursor (#30) ([5cc48ce](https://github.com/PylotLight/Blobfish/commit/5cc48ced153f01a985e83d155fa0d3e8eead87e7))
+
+### Other
+
+- **(explorer)** Move delete container into a container options menu (#31) ([b0660ac](https://github.com/PylotLight/Blobfish/commit/b0660acb15221f54adaf1f0f7c01d487d04415d2))
+
 ## [0.2.6] - 2026-10-22
 
 ### Added
@@ -166,6 +180,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Blobfish identity on starter template (config, package, readme) ([9718d04](https://github.com/PylotLight/Blobfish/commit/9718d04614759cf98264fabd561785edc44b67a8))
 - Add app build/icon assets ([d4780b7](https://github.com/PylotLight/Blobfish/commit/d4780b7d445fc77be83edf8161ff639de448e3cb))
 
+[0.2.7]: https://github.com/PylotLight/Blobfish/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/PylotLight/Blobfish/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/PylotLight/Blobfish/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/PylotLight/Blobfish/compare/v0.2.3...v0.2.4
