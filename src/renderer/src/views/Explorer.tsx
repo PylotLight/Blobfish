@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type {
   AccountSummary,
@@ -229,6 +230,16 @@ export default function Explorer(props: {
   const [previewTabs, setPreviewTabs] = useState<PreviewTab[]>([])
   const [activeTab, setActiveTab] = useState<string | null>(null)
   const [ctx, setCtx] = useState<CtxMenu | null>(null)
+  const ctxRef = useRef<HTMLDivElement>(null)
+  // Keep the menu on-screen using its real size (it grows with the selection's actions).
+  useLayoutEffect(() => {
+    const el = ctxRef.current
+    if (!ctx || !el) return
+    const pad = 8
+    const { width, height } = el.getBoundingClientRect()
+    el.style.left = `${Math.max(pad, Math.min(ctx.x, window.innerWidth - width - pad))}px`
+    el.style.top = `${Math.max(pad, Math.min(ctx.y, window.innerHeight - height - pad))}px`
+  }, [ctx])
   const lastSelectedRef = useRef<string | null>(null)
 
   const accountId = account?.id
@@ -1163,16 +1174,15 @@ export default function Explorer(props: {
     </div>
   ) : null
 
-  const ctxMenu = ctx ? (
+  // Portaled to <body> so no transformed/animated ancestor can re-anchor position:fixed.
+  const ctxMenu = ctx ? createPortal(
     <>
       <div className="ctx-overlay" onClick={() => setCtx(null)} onContextMenu={() => setCtx(null)} />
       <div
+        ref={ctxRef}
         className="ctx-menu glass strong"
         role="menu"
-        style={{
-          left: `${Math.min(ctx.x, window.innerWidth - 220)}px`,
-          top: `${Math.min(ctx.y, window.innerHeight - 260)}px`
-        }}
+        style={{ left: `${ctx.x}px`, top: `${ctx.y}px` }}
         onClick={(e) => e.stopPropagation()}
       >
         {ctx.keys.length === 0 ? (
@@ -1229,7 +1239,8 @@ export default function Explorer(props: {
           </>
         )}
       </div>
-    </>
+    </>,
+    document.body
   ) : null
 
   const toolbarFilter = (

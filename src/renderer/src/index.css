@@ -1197,6 +1197,9 @@ textarea.secret-input {
 
 /* ---------- Blobfish v2: motion + tree + wizard ---------- */
 
+/* fill-mode is `backwards`, never `both`: a kept `transform: translateY(0)` turns the
+ * element into the containing block for position:fixed children, so the right-click
+ * menu (clientX/clientY) landed offset by the sidebar + toolbar instead of at the mouse. */
 @keyframes fadeSlideIn {
   from {
     opacity: 0;
@@ -1229,7 +1232,7 @@ textarea.secret-input {
 }
 
 .fade-in {
-  animation: fadeSlideIn 0.22s ease both;
+  animation: fadeSlideIn 0.22s ease backwards;
 }
 
 
@@ -1430,7 +1433,7 @@ textarea.secret-input {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  animation: fadeSlideIn 0.18s ease both;
+  animation: fadeSlideIn 0.18s ease backwards;
 }
 
 .tree-leaf {
@@ -1883,7 +1886,7 @@ input[type='range'].slider-inline {
 }
 
 .row-in {
-  animation: fadeSlideIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: fadeSlideIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) backwards;
   transition: background 0.12s ease;
 }
 
@@ -2009,7 +2012,7 @@ input[type='range'].slider-inline {
   flex-direction: column;
   border-radius: var(--radius);
   padding: 24px 26px;
-  animation: fadeSlideIn 0.22s ease both;
+  animation: fadeSlideIn 0.22s ease backwards;
 }
 
 .wiz-head {
@@ -2111,7 +2114,7 @@ li.done .wiz-num {
 .wiz-body {
   padding: 16px 0;
   overflow-y: auto;
-  animation: fadeSlideIn 0.2s ease both;
+  animation: fadeSlideIn 0.2s ease backwards;
 }
 
 .wiz-body h3 {
@@ -2672,7 +2675,7 @@ li.done .wiz-num {
   font-size: var(--fs-sm);
   cursor: pointer;
   flex-shrink: 0;
-  animation: fadeSlideIn 0.22s ease both;
+  animation: fadeSlideIn 0.22s ease backwards;
 }
 
 .transfers-bar:hover {
@@ -2778,7 +2781,7 @@ li.done .wiz-num {
   /* flat row + hairline, no card-in-a-card (the dock is the only surface) */
   padding: 10px 2px;
   border-bottom: 1px solid var(--border);
-  animation: fadeSlideIn 0.2s ease both;
+  animation: fadeSlideIn 0.2s ease backwards;
 }
 
 .transfer:last-child {
@@ -3632,7 +3635,7 @@ th.wide {
   border-radius: 10px;
   padding: 8px 12px;
   flex-shrink: 0;
-  animation: fadeSlideIn 0.22s ease both;
+  animation: fadeSlideIn 0.22s ease backwards;
 }
 
 .error-banner-row {
