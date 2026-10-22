@@ -3,15 +3,25 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useMemo,
+  useReducer,
   useRef,
   useState,
 } from "react";
 import { APP_NAME, APP_TAGLINE } from "../../shared/config";
 import type {
+  AccountCapabilities,
   AccountSummary,
-  StorageContainer,
   SysInfo,
 } from "../../shared/types";
+import {
+  entryOf,
+  needsLoad,
+  nextTreeFocus,
+  readyListings,
+  treeReducer,
+  visibleSlice,
+} from "../../shared/container-tree";
 import logoUrl from "./assets/logo.png";
 import Explorer from "./views/Explorer";
 import HomeView from "./views/Home";
@@ -33,6 +43,37 @@ import {
   useBrandTripleClick,
 } from "./views/easter-egg/BrandEasterEgg";
 import { Icon } from "./views/Icon";
+import { ContextMenu, type MenuEntry } from "./views/ContextMenu";
+import { SasDialog, type SasScope } from "./views/SasDialog";
+import {
+  ContainerPropertiesDialog,
+  CorsDialog,
+  LeaseAcquiredDialog,
+  PublicAccessDialog,
+  SoftDeleteDialog,
+  StoredPoliciesDialog,
+} from "./views/AdminDialogs";
+import { stripIpcWrapper } from "./views/errors";
+
+const CONTAINER_NAME_RE = /^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$/;
+
+type SidebarMenu =
+  | { kind: "account"; x: number; y: number; account: AccountSummary }
+  | { kind: "group"; x: number; y: number; account: AccountSummary }
+  | {
+      kind: "container";
+      x: number;
+      y: number;
+      account: AccountSummary;
+      container: string;
+    };
+
+/** Lease state per `${accountId}/${container}`, read when its menu opens. */
+type LeaseProbe = { state: string; error?: string };
+
+function errMessage(err: unknown): string {
+  return stripIpcWrapper(err instanceof Error ? err.message : String(err));
+}
 
 const CommandPalette = lazy(() => import("./views/CommandPalette"));
 
@@ -41,6 +82,8 @@ export interface SelectionTarget {
   container: string | null;
   /** Folder to open inside `container` (⌘K recent folders). */
   prefix?: string;
+  /** Re-list even if it's already the open container (sidebar Refresh). */
+  reload?: boolean;
   tick: number;
 }
 
@@ -93,15 +136,37 @@ export default function App(): React.JSX.Element {
   });
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [containersCache, setContainersCache] = useState<
-    Record<string, StorageContainer[]>
-  >({});
-  const [containersFailed, setContainersFailed] = useState<
-    Record<string, boolean>
-  >({});
-  const [loadingContainers, setLoadingContainers] = useState<
-    Record<string, boolean>
-  >({});
+  // "Blob Containers" node per account; open by default so expanding an account lists its containers.
+  const [groupOpen, setGroupOpen] = useState<Record<string, boolean>>({});
+  const [tree, dispatchTree] = useReducer(treeReducer, {});
+  const treeRef = useRef(tree);
+  treeRef.current = tree;
+  const treeSeq = useRef(0);
+  const inflight = useRef<Record<string, number>>({});
+  const containersCache = useMemo(() => readyListings(tree), [tree]);
+  const [caps, setCaps] = useState<Record<string, AccountCapabilities>>({});
+  const [menu, setMenu] = useState<SidebarMenu | null>(null);
+  const [lease, setLease] = useState<Record<string, LeaseProbe>>({});
+  const [sasFor, setSasFor] = useState<{
+    account: AccountSummary;
+    scope: SasScope;
+  } | null>(null);
+  const [adminFor, setAdminFor] = useState<
+    | {
+        kind: "policies" | "public" | "properties";
+        accountId: string;
+        container: string;
+      }
+    | { kind: "cors" | "softDelete"; account: AccountSummary }
+    | { kind: "lease"; container: string; leaseId: string }
+    | null
+  >(null);
+  const [openByNameFor, setOpenByNameFor] = useState<string | null>(null);
+  const [breakLeaseFor, setBreakLeaseFor] = useState<{
+    accountId: string;
+    name: string;
+  } | null>(null);
+  const [sideNotice, setSideNotice] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [detachFor, setDetachFor] = useState<AccountSummary | null>(null);
@@ -117,7 +182,6 @@ export default function App(): React.JSX.Element {
   const [quickOpen, setQuickOpen] = useState(true);
   const [allOpen, setAllOpen] = useState(true);
   const [attachedOpen, setAttachedOpen] = useState(true);
-  const [copiedSecretId, setCopiedSecretId] = useState<string | null>(null);
   const [secretError, setSecretError] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
@@ -266,58 +330,83 @@ export default function App(): React.JSX.Element {
     setPrefs({ ...DEFAULT_PREFS, ...next });
   }
 
-  const ensureContainers = useCallback((accountId: string) => {
-    // Guard against duplicate in-flight fetches: expanding a row and the
-    // explorer mounting for the same account used to fire listContainers
-    // twice, which — off VPN — meant duplicate 403 activity entries.
-    let shouldFetch = false;
-    setContainersCache((prev) => {
-      if (prev[accountId]) return prev;
-      shouldFetch = true;
-      return prev;
-    });
-    if (!shouldFetch) return;
-    setLoadingContainers((prev) => {
-      if (prev[accountId]) {
-        shouldFetch = false;
-        return prev;
-      }
-      return { ...prev, [accountId]: true };
-    });
-    if (!shouldFetch) return;
-    void window.api.storage
+  /** List an account's containers into the tree. `force` re-lists (Refresh); otherwise once per account. */
+  const loadContainers = useCallback((accountId: string, force = false) => {
+    if (!force && inflight.current[accountId] !== undefined) return;
+    if (!force && !needsLoad(treeRef.current[accountId])) return;
+    const seq = ++treeSeq.current;
+    inflight.current[accountId] = seq;
+    dispatchTree({ type: "start", accountId, seq });
+    window.api.storage
       .listContainers(accountId)
-      .then((cs) => {
-        setContainersCache((p) => ({ ...p, [accountId]: cs }));
-        setContainersFailed((p) => ({ ...p, [accountId]: false }));
-      })
-      .catch(() => {
-        // A failed listing (e.g. 403 — SAS without account-level list) is
-        // cached as a failure, not an empty account, so the sidebar says
-        // so instead of the misleading "No containers."
-        setContainersCache((p) => ({ ...p, [accountId]: [] }));
-        setContainersFailed((p) => ({ ...p, [accountId]: true }));
-      })
-      .finally(() =>
-        setLoadingContainers((p) => ({ ...p, [accountId]: false })),
-      );
+      .then((items) => dispatchTree({ type: "success", accountId, seq, items }))
+      .catch((err: unknown) =>
+        // A failed listing (e.g. 403, SAS without account-level list) is a
+        // failure, not an empty account: the node says so and offers Retry.
+        dispatchTree({
+          type: "failure",
+          accountId,
+          seq,
+          error: errMessage(err),
+        }),
+      )
+      .finally(() => {
+        if (inflight.current[accountId] === seq)
+          delete inflight.current[accountId];
+      });
   }, []);
+  const ensureContainers = useCallback(
+    (accountId: string) => loadContainers(accountId, false),
+    [loadContainers],
+  );
 
-  function toggleExpand(accountId: string): void {
+  function isGroupOpen(accountId: string): boolean {
+    return groupOpen[accountId] ?? true;
+  }
+
+  function toggleExpand(accountId: string, force?: boolean): void {
     const a = accounts.find((x) => x.id === accountId);
     // Container attachments open straight into their container — nothing to expand.
     if (a && a.kind !== "account") return;
-    setExpanded((prev) => {
-      const next = !prev[accountId];
-      if (next) ensureContainers(accountId);
-      return { ...prev, [accountId]: next };
-    });
+    const next = force ?? !expanded[accountId];
+    setExpanded((prev) => ({ ...prev, [accountId]: next }));
+    if (next && isGroupOpen(accountId)) ensureContainers(accountId);
+  }
+
+  function toggleGroup(accountId: string, force?: boolean): void {
+    const next = force ?? !isGroupOpen(accountId);
+    setGroupOpen((prev) => ({ ...prev, [accountId]: next }));
+    if (next) ensureContainers(accountId);
+  }
+
+  function ensureCaps(accountId: string): void {
+    if (caps[accountId]) return;
+    window.api.accounts
+      .capabilities(accountId)
+      .then((c) => setCaps((p) => ({ ...p, [accountId]: c })))
+      .catch(console.error);
+  }
+
+  function flashSide(message: string): void {
+    setSideNotice(message);
+    window.setTimeout(
+      () => setSideNotice((n) => (n === message ? null : n)),
+      2600,
+    );
+  }
+
+  function copyText(text: string, what: string): void {
+    void navigator.clipboard
+      ?.writeText(text)
+      .then(() => flashSide(`${what} copied`))
+      .catch(() => undefined);
   }
 
   function selectAccount(
     accountId: string,
     container: string | null = null,
     prefix?: string,
+    reload?: boolean,
   ): void {
     const a = accounts.find((x) => x.id === accountId);
     const resolved =
@@ -328,6 +417,7 @@ export default function App(): React.JSX.Element {
       accountId,
       container: resolved,
       prefix,
+      reload,
       tick: (t?.tick ?? 0) + 1,
     }));
   }
@@ -338,17 +428,8 @@ export default function App(): React.JSX.Element {
   }
 
   function invalidateContainers(accountId: string): void {
-    setContainersCache((prev) => {
-      const next = { ...prev };
-      delete next[accountId];
-      return next;
-    });
-    setContainersFailed((prev) => {
-      const next = { ...prev };
-      delete next[accountId];
-      return next;
-    });
-    if (expanded[accountId]) ensureContainers(accountId);
+    if (expanded[accountId]) loadContainers(accountId, true);
+    else dispatchTree({ type: "forget", accountId });
   }
 
   async function commitRename(id: string): Promise<void> {
@@ -409,13 +490,7 @@ export default function App(): React.JSX.Element {
     setSecretError(null);
     window.api.accounts
       .copySecret(id)
-      .then(() => {
-        setCopiedSecretId(id);
-        window.setTimeout(
-          () => setCopiedSecretId((cur) => (cur === id ? null : cur)),
-          1600,
-        );
-      })
+      .then(() => flashSide("Connection secret copied"))
       .catch((err: unknown) => {
         console.error(err);
         setSecretError(err instanceof Error ? err.message : String(err));
@@ -430,108 +505,449 @@ export default function App(): React.JSX.Element {
     });
   }
 
-  const [rowMenu, setRowMenu] = useState<{
+  function menuAt(e: React.MouseEvent | React.KeyboardEvent): {
     x: number;
     y: number;
-    account: AccountSummary;
-  } | null>(null);
-
-  function openRowMenu(e: React.MouseEvent, a: AccountSummary): void {
-    e.preventDefault();
-    e.stopPropagation();
-    setRowMenu({ x: e.clientX, y: e.clientY, account: a });
+  } {
+    if ("clientX" in e && (e.clientX || e.clientY))
+      return { x: e.clientX, y: e.clientY };
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    return { x: r.left + 24, y: r.bottom - 4 };
   }
 
-  // Escape closes the row menu.
-  useEffect(() => {
-    if (!rowMenu) return;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === "Escape") setRowMenu(null);
+  function openAccountMenu(
+    e: React.MouseEvent | React.KeyboardEvent,
+    a: AccountSummary,
+  ): void {
+    e.preventDefault();
+    e.stopPropagation();
+    ensureCaps(a.id);
+    setMenu({ kind: "account", ...menuAt(e), account: a });
+  }
+
+  function openGroupMenu(
+    e: React.MouseEvent | React.KeyboardEvent,
+    a: AccountSummary,
+  ): void {
+    e.preventDefault();
+    e.stopPropagation();
+    ensureCaps(a.id);
+    setMenu({ kind: "group", ...menuAt(e), account: a });
+  }
+
+  function probeLease(accountId: string, container: string): void {
+    const key = `${accountId}/${container}`;
+    setLease((p) => ({ ...p, [key]: { state: "loading" } }));
+    window.api.container
+      .properties({ accountId, container })
+      .then((props) =>
+        setLease((p) => ({
+          ...p,
+          [key]: { state: props.leaseState ?? "available" },
+        })),
+      )
+      .catch((err: unknown) =>
+        setLease((p) => ({
+          ...p,
+          [key]: { state: "unknown", error: errMessage(err) },
+        })),
+      );
+  }
+
+  function openContainerMenu(
+    e: React.MouseEvent | React.KeyboardEvent,
+    a: AccountSummary,
+    container: string,
+  ): void {
+    e.preventDefault();
+    e.stopPropagation();
+    ensureCaps(a.id);
+    probeLease(a.id, container);
+    setMenu({ kind: "container", ...menuAt(e), account: a, container });
+  }
+
+  /** ContextMenu key / Shift+F10 opens a row's menu, like a right-click. */
+  function isMenuKey(e: React.KeyboardEvent): boolean {
+    return e.key === "ContextMenu" || (e.shiftKey && e.key === "F10");
+  }
+
+  // Up/Down/Home/End walk the visible tree rows (sections, accounts, the
+  // Blob Containers node, containers, Show more) in order.
+  function onTreeKeyDown(e: React.KeyboardEvent<HTMLDivElement>): void {
+    if (e.target instanceof HTMLInputElement) return;
+    const items = Array.from(
+      e.currentTarget.querySelectorAll<HTMLElement>("[data-tree-item]"),
+    );
+    const cur = items.indexOf(document.activeElement as HTMLElement);
+    const next = nextTreeFocus(items.length, cur, e.key);
+    if (next === null) return;
+    e.preventDefault();
+    items[next]?.focus();
+  }
+
+  function containerUrl(a: AccountSummary, container: string): string {
+    const base = a.endpoint
+      .split("?")[0]!
+      .replace(/\/+$/, "")
+      .replace(".dfs.", ".blob.");
+    return `${base}/${container}`;
+  }
+
+  function sasItem(a: AccountSummary, scope: SasScope): MenuEntry {
+    const c = caps[a.id];
+    return {
+      label: "Get Shared Access Signature…",
+      icon: "link",
+      disabledReason: !c
+        ? "Checking connection…"
+        : c.sharedKey
+          ? undefined
+          : c.sasReason,
+      onSelect: () => setSasFor({ account: a, scope }),
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [rowMenu]);
+  }
+
+  function accountMenuItems(a: AccountSummary): MenuEntry[] {
+    const c = caps[a.id];
+    const full = a.kind === "account" && !a.containerName;
+    const scopedContainer = !full ? a.containerName : undefined;
+    return [
+      c?.sharedKey && {
+        label: "Copy Account Key",
+        icon: "key",
+        title: "Copies the AccountKey from this connection string",
+        onSelect: () =>
+          void window.api.accounts
+            .copyKey(a.id)
+            .then(() => flashSide("Account key copied"))
+            .catch((err: unknown) => setSecretError(errMessage(err))),
+      },
+      {
+        label: "Copy connection secret",
+        icon: "copy",
+        title: "Copy the SAS URL / connection string to the clipboard",
+        onSelect: () => copySecret(a.id),
+      },
+      {
+        label: "Export secret to file…",
+        icon: "fileDown",
+        onSelect: () => exportSecret(a.id),
+      },
+      "sep",
+      full
+        ? sasItem(a, { kind: "account" })
+        : scopedContainer
+          ? sasItem(a, { kind: "container", container: scopedContainer })
+          : null,
+      full && {
+        label: "Refresh",
+        icon: "refresh",
+        onSelect: () => {
+          toggleExpand(a.id, true);
+          loadContainers(a.id, true);
+          if (selectedId === a.id)
+            selectAccount(a.id, target?.container ?? null, undefined, true);
+        },
+      },
+      "sep",
+      {
+        label: a.pinned ? "Unpin from Quick Access" : "Pin to Quick Access",
+        icon: "star",
+        onSelect: () =>
+          void window.api.accounts
+            .pin(a.id, !a.pinned)
+            .then(() => refreshAccounts())
+            .catch(console.error),
+      },
+      {
+        label: "Rename Connection…",
+        icon: "pencil",
+        onSelect: () => {
+          setRenamingId(a.id);
+          setRenameValue(a.name);
+        },
+      },
+      "sep",
+      {
+        label: "Detach…",
+        icon: "close",
+        danger: true,
+        onSelect: () => setDetachFor(a),
+      },
+    ];
+  }
+
+  function groupMenuItems(a: AccountSummary): MenuEntry[] {
+    const c = caps[a.id];
+    const full = a.kind === "account" && !a.containerName;
+    const serviceReason = !c
+      ? "Checking connection…"
+      : c.accountScope
+        ? undefined
+        : "Needs a full storage-account connection.";
+    return [
+      full && {
+        label: "Create Blob Container…",
+        icon: "plus",
+        onSelect: () => setCreateFor(a.id),
+      },
+      {
+        label: "Open Container by Name…",
+        icon: "search",
+        onSelect: () => setOpenByNameFor(a.id),
+      },
+      {
+        label: "View All Containers",
+        icon: "grid",
+        title: "Open the container list in the explorer",
+        onSelect: () => selectAccount(a.id, null),
+      },
+      "sep",
+      {
+        label: "Configure CORS Settings…",
+        icon: "globe",
+        disabledReason: serviceReason,
+        onSelect: () => setAdminFor({ kind: "cors", account: a }),
+      },
+      {
+        label: "Configure Soft Delete Policy…",
+        icon: "restore",
+        disabledReason: serviceReason,
+        onSelect: () => setAdminFor({ kind: "softDelete", account: a }),
+      },
+      "sep",
+      {
+        label: "Refresh",
+        icon: "refresh",
+        onSelect: () => {
+          toggleGroup(a.id, true);
+          loadContainers(a.id, true);
+        },
+      },
+    ];
+  }
+
+  function containerMenuItems(a: AccountSummary, name: string): MenuEntry[] {
+    const canManage = a.kind === "account" && !a.containerName;
+    const probe = lease[`${a.id}/${name}`];
+    const leaseReason = (want: "acquire" | "break"): string | undefined => {
+      if (!probe || probe.state === "loading") return "Checking lease state…";
+      if (probe.state === "unknown")
+        return `Couldn't read the lease state${probe.error ? `: ${probe.error}` : "."}`;
+      if (want === "acquire")
+        return probe.state === "leased"
+          ? "Container is already leased."
+          : probe.state === "breaking"
+            ? "Lease is breaking."
+            : undefined;
+      return probe.state === "leased"
+        ? undefined
+        : "Container has no active lease.";
+    };
+    const isOpen = target?.accountId === a.id && target.container === name;
+    const pinned = isContainerPinned(a.endpoint, name);
+    return [
+      {
+        label: "Open",
+        icon: "forward",
+        onSelect: () => selectAccount(a.id, name),
+      },
+      isOpen && {
+        label: "Refresh",
+        icon: "refresh",
+        onSelect: () => selectAccount(a.id, name, undefined, true),
+      },
+      "sep",
+      {
+        label: "Copy URL",
+        icon: "link",
+        onSelect: () => copyText(containerUrl(a, name), "Container URL"),
+      },
+      {
+        label: "Copy Name",
+        icon: "copy",
+        onSelect: () => copyText(name, "Container name"),
+      },
+      "sep",
+      sasItem(a, { kind: "container", container: name }),
+      {
+        label: "Manage Stored Access Policies…",
+        icon: "shield",
+        onSelect: () =>
+          setAdminFor({ kind: "policies", accountId: a.id, container: name }),
+      },
+      {
+        label: "Set Public Access Level…",
+        icon: "globe",
+        onSelect: () =>
+          setAdminFor({ kind: "public", accountId: a.id, container: name }),
+      },
+      "sep",
+      {
+        label: "Acquire Lease",
+        icon: "lock",
+        disabledReason: leaseReason("acquire"),
+        onSelect: () =>
+          void window.api.container
+            .acquireLease({ accountId: a.id, container: name })
+            .then((leaseId) =>
+              setAdminFor({ kind: "lease", container: name, leaseId }),
+            )
+            .catch((err: unknown) => flashSide(errMessage(err))),
+      },
+      {
+        label: "Break Lease…",
+        icon: "unlock",
+        disabledReason: leaseReason("break"),
+        onSelect: () => setBreakLeaseFor({ accountId: a.id, name }),
+      },
+      "sep",
+      canManage && {
+        label: pinned ? "Unpin from Quick Access" : "Pin to Quick Access",
+        icon: "star",
+        onSelect: () => toggleContainerPin(a, name),
+      },
+      canManage && {
+        label: "Rename…",
+        icon: "pencil",
+        onSelect: () => setRenameContainerFor({ accountId: a.id, name }),
+      },
+      {
+        label: "Properties…",
+        icon: "info",
+        onSelect: () =>
+          setAdminFor({ kind: "properties", accountId: a.id, container: name }),
+      },
+      "sep",
+      canManage && {
+        label: "Delete…",
+        icon: "trash",
+        danger: true,
+        onSelect: () => setDeleteContainerFor({ accountId: a.id, name }),
+      },
+    ];
+  }
 
   function accountRow(a: AccountSummary): React.JSX.Element {
     const isActive = a.id === selectedId;
     const isOpen = expanded[a.id] ?? false;
-    const cached = containersCache[a.id];
-    const loading = loadingContainers[a.id] ?? false;
-    const listFailed = containersFailed[a.id] ?? false;
+    const entry = entryOf(tree, a.id);
+    const groupIsOpen = isGroupOpen(a.id);
     const canManageContainers = a.kind === "account" && !a.containerName;
     const isScopedContainer = a.kind !== "account";
+    const { shown, hidden } = visibleSlice(entry);
+    const firstLoad = entry.status === "loading" && entry.items.length === 0;
+    const hasCount =
+      entry.status === "ready" ||
+      (entry.status === "loading" && entry.items.length > 0);
     const leaves = (
       <>
-        {loading && <li className="tree-loading">Loading…</li>}
-        {!loading && cached?.length === 0 && (
-          <li className="tree-loading">
-            {listFailed
-              ? "Cannot list containers — SAS may lack permission."
-              : "No containers."}
+        {firstLoad && (
+          <li className="tree-loading" role="status">
+            Loading containers…
           </li>
         )}
-        {cached?.map((c) => (
-          <li key={c.name} className="tree-leaf-row">
+        {entry.status === "error" && (
+          <li className="tree-loading tree-error" role="alert">
+            <span title={entry.error}>
+              Can't list containers{entry.error ? ` — ${entry.error}` : ""}
+            </span>
             <button
-              className={`tree-leaf${target?.accountId === a.id && target.container === c.name ? " active" : ""}`}
-              onClick={() => selectAccount(a.id, c.name)}
-              title={c.name}
+              className="linklike small"
+              data-tree-item
+              onClick={() => loadContainers(a.id, true)}
             >
-              <span className="kind-ico container" aria-hidden />
-              <span className="leaf-name">{c.name}</span>
+              Retry
             </button>
-            {canManageContainers && (
+          </li>
+        )}
+        {entry.status === "ready" && entry.items.length === 0 && (
+          <li className="tree-loading">No containers.</li>
+        )}
+        {shown.map((c) => {
+          const pinnedC = isContainerPinned(a.endpoint, c.name);
+          return (
+            <li
+              key={c.name}
+              className="tree-leaf-row"
+              onContextMenu={(e) => openContainerMenu(e, a, c.name)}
+            >
+              <button
+                className={`tree-leaf${target?.accountId === a.id && target.container === c.name ? " active" : ""}`}
+                onClick={() => selectAccount(a.id, c.name)}
+                onKeyDown={(e) => {
+                  if (isMenuKey(e)) openContainerMenu(e, a, c.name);
+                  else if (e.key === "ArrowLeft") {
+                    e.preventDefault();
+                    e.currentTarget
+                      .closest(".tree-group")
+                      ?.querySelector<HTMLElement>(".group-toggle")
+                      ?.focus();
+                  }
+                }}
+                title={c.name}
+                data-tree-item
+              >
+                <span className="kind-ico container" aria-hidden />
+                <span className="leaf-name">{c.name}</span>
+              </button>
               <span className="leaf-actions">
-                <button
-                  className={`mini-btn${isContainerPinned(a.endpoint, c.name) ? " on" : ""}`}
-                  title={
-                    isContainerPinned(a.endpoint, c.name)
-                      ? `Unpin container "${c.name}" from Quick Access`
-                      : `Pin container "${c.name}" to Quick Access`
-                  }
-                  aria-label={
-                    isContainerPinned(a.endpoint, c.name)
-                      ? `Unpin ${c.name}`
-                      : `Pin ${c.name}`
-                  }
-                  aria-pressed={isContainerPinned(a.endpoint, c.name)}
-                  onClick={() => toggleContainerPin(a, c.name)}
-                >
-                  <Icon
-                    name="star"
-                    size={14}
-                    filled={isContainerPinned(a.endpoint, c.name)}
-                  />
-                </button>
+                {canManageContainers && (
+                  <button
+                    className={`mini-btn${pinnedC ? " on" : ""}`}
+                    title={
+                      pinnedC
+                        ? `Unpin container "${c.name}" from Quick Access`
+                        : `Pin container "${c.name}" to Quick Access`
+                    }
+                    aria-label={pinnedC ? `Unpin ${c.name}` : `Pin ${c.name}`}
+                    aria-pressed={pinnedC}
+                    tabIndex={-1}
+                    onClick={() => toggleContainerPin(a, c.name)}
+                  >
+                    <Icon name="star" size={14} filled={pinnedC} />
+                  </button>
+                )}
                 <button
                   className="mini-btn"
-                  title={`Rename container "${c.name}"`}
-                  aria-label={`Rename container ${c.name}`}
-                  onClick={() =>
-                    setRenameContainerFor({ accountId: a.id, name: c.name })
-                  }
+                  title={`Actions for container "${c.name}"`}
+                  aria-label={`Actions for container ${c.name}`}
+                  tabIndex={-1}
+                  onClick={(e) => openContainerMenu(e, a, c.name)}
                 >
-                  <Icon name="pencil" size={14} />
-                </button>
-                <button
-                  className="mini-btn danger-x"
-                  title={`Delete container "${c.name}"`}
-                  aria-label={`Delete container ${c.name}`}
-                  onClick={() =>
-                    setDeleteContainerFor({ accountId: a.id, name: c.name })
-                  }
-                >
-                  <Icon name="trash" size={14} />
+                  <Icon name="more" size={14} />
                 </button>
               </span>
-            )}
+            </li>
+          );
+        })}
+        {hidden > 0 && (
+          <li className="tree-more-row">
+            <button
+              className="tree-more"
+              data-tree-item
+              onClick={() => dispatchTree({ type: "more", accountId: a.id })}
+            >
+              Show {Math.min(hidden, 50)} more…
+            </button>
+            <button
+              className="tree-more"
+              data-tree-item
+              title="Open the full container list in the explorer"
+              onClick={() => selectAccount(a.id, null)}
+            >
+              View all {entry.items.length}
+            </button>
           </li>
-        ))}
+        )}
       </>
     );
     return (
       <li key={a.id} className="tree-account">
-        <div className={`tree-row${isActive ? " active" : ""}`}>
+        <div
+          className={`tree-row${isActive ? " active" : ""}`}
+          onContextMenu={(e) => openAccountMenu(e, a)}
+        >
           {isScopedContainer ? (
             <span className="twisty leaf-spacer" aria-hidden />
           ) : (
@@ -540,18 +956,36 @@ export default function App(): React.JSX.Element {
               onClick={() => toggleExpand(a.id)}
               aria-label={isOpen ? `Collapse ${a.name}` : `Expand ${a.name}`}
               aria-expanded={isOpen}
+              tabIndex={-1}
             >
               <Icon name="chevronRight" size={14} />
             </button>
           )}
           <button
             className="tree-main"
+            data-tree-item
+            aria-expanded={isScopedContainer ? undefined : isOpen}
             onClick={() => {
               selectAccount(
                 a.id,
                 a.kind === "account" ? null : (a.containerName ?? null),
               );
               if (!isOpen && !isScopedContainer) toggleExpand(a.id);
+            }}
+            onKeyDown={(e) => {
+              if (isMenuKey(e)) openAccountMenu(e, a);
+              else if (!isScopedContainer && e.key === "ArrowRight") {
+                e.preventDefault();
+                if (!isOpen) toggleExpand(a.id, true);
+                else
+                  e.currentTarget
+                    .closest(".tree-account")
+                    ?.querySelector<HTMLElement>(".group-toggle")
+                    ?.focus();
+              } else if (!isScopedContainer && e.key === "ArrowLeft") {
+                e.preventDefault();
+                if (isOpen) toggleExpand(a.id, false);
+              }
             }}
             title={`${a.name}\n${a.containerName ? `Container: ${a.containerName}\n` : ""}Endpoint: ${a.endpoint}`}
           >
@@ -608,7 +1042,7 @@ export default function App(): React.JSX.Element {
               className="mini-btn"
               title="More actions"
               aria-label={`Actions for ${a.name}`}
-              onClick={(e) => openRowMenu(e, a)}
+              onClick={(e) => openAccountMenu(e, a)}
             >
               <Icon name="more" size={16} />
             </button>
@@ -616,20 +1050,77 @@ export default function App(): React.JSX.Element {
         </div>
         {isOpen && a.kind === "account" && (
           <ul className="tree-containers">
-            <li className="group-row">
-              <span className="kind-ico service" aria-hidden />
-              Blob Containers
-              {cached && <span className="count">{cached.length}</span>}
-              <button
-                className="mini-btn group-add"
-                title="New container in this account"
-                aria-label="New container in this account"
-                onClick={() => setCreateFor(a.id)}
+            <li className="tree-group">
+              <div
+                className="group-row"
+                onContextMenu={(e) => openGroupMenu(e, a)}
               >
-                <Icon name="plus" size={14} />
-              </button>
+                <button
+                  className="group-toggle"
+                  data-tree-item
+                  aria-expanded={groupIsOpen}
+                  onClick={() => toggleGroup(a.id)}
+                  onKeyDown={(e) => {
+                    if (isMenuKey(e)) openGroupMenu(e, a);
+                    else if (e.key === "ArrowRight") {
+                      e.preventDefault();
+                      if (!groupIsOpen) toggleGroup(a.id, true);
+                      else
+                        e.currentTarget
+                          .closest(".tree-group")
+                          ?.querySelector<HTMLElement>(".tree-leaf")
+                          ?.focus();
+                    } else if (e.key === "ArrowLeft") {
+                      e.preventDefault();
+                      if (groupIsOpen) toggleGroup(a.id, false);
+                      else
+                        e.currentTarget
+                          .closest(".tree-account")
+                          ?.querySelector<HTMLElement>(".tree-main")
+                          ?.focus();
+                    }
+                  }}
+                >
+                  <span
+                    className={`twisty${groupIsOpen ? " open" : ""}`}
+                    aria-hidden
+                  >
+                    <Icon name="chevronRight" size={13} />
+                  </span>
+                  <span className="kind-ico service" aria-hidden />
+                  <span className="group-label">Blob Containers</span>
+                </button>
+                {entry.status === "loading" && entry.items.length > 0 && (
+                  <span className="group-spinner" aria-label="Refreshing" />
+                )}
+                {hasCount && (
+                  <span className="count">{entry.items.length}</span>
+                )}
+                <span className="leaf-actions group-actions">
+                  {canManageContainers && (
+                    <button
+                      className="mini-btn"
+                      title="New container in this account"
+                      aria-label="New container in this account"
+                      tabIndex={-1}
+                      onClick={() => setCreateFor(a.id)}
+                    >
+                      <Icon name="plus" size={14} />
+                    </button>
+                  )}
+                  <button
+                    className="mini-btn"
+                    title="Blob Containers actions"
+                    aria-label={`Blob Containers actions for ${a.name}`}
+                    tabIndex={-1}
+                    onClick={(e) => openGroupMenu(e, a)}
+                  >
+                    <Icon name="more" size={14} />
+                  </button>
+                </span>
+              </div>
+              {groupIsOpen && <ul className="tree-leaves">{leaves}</ul>}
             </li>
-            {leaves}
           </ul>
         )}
       </li>
@@ -711,11 +1202,12 @@ export default function App(): React.JSX.Element {
           </p>
         )}
 
-        <div className="tree-scroll">
+        <div className="tree-scroll" onKeyDown={onTreeKeyDown}>
           {pinned.length > 0 && (
             <section className="tree-section">
               <button
                 className="section-toggle"
+                data-tree-item
                 onClick={() => setQuickOpen((v) => !v)}
               >
                 <span
@@ -736,6 +1228,7 @@ export default function App(): React.JSX.Element {
           <section className="tree-section">
             <button
               className="section-toggle"
+              data-tree-item
               onClick={() => setAllOpen((v) => !v)}
             >
               <span className={`twisty${allOpen ? " open" : ""}`} aria-hidden>
@@ -763,6 +1256,7 @@ export default function App(): React.JSX.Element {
             <section className="tree-section">
               <button
                 className="section-toggle"
+                data-tree-item
                 onClick={() => setAttachedOpen((v) => !v)}
               >
                 <span
@@ -926,81 +1420,125 @@ export default function App(): React.JSX.Element {
           onConfirm={async () => {
             const id = detachFor.id;
             await window.api.accounts.remove(id);
-            setContainersCache((p) => {
-              const next = { ...p };
-              delete next[id];
-              return next;
-            });
-            setContainersFailed((p) => {
-              const next = { ...p };
-              delete next[id];
-              return next;
-            });
+            dispatchTree({ type: "forget", accountId: id });
             refreshAccounts();
           }}
         />
       )}
 
-      {rowMenu && (
-        <>
-          <div className="ctx-overlay" onClick={() => setRowMenu(null)} />
-          <div
-            className="ctx-menu glass strong"
-            role="menu"
-            aria-label={`Actions for ${rowMenu.account.name}`}
-            style={{
-              left: `${Math.min(rowMenu.x, window.innerWidth - 240)}px`,
-              top: `${Math.min(rowMenu.y, window.innerHeight - 280)}px`,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              role="menuitem"
-              onClick={() => copySecret(rowMenu.account.id)}
-              title="Copy the SAS URL / connection string to the clipboard"
-            >
-              {copiedSecretId === rowMenu.account.id ? (
-                <>
-                  <Icon name="check" size={14} /> Copied to clipboard
-                </>
-              ) : (
-                <>
-                  <Icon name="copy" size={14} /> Copy connection secret
-                </>
-              )}
-            </button>
-            <button
-              role="menuitem"
-              onClick={() => {
-                setRowMenu(null);
-                exportSecret(rowMenu.account.id);
-              }}
-            >
-              <Icon name="fileDown" size={14} /> Export secret to file…
-            </button>
-            <button
-              role="menuitem"
-              onClick={() => {
-                setRowMenu(null);
-                setRenamingId(rowMenu.account.id);
-                setRenameValue(rowMenu.account.name);
-              }}
-            >
-              <Icon name="pencil" size={14} /> Rename…
-            </button>
-            <div className="ctx-sep" aria-hidden />
-            <button
-              role="menuitem"
-              className="danger"
-              onClick={() => {
-                setRowMenu(null);
-                setDetachFor(rowMenu.account);
-              }}
-            >
-              <Icon name="close" size={14} /> Detach…
-            </button>
-          </div>
-        </>
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          label={
+            menu.kind === "container"
+              ? `Actions for container ${menu.container}`
+              : menu.kind === "group"
+                ? `Blob Containers actions for ${menu.account.name}`
+                : `Actions for ${menu.account.name}`
+          }
+          items={
+            menu.kind === "account"
+              ? accountMenuItems(menu.account)
+              : menu.kind === "group"
+                ? groupMenuItems(menu.account)
+                : containerMenuItems(menu.account, menu.container)
+          }
+          onClose={() => setMenu(null)}
+        />
+      )}
+
+      {sasFor && (
+        <SasDialog
+          accountId={sasFor.account.id}
+          accountName={sasFor.account.name}
+          scope={sasFor.scope}
+          onClose={() => setSasFor(null)}
+        />
+      )}
+
+      {adminFor?.kind === "policies" && (
+        <StoredPoliciesDialog
+          accountId={adminFor.accountId}
+          container={adminFor.container}
+          onClose={() => setAdminFor(null)}
+        />
+      )}
+      {adminFor?.kind === "public" && (
+        <PublicAccessDialog
+          accountId={adminFor.accountId}
+          container={adminFor.container}
+          onClose={() => setAdminFor(null)}
+          onSaved={() => flashSide("Public access level saved")}
+        />
+      )}
+      {adminFor?.kind === "properties" && (
+        <ContainerPropertiesDialog
+          accountId={adminFor.accountId}
+          container={adminFor.container}
+          onClose={() => setAdminFor(null)}
+        />
+      )}
+      {adminFor?.kind === "lease" && (
+        <LeaseAcquiredDialog
+          container={adminFor.container}
+          leaseId={adminFor.leaseId}
+          onClose={() => setAdminFor(null)}
+        />
+      )}
+      {adminFor?.kind === "cors" && (
+        <CorsDialog
+          accountId={adminFor.account.id}
+          accountName={adminFor.account.name}
+          onClose={() => setAdminFor(null)}
+        />
+      )}
+      {adminFor?.kind === "softDelete" && (
+        <SoftDeleteDialog
+          accountId={adminFor.account.id}
+          accountName={adminFor.account.name}
+          onClose={() => setAdminFor(null)}
+        />
+      )}
+
+      {breakLeaseFor && (
+        <ConfirmDialog
+          title={`Break the lease on "${breakLeaseFor.name}"?`}
+          body="Breaks it immediately. Whoever holds the lease loses it, and the container can be deleted again."
+          confirmLabel="Break lease"
+          onCancel={() => setBreakLeaseFor(null)}
+          onConfirm={async () => {
+            await window.api.container.breakLease({
+              accountId: breakLeaseFor.accountId,
+              container: breakLeaseFor.name,
+            });
+            flashSide(`Lease on ${breakLeaseFor.name} broken`);
+          }}
+        />
+      )}
+
+      {openByNameFor && (
+        <PromptDialog
+          title="Open container by name"
+          label="Container name"
+          placeholder="mycontainer"
+          confirmLabel="Open"
+          validate={(v) =>
+            CONTAINER_NAME_RE.test(v)
+              ? null
+              : "Use 3–63 lowercase letters, numbers and dashes."
+          }
+          onCancel={() => setOpenByNameFor(null)}
+          onSubmit={async (v) => {
+            selectAccount(openByNameFor, v.trim());
+          }}
+        />
+      )}
+
+      {sideNotice && (
+        <div className="toast glass strong toast-in" role="status">
+          {sideNotice}
+        </div>
       )}
 
       {createFor && (
@@ -1011,7 +1549,7 @@ export default function App(): React.JSX.Element {
           hint="Lowercase letters, numbers and dashes · 3–63 chars."
           confirmLabel="Create"
           validate={(v) =>
-            /^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$/.test(v)
+            CONTAINER_NAME_RE.test(v)
               ? null
               : "Use 3–63 lowercase letters, numbers and dashes."
           }
@@ -1037,7 +1575,7 @@ export default function App(): React.JSX.Element {
           hint="Copies everything to the new container, then deletes the old one."
           confirmLabel="Rename"
           validate={(v) =>
-            /^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$/.test(v)
+            CONTAINER_NAME_RE.test(v)
               ? null
               : "Use 3–63 lowercase letters, numbers and dashes."
           }

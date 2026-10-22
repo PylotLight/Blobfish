@@ -365,3 +365,75 @@ export interface ActivityEntry {
   accountId?: string;
   container?: string;
 }
+
+/* ---------- SAS + container / service admin (sidebar context menus) ---------- */
+
+/** What a connection can do beyond listing. Computed in main from the secret; the secret stays there. */
+export interface AccountCapabilities {
+  /** Connection string carries an AccountKey (or is Azurite): can sign SAS + copy the key. */
+  sharedKey: boolean;
+  /** Why SAS creation is unavailable, for the disabled menu item's tooltip. */
+  sasReason?: string;
+  /** Full-account connection (service properties, account SAS). */
+  accountScope: boolean;
+}
+
+export type PublicAccessLevel = "none" | "blob" | "container";
+
+export interface StoredAccessPolicy {
+  id: string;
+  /** ISO 8601. */
+  startsOn?: string;
+  expiresOn?: string;
+  /** Permission letters, e.g. `rl`. */
+  permissions?: string;
+}
+
+export interface ContainerAccessInfo {
+  publicAccess: PublicAccessLevel;
+  policies: StoredAccessPolicy[];
+}
+
+export interface SetStoredPoliciesArgs {
+  accountId: string;
+  container: string;
+  policies: StoredAccessPolicy[];
+}
+
+export interface SetPublicAccessArgs {
+  accountId: string;
+  container: string;
+  level: PublicAccessLevel;
+}
+
+export interface ContainerPropertiesInfo {
+  name: string;
+  url: string;
+  lastModified?: string;
+  etag?: string;
+  leaseState?: string;
+  leaseStatus?: string;
+  leaseDuration?: string;
+  publicAccess: PublicAccessLevel;
+  hasImmutabilityPolicy?: boolean;
+  hasLegalHold?: boolean;
+  defaultEncryptionScope?: string;
+  denyEncryptionScopeOverride?: boolean;
+  isImmutableStorageWithVersioningEnabled?: boolean;
+  metadata: Record<string, string>;
+}
+
+export interface CorsRuleInfo {
+  /** Comma-separated, as Azure stores them. */
+  allowedOrigins: string;
+  allowedMethods: string;
+  allowedHeaders: string;
+  exposedHeaders: string;
+  maxAgeInSeconds: number;
+}
+
+export interface SoftDeleteInfo {
+  enabled: boolean;
+  /** 1–365 when enabled. */
+  days?: number;
+}

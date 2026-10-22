@@ -4516,3 +4516,307 @@ th.wide {
 .side-nav ~ .tree-scroll {
   margin-top: 14px;
 }
+
+/* ---------- Sidebar container tree (account > Blob Containers > containers) ---------- */
+
+.tree-group {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.group-row {
+  position: relative;
+  border-radius: 9px;
+}
+
+.group-row:hover,
+.group-row:focus-within {
+  background: var(--panel);
+}
+
+/* Same hover overlay as container rows, so hidden buttons never squeeze the label. */
+.group-row:hover .group-actions,
+.group-row:focus-within .group-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.group-toggle:hover {
+  color: var(--text);
+}
+
+.group-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Sidebar menus carry ASE-length labels ("Manage Stored Access Policies…"): one line each. */
+.ctx-menu.sidebar-menu {
+  max-width: 320px;
+}
+
+.ctx-menu.sidebar-menu button[role="menuitem"] {
+  white-space: nowrap;
+}
+
+.group-spinner {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  border-top-color: var(--mint);
+  animation: groupSpin 0.8s linear infinite;
+}
+
+@keyframes groupSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.tree-leaves {
+  list-style: none;
+  margin: 1px 0 2px 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tree-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #ff9d9d;
+}
+
+.tree-error > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-error .linklike {
+  color: var(--accent);
+  font-size: var(--fs-xs);
+  flex-shrink: 0;
+}
+
+.tree-more-row {
+  display: flex;
+  gap: 4px;
+  padding-left: 4px;
+}
+
+.tree-more {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  padding: 5px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.tree-more:hover,
+.tree-more:focus-visible {
+  color: var(--text);
+  background: var(--panel);
+}
+
+/* Unavailable sidebar menu actions stay hoverable so the "why" tooltip shows. */
+.ctx-menu button[role="menuitem"][aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ctx-menu button[role="menuitem"][aria-disabled="true"]:hover {
+  background: none;
+}
+
+.ctx-menu button[role="menuitem"] .icon {
+  vertical-align: -2px;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+/* ---------- SAS + admin sheets ---------- */
+
+.sas-dialog {
+  width: 580px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+.sas-times {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.sas-note {
+  margin: 6px 0 0;
+}
+
+.sas-flags {
+  border: none;
+  margin: 14px 0 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.sas-flags legend {
+  padding: 0;
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+
+.sas-flags:disabled {
+  opacity: 0.6;
+}
+
+.sas-flag-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 12px;
+}
+
+.sas-flag-grid .pick-check {
+  margin-top: 6px;
+}
+
+input[type="datetime-local"],
+.copy-field textarea {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-size: var(--fs-sm);
+  color-scheme: dark;
+  min-width: 0;
+}
+
+input[type="datetime-local"]:disabled {
+  opacity: 0.55;
+}
+
+.copy-field-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.copy-field-row input,
+.copy-field-row textarea {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: var(--fs-xs);
+}
+
+.copy-field textarea {
+  resize: none;
+  word-break: break-all;
+}
+
+.copy-field-row .btn,
+.add-row-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.add-row-btn {
+  margin-top: 10px;
+}
+
+.policy-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.policy-row {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px 12px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.policy-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.policy-head input {
+  flex: 1;
+  min-width: 0;
+}
+
+.radio-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.radio-card {
+  align-items: flex-start;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-top: 0;
+}
+
+.radio-card input {
+  margin-top: 3px;
+}
+
+.block {
+  display: block;
+  margin-top: 2px;
+}
+
+.props-kv {
+  margin-top: 12px;
+}
+
+.props-kv li {
+  gap: 16px;
+}
+
+.props-val {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
