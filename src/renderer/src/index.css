@@ -128,9 +128,66 @@ code {
   box-shadow: 0 0 10px var(--mint);
 }
 
-.shell.sidebar-collapsed .sidebar,
 .shell.sidebar-collapsed .sidebar-resizer {
   display: none;
+}
+
+/* Collapsed sidebar = hover-peek popover. It floats over the content (no layout push)
+ * on a solid per-theme fill (--sheet-bg, no backdrop-filter), slides in from the left
+ * edge and keeps the traffic lights + toggle in its own top lane. Hidden = parked
+ * off-screen, invisible and inert (App sets `inert`), so the tree stays mounted. */
+.shell.sidebar-collapsed .sidebar {
+  position: fixed;
+  top: 6px;
+  bottom: 6px;
+  left: 6px;
+  z-index: 40;
+  height: auto;
+  min-width: 260px;
+  max-width: min(600px, calc(100vw - 40px));
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--sheet-bg);
+  box-shadow:
+    0 22px 60px rgba(0, 0, 0, 0.5),
+    0 2px 10px rgba(0, 0, 0, 0.35);
+  -webkit-app-region: no-drag;
+  transform: translateX(calc(-100% - 16px));
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 0.2s cubic-bezier(0.4, 0, 1, 1),
+    opacity 0.18s ease,
+    visibility 0s linear 0.2s;
+}
+
+/* Hover events don't reach drag regions on macOS, so nothing in the popover drags. */
+.shell.sidebar-collapsed .sidebar .brand,
+.shell.sidebar-collapsed .sidebar .traffic-spacer {
+  -webkit-app-region: no-drag;
+}
+
+.shell.sidebar-peek .sidebar {
+  transform: none;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.12s ease,
+    visibility 0s;
+}
+
+/* Left-edge hot zone (below the title bar so the strip still drags the window). */
+.sidebar-edge {
+  position: fixed;
+  top: 44px;
+  bottom: 0;
+  left: 0;
+  width: 6px;
+  z-index: 45;
+  -webkit-app-region: no-drag;
 }
 
 /* Collapsed sidebar: the content's top row turns into the title bar. The traffic
@@ -151,11 +208,13 @@ code {
   -webkit-app-region: drag;
 }
 
-.sidebar-expand-btn {
-  position: absolute;
+/* The one sidebar toggle: fixed in the title bar row, same spot pinned or collapsed,
+ * above the peek popover. */
+.sidebar-toggle {
+  position: fixed;
   top: 8px;
   left: 14px;
-  z-index: 30;
+  z-index: 50;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -171,24 +230,27 @@ code {
 }
 
 /* macOS: line up with the inset traffic lights (x 16, y 16, ~52px wide). */
-.shell[data-platform="darwin"] .sidebar-expand-btn {
+.shell[data-platform="darwin"] .sidebar-toggle {
   top: 7px;
   left: 82px;
 }
 
-.sidebar-expand-btn:hover {
+.sidebar-toggle:hover,
+.sidebar-toggle.is-peeking {
   color: var(--text);
   background: var(--panel-strong);
   border-color: var(--border);
 }
 
+/* Top lane for the traffic lights (macOS) and the sidebar toggle (all platforms). */
 .traffic-spacer {
-  height: 52px;
-  display: none;
+  height: 42px;
+  flex-shrink: 0;
+  display: block;
 }
 
 .shell[data-platform="darwin"] .traffic-spacer {
-  display: block;
+  height: 52px;
 }
 
 .brand {
@@ -2999,7 +3061,7 @@ li.done .wiz-num {
 .nav-btn,
 .mini-btn,
 .icon-btn,
-.sidebar-expand-btn,
+.sidebar-toggle,
 .csv-opt-btn,
 .tab-strip .tab-close {
   display: inline-flex;
@@ -4592,7 +4654,7 @@ th.wide {
 /* ---------- Sidebar nav + footer (Surffish sidebar design) ----------
  * Quiet rows instead of pill buttons: Home / New connection are 34px nav rows that
  * line up with the tree, and the footer is a divider + three icon-only buttons
- * (collapse left; settings + quit right), same metrics as Surffish's sidebar-footer. */
+ * (settings + quit, right; the collapse toggle lives in the title bar row), same metrics as Surffish's sidebar-footer. */
 .side-nav {
   display: flex;
   flex-direction: column;
@@ -4686,10 +4748,6 @@ th.wide {
 
 .side-foot-btn.is-current {
   box-shadow: inset 2px 0 var(--mint);
-}
-
-.side-foot-collapse {
-  margin-right: auto;
 }
 
 .side-foot-quit:hover {
