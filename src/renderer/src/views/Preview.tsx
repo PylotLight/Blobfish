@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatBytes } from '../../../shared/format'
 import {
   PREVIEW_CLIENT_CAP,
@@ -91,7 +91,12 @@ export default function PreviewDialog(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.inline])
 
+  // Bumped on every fresh load so a slow "load more" from before a refresh can't
+  // splice the old file's bytes onto the new text.
+  const loadGen = useRef(0)
+
   function load(offset: number, append: boolean): void {
+    const gen = append ? loadGen.current : ++loadGen.current
     if (append) setLoadingMore(true)
     else setLoading(true)
     setError(null)
@@ -105,6 +110,7 @@ export default function PreviewDialog(props: {
         maxLines: PREVIEW_DEFAULT_LINES
       })
       .then((res: PreviewResult) => {
+        if (gen !== loadGen.current) return
         setSize(res.size)
         setFlavor(res.flavor)
         setBinary(res.binary)
@@ -130,12 +136,23 @@ export default function PreviewDialog(props: {
         setEof(res.eof)
       })
       .catch((err: unknown) => {
+        if (gen !== loadGen.current) return
         setError(stripIpcWrapper(err instanceof Error ? err.message : String(err)))
       })
       .finally(() => {
+        if (gen !== loadGen.current) return
         setLoading(false)
         setLoadingMore(false)
       })
+  }
+
+  /** Re-read the blob from the start (it may have been replaced while open). Keeps sort/filters/widths. */
+  function refresh(): void {
+    setCapped(false)
+    setEof(false)
+    setNextOffset(null)
+    setLoadingMore(false)
+    load(0, false)
   }
 
   useEffect(() => {
@@ -341,6 +358,15 @@ export default function PreviewDialog(props: {
                 {'{}'} Pretty
               </button>
             )}
+            <button
+              className="icon-btn"
+              onClick={refresh}
+              disabled={loading}
+              aria-label="Refresh preview"
+              title="Reload from storage (picks up a replaced or updated file)"
+            >
+              <Icon name="refresh" />
+            </button>
             <button className="icon-btn" onClick={props.onClose} aria-label="Close preview" title="Close preview">
               <Icon name="close" />
             </button>
