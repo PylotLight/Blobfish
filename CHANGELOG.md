@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.8] - 2026-10-22
+
+### Added
+
+- **(sidebar)** Containers under storage accounts + ASE-style context menus and SAS (#33) ([a9d8323](https://github.com/PylotLight/Blobfish/commit/a9d83230a815e253938469131aa91c310e8b33c4))
+
+### Other
+
+- Add Bun formatter checks ([c77a1a2](https://github.com/PylotLight/Blobfish/commit/c77a1a2b9609d01dac6736b2601501cc4141324d))
+
 ## [0.2.7] - 2026-10-22
 
 ### Added
@@ -180,6 +190,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Blobfish identity on starter template (config, package, readme) ([9718d04](https://github.com/PylotLight/Blobfish/commit/9718d04614759cf98264fabd561785edc44b67a8))
 - Add app build/icon assets ([d4780b7](https://github.com/PylotLight/Blobfish/commit/d4780b7d445fc77be83edf8161ff639de448e3cb))
 
+[0.2.8]: https://github.com/PylotLight/Blobfish/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/PylotLight/Blobfish/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/PylotLight/Blobfish/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/PylotLight/Blobfish/compare/v0.2.4...v0.2.5
