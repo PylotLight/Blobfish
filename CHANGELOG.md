@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.9] - 2026-10-22
+
+### Added
+
+- **(sidebar)** One toggle in the title bar + hover-peek popover when collapsed (#35) ([e6edc9d](https://github.com/PylotLight/Blobfish/commit/e6edc9d1a0464b2b74cc5012f02122ec32b48c75))
+
+### Fixed
+
+- Quiet transfers dock at launch, compact pill, trust OS CA store (#34) ([e718a5c](https://github.com/PylotLight/Blobfish/commit/e718a5cd3c034c9fe0bcec947b38f84970152977))
+
 ## [0.2.8] - 2026-10-22
 
 ### Added
@@ -190,6 +200,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Blobfish identity on starter template (config, package, readme) ([9718d04](https://github.com/PylotLight/Blobfish/commit/9718d04614759cf98264fabd561785edc44b67a8))
 - Add app build/icon assets ([d4780b7](https://github.com/PylotLight/Blobfish/commit/d4780b7d445fc77be83edf8161ff639de448e3cb))
 
+[0.2.9]: https://github.com/PylotLight/Blobfish/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/PylotLight/Blobfish/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/PylotLight/Blobfish/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/PylotLight/Blobfish/compare/v0.2.5...v0.2.6
