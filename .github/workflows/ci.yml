@@ -1,10 +1,17 @@
 name: ci
 
 on:
+  # main only: feature branches are covered by their PR run, and release tags
+  # are already built by release.yml, so no duplicate runs queueing up.
   push:
+    branches: [main]
   pull_request:
   # electron-bump.yml starts ci on its branch this way (pushes made with the workflow token don't trigger it).
   workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   verify:
@@ -15,7 +22,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
-      - run: bun install
+      - run: bun install --frozen-lockfile
       - run: bun run format:check
       - run: bun test
       - run: bun run typecheck

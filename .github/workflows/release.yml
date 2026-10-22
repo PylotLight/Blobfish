@@ -58,7 +58,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    name: "Blobfish · Release · github release · ${{ github.ref_name }}"
+    name: "Blobfish · Release · publish + cask · ${{ github.ref_name }}"
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -89,53 +89,27 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           fail_on_unmatched_files: true
 
-  # This repo doubles as the Homebrew tap (brew taps any repo with a Casks/
-  # dir via `brew tap pylotlight/blobfish <url>`). The job updates
-  # Casks/blobfish.rb on main with the built-in GITHUB_TOKEN — no extra
-  # secrets. Token pushes don't re-trigger workflows, so no loop.
-  homebrew:
-    name: "Blobfish · Release · homebrew cask · ${{ github.ref_name }}"
-    needs: release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: main
-
+      # This repo doubles as the Homebrew tap (brew taps any repo with a Casks/
+      # dir via `brew tap pylotlight/blobfish <url>`). Done in this job instead
+      # of a separate one so the cask bump doesn't wait in the runner queue
+      # again. Token pushes don't re-trigger workflows, so no loop.
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
 
-      - name: download macos artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: dist-macos
-          path: dist
-
-      - name: resolve version and checksums
-        id: meta
+      - name: update homebrew cask on main
         run: |
           version="${GITHUB_REF_NAME#v}"
-          {
-            echo "version=$version"
-            echo "sha256=$(shasum -a 256 "dist/Blobfish-${version}-mac-arm64.zip" | cut -d ' ' -f 1)"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: render cask
-        run: |
-          bun scripts/render-cask.ts \
-            --version "${{ steps.meta.outputs.version }}" \
-            --sha256 "${{ steps.meta.outputs.sha256 }}" \
-            --out Casks/blobfish.rb
-
-      - name: commit and push cask update
-        run: |
+          sha256=$(shasum -a 256 "dist/Blobfish-${version}-mac-arm64.zip" | cut -d ' ' -f 1)
+          git fetch origin main
+          git checkout -B main origin/main
+          bun scripts/render-cask.ts --version "$version" --sha256 "$sha256" --out Casks/blobfish.rb
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add Casks/blobfish.rb
           if git diff --cached --quiet; then
             echo "cask already up to date"
           else
-            git commit -m "chore(tap): blobfish ${{ steps.meta.outputs.version }}"
-            git push
+            git commit -m "chore(tap): blobfish ${version}"
+            git push origin main
           fi
