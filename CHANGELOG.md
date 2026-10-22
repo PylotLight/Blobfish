@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6] - 2026-10-22
+
+### Added
+
+- Back up and restore all connections (#27) ([a6dde0f](https://github.com/PylotLight/Blobfish/commit/a6dde0f207301a356cc45d489d701ebf8532e8d3))
+
+### Fixed
+
+- **(ui)** Solid modal sheets so content behind doesn't bleed through (#26) ([d687237](https://github.com/PylotLight/Blobfish/commit/d687237def61c1cb5215113c82441ed5ffeaa230))
+
+### Other
+
+- **(sidebar)** Surffish-style nav rows + icon footer (#28) ([d426be1](https://github.com/PylotLight/Blobfish/commit/d426be14d82ce9a12a43d87822efeb11f187acf5))
+- Electron 45.0.0 stable (#29) ([2219cac](https://github.com/PylotLight/Blobfish/commit/2219cac74935a97cfea8c1b666eb83f70f295f09))
+
 ## [0.2.5] - 2026-10-20
 
 ### Fixed
@@ -151,6 +166,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Blobfish identity on starter template (config, package, readme) ([9718d04](https://github.com/PylotLight/Blobfish/commit/9718d04614759cf98264fabd561785edc44b67a8))
 - Add app build/icon assets ([d4780b7](https://github.com/PylotLight/Blobfish/commit/d4780b7d445fc77be83edf8161ff639de448e3cb))
 
+[0.2.6]: https://github.com/PylotLight/Blobfish/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/PylotLight/Blobfish/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/PylotLight/Blobfish/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/PylotLight/Blobfish/compare/v0.2.2...v0.2.3
