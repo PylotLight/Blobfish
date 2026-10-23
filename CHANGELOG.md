@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.10] - 2026-10-23
+
+### Added
+
+- Drag and drop upload from finder (#37) ([96bf055](https://github.com/PylotLight/Blobfish/commit/96bf055f00f8183008bfe25b35568cb4bf3152d1))
+
 ## [0.2.9] - 2026-10-22
 
 ### Added
@@ -200,6 +206,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Blobfish identity on starter template (config, package, readme) ([9718d04](https://github.com/PylotLight/Blobfish/commit/9718d04614759cf98264fabd561785edc44b67a8))
 - Add app build/icon assets ([d4780b7](https://github.com/PylotLight/Blobfish/commit/d4780b7d445fc77be83edf8161ff639de448e3cb))
 
+[0.2.10]: https://github.com/PylotLight/Blobfish/compare/v0.2.9...v0.2.10
 [0.2.9]: https://github.com/PylotLight/Blobfish/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/PylotLight/Blobfish/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/PylotLight/Blobfish/compare/v0.2.6...v0.2.7
