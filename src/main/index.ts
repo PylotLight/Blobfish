@@ -1,5 +1,7 @@
 // Crash guard before everything else: catches errors thrown while the app's own modules load.
 import "./crash-guard";
+// Before anything reads userData or takes the single-instance lock: dev runs get their own profile.
+import "./profile";
 import { app, BrowserWindow, dialog, type MessageBoxOptions } from "electron";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
 import { APP_ID } from "../shared/config";
