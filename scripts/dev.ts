@@ -11,8 +11,11 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { ensureDependencies } from "./ensure-dependencies.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+// Pulled new dependencies? Install them before electron-vite trips over a missing import.
+if (!ensureDependencies(root)) process.exit(1);
 const bin =
   process.platform === "win32"
     ? join(root, "node_modules", ".bin", "electron-vite.cmd")
