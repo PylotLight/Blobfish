@@ -12,3 +12,14 @@ createRoot(rootEl).render(
     <App />
   </StrictMode>,
 );
+
+// A file dropped anywhere outside the explorer's drop zone must not make
+// Electron navigate to it (the zone handles its own drops first).
+for (const type of ["dragover", "drop"] as const) {
+  window.addEventListener(type, (e) => {
+    if (!e.dataTransfer?.types.includes("Files")) return;
+    // Outside the zone (nothing handled it yet): show a "no drop" cursor.
+    if (!e.defaultPrevented) e.dataTransfer.dropEffect = "none";
+    e.preventDefault();
+  });
+}

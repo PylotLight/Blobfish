@@ -275,6 +275,8 @@ export interface UploadEnqueueArgs {
   prefix?: string;
   /** Pick folders instead of files; uploads everything under them, keeping the layout. */
   folder?: boolean;
+  /** Explicit local files/folders (drag and drop): skips the picker. Absolute paths, validated in main. */
+  paths?: string[];
 }
 
 export interface DownloadArgs {
