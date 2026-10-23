@@ -1282,6 +1282,8 @@ export default function Explorer(props: {
         return;
       }
       e.dataTransfer.dropEffect = "copy";
+      // Became droppable mid-drag (sheet closed): count this as one enter.
+      if (dragDepth.current === 0) dragDepth.current = 1;
       if (!dropActive) setDropActive(true);
       const folder = folderUnder(e.target);
       if (folder !== dropFolder) setDropFolder(folder);
