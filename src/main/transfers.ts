@@ -1,7 +1,12 @@
 import { dialog } from "electron";
 import { randomUUID } from "node:crypto";
-import { mkdir, readdir, stat } from "node:fs/promises";
-import { basename, join, relative, sep } from "node:path";
+import { mkdir } from "node:fs/promises";
+import { basename, join } from "node:path";
+import {
+  expandUploadRoots,
+  uploadBase,
+  validateLocalPaths,
+} from "./upload-paths";
 import { decryptSecret } from "./accounts";
 import { logActivity } from "./activity";
 import { getMainWindow } from "./window";
@@ -552,41 +557,29 @@ export async function enqueueUpload(
   container: string,
   prefix?: string,
   folder = false,
+  paths?: string[],
 ): Promise<string[]> {
-  const win = getMainWindow();
-  const picked = await dialog.showOpenDialog(win!, {
-    title: folder ? "Upload folder to Blobfish" : "Upload to Blobfish",
-    properties: folder
-      ? ["openDirectory", "multiSelections"]
-      : ["openFile", "multiSelections"],
-  });
-  if (picked.canceled || picked.filePaths.length === 0) return [];
-  const { profile } = await decryptSecret(accountId);
-  const base = [profile.prefix, prefix]
-    .filter(Boolean)
-    .join("/")
-    .replace(/^\/+|\/+$/g, "");
-  // Folder upload keeps the picked folder's name and layout: <base>/<folder>/<sub>/<file>.
-  const files: Array<{ fp: string; rel: string }> = [];
-  for (const picked0 of picked.filePaths) {
-    if (!folder) {
-      files.push({ fp: picked0, rel: basename(picked0) });
-      continue;
-    }
-    const parent = join(picked0, "..");
-    const entries = await readdir(picked0, {
-      recursive: true,
-      withFileTypes: true,
-    }).catch(() => []);
-    for (const entry of entries) {
-      if (!entry.isFile()) continue; // dirs are implicit in blob names; symlinks skipped
-      const fp = join(entry.parentPath, entry.name);
-      files.push({ fp, rel: relative(parent, fp).split(sep).join("/") });
-    }
+  // Explicit paths (drag and drop) skip the picker; main still validates them.
+  let roots: string[];
+  if (paths !== undefined) {
+    roots = await validateLocalPaths(paths);
+  } else {
+    const win = getMainWindow();
+    const picked = await dialog.showOpenDialog(win!, {
+      title: folder ? "Upload folder to Blobfish" : "Upload to Blobfish",
+      properties: folder
+        ? ["openDirectory", "multiSelections"]
+        : ["openFile", "multiSelections"],
+    });
+    if (picked.canceled || picked.filePaths.length === 0) return [];
+    roots = picked.filePaths;
   }
+  const { profile } = await decryptSecret(accountId);
+  const base = uploadBase(profile.prefix, prefix);
+  // Folders keep their own name and layout: <base>/<folder>/<sub>/<file>.
+  const files = await expandUploadRoots(roots);
   const ids: string[] = [];
-  for (const { fp, rel } of files) {
-    const size = (await stat(fp).catch(() => null))?.size ?? 0;
+  for (const { fp, rel, size } of files) {
     const dest = base ? `${base}/${rel}` : rel;
     ids.push(
       enqueue({

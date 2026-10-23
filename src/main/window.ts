@@ -169,6 +169,13 @@ export function createWindow(): BrowserWindow {
     return { action: "deny" };
   });
 
+  // A file dropped outside the explorer's drop zone must never replace the app
+  // (the renderer also cancels stray drops; this is the backstop).
+  win.webContents.on("will-navigate", (event, url) => {
+    if (url.startsWith("file:") && url !== win.webContents.getURL())
+      event.preventDefault();
+  });
+
   if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {
     void win.loadURL(process.env["ELECTRON_RENDERER_URL"]);
   } else {

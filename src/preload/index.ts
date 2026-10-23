@@ -1,4 +1,9 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
+import {
+  contextBridge,
+  ipcRenderer,
+  webUtils,
+  type IpcRendererEvent,
+} from "electron";
 import type {
   AccountCapabilities,
   AccountCreateInput,
@@ -277,6 +282,16 @@ const api = {
       const handler = (): void => cb();
       ipcRenderer.on("updates:reveal", handler);
       return () => ipcRenderer.removeListener("updates:reveal", handler);
+    },
+  },
+  files: {
+    /** Local path of a dropped File (Electron 45 dropped File.path). "" when it has none. */
+    pathFor: (file: File): string => {
+      try {
+        return webUtils.getPathForFile(file);
+      } catch {
+        return "";
+      }
     },
   },
   app: {

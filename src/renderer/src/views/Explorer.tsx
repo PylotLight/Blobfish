@@ -33,6 +33,7 @@ import ErrorCallout from "./ErrorCallout";
 import ListingStatus from "./ListingStatus";
 import { useBlobListing } from "./useBlobListing";
 import { isPartial } from "../../../shared/listing-pager";
+import { dropTargetLabel, isFileDrag } from "../../../shared/file-drop";
 import { useExplorerKeys } from "./useExplorerKeys";
 import {
   onExplorerAction,
@@ -287,6 +288,11 @@ export default function Explorer(props: {
     el.style.top = `${Math.max(pad, Math.min(ctx.y, window.innerHeight - height - pad))}px`;
   }, [ctx]);
   const lastSelectedRef = useRef<string | null>(null);
+  // Finder drag and drop: enter/leave fire for every child, so count depth
+  // instead of toggling (no flicker). dropFolder is the folder row under the cursor.
+  const [dropActive, setDropActive] = useState(false);
+  const [dropFolder, setDropFolder] = useState<string | null>(null);
+  const dragDepth = useRef(0);
 
   const accountId = account?.id;
 
@@ -1236,6 +1242,86 @@ export default function Explorer(props: {
       .finally(() => setBusy(null));
   }
 
+  /* ---------- drag and drop upload (Finder → current folder / folder row) ---------- */
+
+  function canDropFiles(): boolean {
+    if (!accountId || !container || activeTab !== null) return false;
+    if (confirm || prompt || moveCopy || historyFor) return false;
+    // Any other sheet (admin, SAS, settings…) also blocks drops.
+    return document.querySelector(".modal-backdrop") === null;
+  }
+
+  function endDrag(): void {
+    dragDepth.current = 0;
+    setDropActive(false);
+    setDropFolder(null);
+  }
+
+  function folderUnder(target: EventTarget | null): string | null {
+    const el = target instanceof Element ? target : null;
+    return (
+      el?.closest("tr[data-drop-folder]")?.getAttribute("data-drop-folder") ??
+      null
+    );
+  }
+
+  const dropHandlers = {
+    onDragEnter: (e: React.DragEvent): void => {
+      if (!isFileDrag(e.dataTransfer.types)) return;
+      e.preventDefault();
+      if (!canDropFiles()) return;
+      dragDepth.current += 1;
+      if (!dropActive) setDropActive(true);
+    },
+    onDragOver: (e: React.DragEvent): void => {
+      if (!isFileDrag(e.dataTransfer.types)) return;
+      e.preventDefault();
+      if (!canDropFiles()) {
+        e.dataTransfer.dropEffect = "none";
+        if (dropActive) endDrag();
+        return;
+      }
+      e.dataTransfer.dropEffect = "copy";
+      if (!dropActive) setDropActive(true);
+      const folder = folderUnder(e.target);
+      if (folder !== dropFolder) setDropFolder(folder);
+    },
+    onDragLeave: (e: React.DragEvent): void => {
+      if (!isFileDrag(e.dataTransfer.types)) return;
+      dragDepth.current = Math.max(0, dragDepth.current - 1);
+      if (dragDepth.current === 0) endDrag();
+    },
+    onDrop: (e: React.DragEvent): void => {
+      if (!isFileDrag(e.dataTransfer.types)) return;
+      e.preventDefault();
+      const folder = folderUnder(e.target);
+      endDrag();
+      if (!canDropFiles() || !accountId || !container) return;
+      const paths = Array.from(e.dataTransfer.files)
+        .map((f) => window.api.files.pathFor(f))
+        .filter((p) => p !== "");
+      if (paths.length === 0) {
+        flash("Only files and folders from Finder can be uploaded.");
+        return;
+      }
+      const prefix = folder ?? (blobs?.prefix || undefined);
+      setBusy("upload");
+      setActionError(null);
+      window.api.transfers
+        .upload({ accountId, container, prefix, paths })
+        .then((ids) => {
+          if (ids.length === 0)
+            flash("Nothing to upload — the folder is empty.");
+          else
+            flash(
+              `Uploading ${ids.length} file${ids.length === 1 ? "" : "s"} to ${dropTargetLabel(container, prefix)}`,
+            );
+        })
+        .catch((err: unknown) => fail(err, "action"))
+        .finally(() => setBusy(null));
+    },
+  };
+
   /* ---------- render ---------- */
 
   if (!account) {
@@ -1950,8 +2036,30 @@ export default function Explorer(props: {
   const blobViewError = actionError ?? blobError;
   const showBlobEmpty =
     !loadingList && !blobViewError && visibleBlobs.length === 0;
+  const dropHere = dropTargetLabel(container, dropFolder ?? blobs?.prefix);
   return (
-    <div className="explorer explorer-panel fade-in">
+    <div
+      className="explorer explorer-panel drop-host fade-in"
+      {...dropHandlers}
+    >
+      {dropActive && (
+        <div
+          className={`drop-overlay${dropFolder ? " on-folder" : ""}`}
+          aria-hidden
+        >
+          <div className="drop-overlay-card">
+            <span className="drop-overlay-icon">
+              <Icon name="upload" size={22} />
+            </span>
+            <span className="drop-overlay-title">
+              {dropFolder ? "Drop into folder" : "Drop to upload"}
+            </span>
+            <span className="drop-overlay-dest" title={dropHere}>
+              {dropHere}
+            </span>
+          </div>
+        </div>
+      )}
       <header className="explorer-toolbar">
         <div className="toolbar-left">
           {historyButtons}
@@ -2236,6 +2344,9 @@ export default function Explorer(props: {
                               selected={selection.has(key)}
                               animate={!virtual}
                               handlers={rowHandlers}
+                              dropTarget={
+                                dropActive && dropFolder === item.name
+                              }
                             />
                           );
                         })}
@@ -2340,15 +2451,18 @@ const BlobRow = memo(function BlobRow(props: {
   selected: boolean;
   animate: boolean;
   handlers: RowHandlers;
+  /** A file drag is hovering this folder row. */
+  dropTarget?: boolean;
 }): React.JSX.Element {
   const { item, rowKey: key, handlers } = props;
   return (
     <tr
       id={props.id}
+      data-drop-folder={item.isPrefix && !item.deleted ? item.name : undefined}
       data-index={props.index}
       aria-rowindex={props.index + 2}
       aria-selected={props.selected}
-      className={`row-in${props.animate ? "" : " no-anim"} clickable${props.selected ? " selected" : ""}${props.active ? " kb-active" : ""}${item.deleted ? " deleted" : ""}`}
+      className={`row-in${props.animate ? "" : " no-anim"} clickable${props.selected ? " selected" : ""}${props.active ? " kb-active" : ""}${item.deleted ? " deleted" : ""}${props.dropTarget ? " drop-target" : ""}`}
       style={
         props.animate
           ? { animationDelay: `${Math.min(props.index, 10) * 12}ms` }

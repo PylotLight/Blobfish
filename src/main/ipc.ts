@@ -639,6 +639,7 @@ export function registerIpc(): void {
         args.container,
         args.prefix,
         args.folder === true,
+        args.paths,
       ),
   );
   ipcMain.handle(
