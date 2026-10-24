@@ -21,10 +21,10 @@ let currentVibrancy: VibrancyName | null = isMac ? DEFAULT_VIBRANCY : null;
 export function getMainWindow(): BrowserWindow | null {
   return mainWindow;
 }
-
-/** electron-vite emits out/preload/index.js or index.mjs depending on config — accept both. */
+/** The sandboxed preload builds as index.cjs; keep fallbacks for legacy build layouts. */
 function resolvePreload(): string {
   const base = join(__dirname, "../preload/index");
+  if (existsSync(`${base}.cjs`)) return `${base}.cjs`;
   if (existsSync(`${base}.js`)) return `${base}.js`;
   return `${base}.mjs`;
 }
@@ -147,7 +147,7 @@ export function createWindow(): BrowserWindow {
     backgroundColor: isMac ? "#00000000" : "#101418",
     webPreferences: {
       preload: resolvePreload(),
-      sandbox: false,
+      sandbox: true,
       contextIsolation: true,
       // Electron 45 (from Surffish): Blobfish never plays media, and the window
       // spends most of its life hidden behind the tray, so it never needs to
