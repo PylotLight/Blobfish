@@ -93,11 +93,15 @@ jobs:
       # dir via `brew tap pylotlight/blobfish <url>`). Done in this job instead
       # of a separate one so the cask bump doesn't wait in the runner queue
       # again. Token pushes don't re-trigger workflows, so no loop.
+      # pre-release tags (anything with a '-', e.g. v0.3.0-beta.1) never touch
+      # the cask, so brew users stay on the latest stable build.
       - uses: oven-sh/setup-bun@v2
+        if: ${{ !contains(github.ref_name, '-') }}
         with:
           bun-version-file: .bun-version
 
       - name: update homebrew cask on main
+        if: ${{ !contains(github.ref_name, '-') }}
         run: |
           version="${GITHUB_REF_NAME#v}"
           sha256=$(shasum -a 256 "dist/Blobfish-${version}-mac-arm64.zip" | cut -d ' ' -f 1)
