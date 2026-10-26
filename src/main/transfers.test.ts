@@ -14,6 +14,8 @@ const CHUNK = Buffer.alloc(16 * 1024, 0x62);
 const uploadOpts: Array<Record<string, unknown>> = [];
 const N = 400;
 let streaming = false;
+let folderCount = N;
+let folderSize = 10;
 
 mock.module("electron", () => ({
   dialog: {
@@ -45,10 +47,10 @@ mock.module("./azure", () => ({
   dataLakeFileSystemClientFromSecret: () => ({}),
   blobContainerClientFromSecret: () => ({
     async *listBlobsFlat() {
-      for (let i = 0; i < N; i++)
+      for (let i = 0; i < folderCount; i++)
         yield {
           name: `logs/part-${i}.json`,
-          properties: { contentLength: 10 },
+          properties: { contentLength: folderSize },
         };
     },
     getBlobClient: () => ({
@@ -168,6 +170,67 @@ describe("transfer queue", () => {
     expect(tr.snapshot().transfers.length).toBe(0);
   });
 
+  test("configuration, cancellation, retry and clearing share one queue state", async () => {
+    const tr = await import("./transfers");
+    streaming = true;
+    folderCount = 3;
+    folderSize = STREAM_SIZE;
+    tr.configureTransfers({ maxParallel: 1, uploadConcurrency: 8 });
+    try {
+      const [activeId, queuedId, otherId] = await tr.enqueueDownload("a", "c", [
+        "logs/",
+      ]);
+      expect(tr.inFlightCounts()).toEqual({ active: 1, queued: 2 });
+      expect(tr.configureTransfers({ uploadConcurrency: 4 })).toMatchObject({
+        active: 1,
+        queued: 2,
+        uploadConcurrency: 4,
+        maxParallel: 1,
+      });
+      const rows = tr.snapshot().transfers;
+      expect(rows.find((row) => row.id === activeId)?.concurrency).toBe(8);
+      expect(rows.find((row) => row.id === queuedId)?.concurrency).toBe(4);
+
+      tr.cancelTransfer(queuedId!);
+      expect(tr.summary()).toMatchObject({ active: 1, queued: 1, finished: 1 });
+      expect(
+        tr.snapshot().transfers.find((row) => row.id === queuedId)?.status,
+      ).toBe("cancelled");
+      tr.retryTransfer(queuedId!);
+      const retried = tr
+        .snapshot()
+        .transfers.find((row) => row.id === queuedId);
+      expect(retried).toMatchObject({
+        status: "queued",
+        doneBytes: 0,
+        concurrency: 4,
+        error: undefined,
+        startedAt: undefined,
+        finishedAt: undefined,
+      });
+      expect(retried?.seq ?? 0).toBeLessThan(0);
+      expect(tr.inFlightCounts()).toEqual({ active: 1, queued: 2 });
+
+      tr.cancelTransfer(queuedId!);
+      tr.clearFinished();
+      expect(
+        tr
+          .snapshot()
+          .transfers.map((row) => row.id)
+          .sort(),
+      ).toEqual([activeId!, otherId!].sort());
+      expect(tr.inFlightCounts()).toEqual({ active: 1, queued: 1 });
+    } finally {
+      await tr.stopTransfersForQuit();
+      streaming = false;
+      folderCount = N;
+      folderSize = 10;
+      tr.clearFinished();
+      tr.configureTransfers({ maxParallel: 2, uploadConcurrency: 8 });
+    }
+    expect(tr.snapshot().transfers).toEqual([]);
+  });
+
   test("uploads stripe across block connections above the single-shot size", async () => {
     const tr = await import("./transfers");
     await tr.enqueueUpload("a", "c");
@@ -176,4 +239,25 @@ describe("transfer queue", () => {
     expect(uploadOpts[0]!.maxSingleShotSize).toBe(8 * 1024 * 1024);
     expect(uploadOpts[0]!.concurrency).toBe(8);
   });
+});
+
+test("transfers facade retains its complete public API", async () => {
+  const tr = await import("./transfers");
+  const names = [
+    "configureTransfers",
+    "summary",
+    "snapshot",
+    "enqueueUpload",
+    "enqueueDownload",
+    "cancelTransfer",
+    "cancelAll",
+    "retryTransfer",
+    "clearFinished",
+    "inFlightCounts",
+    "stopTransfersForQuit",
+  ] as const;
+  expect(Object.keys(tr).sort()).toEqual([...names].sort());
+  for (const name of names) {
+    expect(typeof tr[name]).toBe("function");
+  }
 });
