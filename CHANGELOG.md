@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-beta.2] - 2026-10-26
+
+### Changed
+
+- Split big modules behind stable facades (#41) ([40adb56](https://github.com/PylotLight/Blobfish/commit/40adb5667eacecb899845c8f8dc0d53c74c2522a))
+
+### Documentation
+
+- Big-file cleanup design (round 1: Explorer, App, azure, transfers) ([b167912](https://github.com/PylotLight/Blobfish/commit/b1679127a663e2bea32a062c972a6d092fb87651))
+
+### Fixed
+
+- **(security)** Sandbox main window preload (#39) ([bd881d2](https://github.com/PylotLight/Blobfish/commit/bd881d2feed052091a0a4ffe4efc1c2988517cb6))
+- **(ci)** Accept Electron alpha pins (#40) ([e215f7a](https://github.com/PylotLight/Blobfish/commit/e215f7af73bc22d4301f107ee0f066ebf3bdf567))
+
+### Other
+
+- Add alt logos ([fb9399e](https://github.com/PylotLight/Blobfish/commit/fb9399e9a3c0544455067b7a27f20983962a97da))
+
 ## [0.2.10] - 2026-10-23
 
 ### Added
@@ -206,6 +225,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Blobfish identity on starter template (config, package, readme) ([9718d04](https://github.com/PylotLight/Blobfish/commit/9718d04614759cf98264fabd561785edc44b67a8))
 - Add app build/icon assets ([d4780b7](https://github.com/PylotLight/Blobfish/commit/d4780b7d445fc77be83edf8161ff639de448e3cb))
 
+[0.3.0-beta.2]: https://github.com/PylotLight/Blobfish/compare/v0.3.0-beta.1...v0.3.0-beta.2
 [0.2.10]: https://github.com/PylotLight/Blobfish/compare/v0.2.9...v0.2.10
 [0.2.9]: https://github.com/PylotLight/Blobfish/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/PylotLight/Blobfish/compare/v0.2.7...v0.2.8
