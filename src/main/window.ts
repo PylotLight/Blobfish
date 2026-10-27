@@ -149,11 +149,8 @@ export function createWindow(): BrowserWindow {
       preload: resolvePreload(),
       sandbox: true,
       contextIsolation: true,
-      // Electron 45 (from Surffish): Blobfish never plays media, and the window
-      // spends most of its life hidden behind the tray, so it never needs to
-      // hold a screen/system wake lock. backgroundThrottling stays on (default):
-      // transfers run in main, so a hidden renderer can be throttled freely.
-      disableWakeLocks: true,
+      // Keep background throttling enabled (the default): transfers run in main,
+      // so a hidden renderer can be throttled freely.
     },
   });
 
