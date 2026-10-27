@@ -4477,6 +4477,64 @@ th.wide {
   background: rgba(126, 226, 168, 0.35);
 }
 
+.csv-copy-col {
+  width: 144px;
+}
+
+.csv-table thead th.csv-copy-heading,
+.csv-table tbody td.csv-copy-cell {
+  position: sticky;
+  right: 0;
+  border-left: 1px solid var(--border);
+  background: rgba(24, 30, 41, 0.98);
+}
+
+.csv-table thead th.csv-copy-heading {
+  z-index: 4;
+  min-width: 144px;
+}
+
+.csv-table tbody td.csv-copy-cell {
+  z-index: 1;
+  padding: 4px 6px;
+}
+
+.csv-table tbody tr:hover td.csv-copy-cell {
+  background: rgba(24, 38, 42, 0.98);
+}
+
+.csv-copy-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.csv-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--fs-2xs);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.csv-copy-btn:hover,
+.csv-copy-btn:focus-visible {
+  border-color: rgba(126, 226, 168, 0.32);
+  background: rgba(126, 226, 168, 0.1);
+  color: var(--mint);
+}
+
+.preview-copy-notice {
+  color: var(--mint);
+}
+
 /* ---------- Version history ---------- */
 
 .version-list {

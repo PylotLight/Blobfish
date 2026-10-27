@@ -387,3 +387,12 @@ export function displayableCsvRows(
   if (parsed.rows.length === 0) return { rows: [], pending: true };
   return { rows: parsed.rows.slice(0, -1), pending: true };
 }
+
+/** Serialize one preview row as TSV, quoting cells with tabs or line breaks. */
+export function serializeTsvRow(values: readonly string[]): string {
+  return values
+    .map((value) =>
+      /[\t\r\n"]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value,
+    )
+    .join("\t");
+}
