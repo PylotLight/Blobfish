@@ -58,6 +58,9 @@ export function mapHierarchySegment(
     // Zero-byte `folder/` marker blobs (created by New Folder) surface as folders.
     if (b.name.endsWith("/") && (b.properties?.contentLength ?? 0) === 0) {
       const full = b.name.replace(/\/$/, "");
+      // The current folder's marker is not a child. Showing it creates a
+      // duplicate-looking row whose folder key can delete this whole prefix.
+      if (full === effective) continue;
       items.push({ name: full, leaf: leafOf(full, effective), isPrefix: true });
       continue;
     }

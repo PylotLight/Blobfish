@@ -18,6 +18,7 @@ describe("mapHierarchySegment", () => {
   test("folders first, leaves relative to the folder, marker blobs become folders", () => {
     const blobPrefixes = [{ name: "logs/2026/" }] as BlobPrefix[];
     const blobItems = [
+      { name: "logs/", properties: props(0) },
       { name: "logs/b.txt", properties: props(5) },
       { name: "logs/a.txt", properties: props(3), deleted: true },
       { name: "logs/empty/", properties: props(0) },
