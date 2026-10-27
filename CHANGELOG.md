@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-beta.3] - 2026-10-27
+
+### Added
+
+- Add copy actions to CSV preview rows (#43) ([85e8f3b](https://github.com/PylotLight/Blobfish/commit/85e8f3bfff21a8846aa41f6347e9e3350320d6a1))
+
+### Documentation
+
+- Refresh Blobfish README product page ([6da8ec4](https://github.com/PylotLight/Blobfish/commit/6da8ec401a2905919c83de95c06feeb831a7b88b))
+
+### Fixed
+
+- Harden blob move and copy operations ([d846bb9](https://github.com/PylotLight/Blobfish/commit/d846bb9a27223fdba595b01000a2d205b011d763))
+
 ## [0.3.0-beta.2] - 2026-10-26
 
 ### Changed
@@ -225,6 +239,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Blobfish identity on starter template (config, package, readme) ([9718d04](https://github.com/PylotLight/Blobfish/commit/9718d04614759cf98264fabd561785edc44b67a8))
 - Add app build/icon assets ([d4780b7](https://github.com/PylotLight/Blobfish/commit/d4780b7d445fc77be83edf8161ff639de448e3cb))
 
+[0.3.0-beta.3]: https://github.com/PylotLight/Blobfish/compare/v0.3.0-beta.2...v0.3.0-beta.3
 [0.3.0-beta.2]: https://github.com/PylotLight/Blobfish/compare/v0.3.0-beta.1...v0.3.0-beta.2
 [0.2.10]: https://github.com/PylotLight/Blobfish/compare/v0.2.9...v0.2.10
 [0.2.9]: https://github.com/PylotLight/Blobfish/compare/v0.2.8...v0.2.9
