@@ -12,7 +12,7 @@ A focused desktop explorer for browsing, moving, previewing and transferring blo
 [![License: MIT](https://img.shields.io/github/license/PylotLight/Blobfish?style=flat-square)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/PylotLight/Blobfish/ci.yml?branch=main&style=flat-square&label=ci)](https://github.com/PylotLight/Blobfish/actions/workflows/ci.yml)
 
-[![Download for macOS](https://img.shields.io/badge/Download-macOS%20(Apple%20silicon)-0A84FF?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/PylotLight/Blobfish/releases/latest)
+[![Download for macOS](<https://img.shields.io/badge/Download-macOS%20(Apple%20silicon)-0A84FF?style=for-the-badge&logo=apple&logoColor=white>)](https://github.com/PylotLight/Blobfish/releases/latest)
 [![Install with Homebrew](https://img.shields.io/badge/Install-Homebrew-FBB040?style=for-the-badge&logo=homebrew&logoColor=black)](#install)
 
 [Features](#what-it-does) · [Screenshots](#screenshots) · [Install](#install) · [Privacy](#privacy) · [Development](#development)

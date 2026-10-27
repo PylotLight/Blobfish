@@ -9,6 +9,7 @@ import {
   displayableCsvRows,
   extOf,
   parseCsv,
+  serializeTsvRow,
 } from "../../../shared/preview";
 import type { PreviewFlavor, PreviewResult } from "../../../shared/types";
 import { stripIpcWrapper } from "./errors";
@@ -51,6 +52,7 @@ export default function PreviewDialog(props: {
   const [colWidths, setColWidths] = useState<Array<number | undefined>>([]);
   /** Which column's options popover is open (filter icon). */
   const [openCol, setOpenCol] = useState<number | null>(null);
+  const [copyNotice, setCopyNotice] = useState("");
 
   // Fresh file → fresh filters/sort/widths.
   useEffect(() => {
@@ -59,6 +61,7 @@ export default function PreviewDialog(props: {
     setColFilters([]);
     setColWidths([]);
     setOpenCol(null);
+    setCopyNotice("");
   }, [accountId, container, name]);
 
   // Outside-click / Escape dismisses the column options popover.
@@ -219,6 +222,33 @@ export default function PreviewDialog(props: {
       next[ci] = value;
       return next;
     });
+  }
+
+  async function copyCsvRow(
+    row: readonly string[],
+    includeHeaders: boolean,
+    displayedRow: number,
+  ): Promise<void> {
+    const values = Array.from({ length: colCount }, (_, ci) => row[ci] ?? "");
+    const rowText = serializeTsvRow(values);
+    const textToCopy = includeHeaders
+      ? `${serializeTsvRow(
+          Array.from(
+            { length: colCount },
+            (_, ci) => header[ci] || `col${ci + 1}`,
+          ),
+        )}\n${rowText}`
+      : rowText;
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setCopyNotice(
+        `Copied visible row ${displayedRow}${includeHeaders ? " with headers" : ""}.`,
+      );
+    } catch {
+      setCopyNotice(
+        "Clipboard access failed. Try copying from the app window.",
+      );
+    }
   }
 
   /** Content-based widths + numeric detection over a sample of loaded rows. */
@@ -463,6 +493,7 @@ export default function PreviewDialog(props: {
                   {Array.from({ length: colCount }, (_, i) => (
                     <col key={i} style={{ width: `${widthOf(i)}px` }} />
                   ))}
+                  <col className="csv-copy-col" />
                 </colgroup>
                 <thead>
                   <tr>
@@ -578,6 +609,7 @@ export default function PreviewDialog(props: {
                         </th>
                       );
                     })}
+                    <th className="csv-copy-heading">Copy</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -592,6 +624,28 @@ export default function PreviewDialog(props: {
                           {r[ci] ?? ""}
                         </td>
                       ))}
+                      <td className="csv-copy-cell">
+                        <div className="csv-copy-actions">
+                          <button
+                            type="button"
+                            className="csv-copy-btn"
+                            title="Copy this row as tab-separated text"
+                            aria-label={`Copy visible row ${ri + 1}`}
+                            onClick={() => void copyCsvRow(r, false, ri + 1)}
+                          >
+                            <Icon name="copy" size={12} /> Row
+                          </button>
+                          <button
+                            type="button"
+                            className="csv-copy-btn"
+                            title="Copy this row with column headers"
+                            aria-label={`Copy visible row ${ri + 1} with headers`}
+                            onClick={() => void copyCsvRow(r, true, ri + 1)}
+                          >
+                            <Icon name="copy" size={12} /> + headers
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -641,6 +695,11 @@ export default function PreviewDialog(props: {
             {csv?.pending ? " · last row continues…" : ""}
             {loadingMore ? " · loading…" : ""}
           </span>
+          {copyNotice && (
+            <span className="muted small preview-copy-notice" role="status">
+              {copyNotice}
+            </span>
+          )}
           <div className="row end preview-foot-actions">
             {canMore && (
               <button
