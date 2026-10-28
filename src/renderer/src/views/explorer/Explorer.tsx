@@ -46,7 +46,7 @@ import {
   type ConfirmState,
   type PromptState,
 } from "./useBlobActions";
-import { useExplorerNav } from "./useExplorerNav";
+import { createExplorerNav } from "./useExplorerNav";
 import {
   onExplorerAction,
   publishExplorer,
@@ -261,7 +261,7 @@ export default function Explorer(props: {
     goForward,
     goUp,
     retryCurrent,
-  } = useExplorerNav({
+  } = createExplorerNav({
     accountId,
     scoped,
     containerRef,
@@ -399,10 +399,12 @@ export default function Explorer(props: {
     const sorted = [...filtered];
     sorted.sort((a, b) => {
       if (a.isPrefix !== b.isPrefix) return a.isPrefix ? -1 : 1;
-      let cmp = 0;
-      if (sortKey === "name") cmp = collator.compare(a.leaf, b.leaf);
-      else if (sortKey === "size") cmp = (a.size ?? -1) - (b.size ?? -1);
-      else cmp = (a.lastModified ?? "").localeCompare(b.lastModified ?? "");
+      const cmp =
+        sortKey === "name"
+          ? collator.compare(a.leaf, b.leaf)
+          : sortKey === "size"
+            ? (a.size ?? -1) - (b.size ?? -1)
+            : (a.lastModified ?? "").localeCompare(b.lastModified ?? "");
       return cmp * sortDir;
     });
     return sorted;
@@ -586,8 +588,7 @@ export default function Explorer(props: {
       click: (e, key) =>
         rowActions.current.selectRow(e, key, orderedKeysRef.current),
       open: (item) => rowActions.current.openRow(item),
-      context: (e, key) =>
-        rowActions.current.openCtx(e, key, orderedKeysRef.current),
+      context: (e, key) => rowActions.current.openCtx(e, key),
       toggle: (key) => rowActions.current.toggleOne(key),
     }),
     [],
@@ -627,11 +628,7 @@ export default function Explorer(props: {
     }
   }
 
-  function openCtx(
-    e: React.MouseEvent,
-    key: string | null,
-    orderedKeys: string[],
-  ): void {
+  function openCtx(e: React.MouseEvent, key: string | null): void {
     e.preventDefault();
     e.stopPropagation();
     if (key === null) {
@@ -1275,7 +1272,7 @@ export default function Explorer(props: {
             className="explorer-body-scroll"
             ref={bodyScrollRef}
             onScroll={virtual ? onBodyScroll : undefined}
-            onContextMenu={(e) => openCtx(e, null, [])}
+            onContextMenu={(e) => openCtx(e, null)}
           >
             <ToolbarAddress {...presentationProps} />
             {errorCalloutFor("blobs")}

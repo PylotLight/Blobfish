@@ -162,7 +162,6 @@ export function FolderPickerDialog(props: {
       .finally(() => {
         if (id === seq.current) setLoading(false);
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefix, props.accountId, props.container]);
 
   const crumbs = prefix === "" ? [] : prefix.split("/").filter(Boolean);

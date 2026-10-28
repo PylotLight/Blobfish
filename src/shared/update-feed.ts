@@ -294,7 +294,12 @@ export function releaseNotesToText(html: string): string {
     .replace(/<[^>]*>/g, "");
   text = decodeXmlEntities(text)
     .replace(/\r\n?/g, "\n")
-    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
+    .replace(/[\s\S]/g, (char) => {
+      const code = char.charCodeAt(0);
+      return (code < 0x20 && code !== 0x09 && code !== 0x0a) || code === 0x7f
+        ? ""
+        : char;
+    })
     .split("\n")
     .map((line) => line.replace(/[ \t\u00a0]+/g, " ").trim())
     .join("\n")

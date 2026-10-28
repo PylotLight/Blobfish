@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Dispatch, SetStateAction } from "react";
 import type { StorageContainer } from "../../../../shared/types";
-import { useExplorerNav, type ExplorerNavContext } from "./useExplorerNav";
+import { createExplorerNav, type ExplorerNavContext } from "./useExplorerNav";
 
 type State<T> = { value: T };
 
@@ -24,7 +24,7 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-describe("useExplorerNav", () => {
+describe("createExplorerNav", () => {
   test("ignores stale container results and errors, including their loading and selection side effects", async () => {
     const requests = [
       deferred<StorageContainer[]>(),
@@ -77,7 +77,7 @@ describe("useExplorerNav", () => {
     };
 
     try {
-      const nav = useExplorerNav(base);
+      const nav = createExplorerNav(base);
       nav.loadContainers("account");
       nav.loadContainers("account");
       const newest = [{ name: "newest" }];
@@ -145,39 +145,39 @@ describe("useExplorerNav", () => {
       setActionError: () => undefined,
       fail: () => undefined,
     };
-    const render = () =>
-      useExplorerNav({
+    const createNav = () =>
+      createExplorerNav({
         ...base,
         navPrefix: navPrefix.value,
         backHist: backHist.value,
         fwdHist: fwdHist.value,
       });
 
-    render().go("alpha");
+    createNav().go("alpha");
     expect(navPrefix.value).toBe("alpha");
     expect(navPrefixRef.current).toBe("alpha");
     expect(backHist.value).toEqual([""]);
     expect(fwdHist.value).toEqual([]);
 
-    render().go("alpha/beta");
+    createNav().go("alpha/beta");
     expect(navPrefix.value).toBe("alpha/beta");
     expect(navPrefixRef.current).toBe("alpha/beta");
     expect(backHist.value).toEqual(["", "alpha"]);
 
-    render().goBack();
+    createNav().goBack();
     expect(navPrefix.value).toBe("alpha");
     expect(navPrefixRef.current).toBe("alpha");
     expect(backHist.value).toEqual([""]);
     expect(fwdHist.value).toEqual(["alpha/beta"]);
 
-    render().goForward();
+    createNav().goForward();
     expect(navPrefix.value).toBe("alpha/beta");
     expect(navPrefixRef.current).toBe("alpha/beta");
     expect(backHist.value).toEqual(["", "alpha"]);
     expect(fwdHist.value).toEqual([]);
 
     const switchCalls: (string | null)[] = [];
-    const scopedRootNav = useExplorerNav({
+    const scopedRootNav = createExplorerNav({
       ...base,
       navPrefix: "",
       backHist: [],

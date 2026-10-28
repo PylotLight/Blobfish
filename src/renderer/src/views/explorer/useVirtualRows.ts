@@ -93,7 +93,7 @@ export function useVirtualRows(rowCount: number): VirtualRows {
     }
     const h = rowPitch(tops, 0);
     if (h > 0 && Math.abs(h - rowHeight) > 0.1) setRowHeight(h);
-  });
+  }, [virtual, takeSyncMeasure, onBodyScroll, measureViewport, rowHeight]);
 
   const { start: windowStart, end: windowEnd } = virtual
     ? virtualWindow(

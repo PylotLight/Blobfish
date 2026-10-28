@@ -384,12 +384,12 @@ export default function TransfersPanel(props: {
     }, 120);
   }
 
-  function cancelScheduled(): void {
+  const cancelScheduled = useCallback((): void => {
     if (hoverTimer.current !== null) {
       window.clearTimeout(hoverTimer.current);
       hoverTimer.current = null;
     }
-  }
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -469,7 +469,7 @@ export default function TransfersPanel(props: {
         (parseFloat(getComputedStyle(row).marginBottom) || 0);
     }
     if (h > 0 && Math.abs(h - rowPitch) > 0.1) setRowPitch(h);
-  });
+  }, [virtual, takeSyncMeasure, onPanelScroll, measureViewport, rowPitch]);
 
   // ⌘K: toggle the dock / jump to activity (pinned, so it stays open even when empty).
   useEffect(
@@ -489,7 +489,7 @@ export default function TransfersPanel(props: {
           );
         }
       }),
-    [expanded, pinned],
+    [cancelScheduled, expanded, pinned],
   );
 
   // Pop open the moment work starts, like a download shelf.

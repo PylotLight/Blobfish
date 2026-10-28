@@ -7,11 +7,11 @@ import type {
   StorageContainer,
 } from "../../../../shared/types";
 import type { useBlobActions } from "./useBlobActions";
-import type { useExplorerNav } from "./useExplorerNav";
+import type { createExplorerNav } from "./useExplorerNav";
 import type { PreviewTabs } from "./usePreviewTabs";
 
 type Actions = ReturnType<typeof useBlobActions>;
-type Navigation = ReturnType<typeof useExplorerNav>;
+type Navigation = ReturnType<typeof createExplorerNav>;
 export interface ExplorerPresentationState
   extends
     Pick<

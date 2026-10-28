@@ -15,7 +15,6 @@ import {
   getExplorerSnapshot,
   loadLocations,
   sendExplorerAction,
-  sendPanelAction,
   type ExplorerAction,
   type PanelAction,
 } from "../palette-bus";
@@ -395,7 +394,6 @@ export default function CommandPalette({
   // Built once per open: the explorer can't change underneath a modal palette.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const commands = useMemo(() => buildCommands(app, selected, theme), []);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const { places, targets } = useMemo(
     () => buildPlaces(accounts, containersCache),
     [accounts, containersCache],

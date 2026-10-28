@@ -31,7 +31,7 @@ export interface ExplorerNavContext {
 }
 
 /** Navigation callbacks retain the root's refs and lifecycle/request ownership. */
-export function useExplorerNav({
+export function createExplorerNav({
   accountId,
   scoped,
   containerRef,
