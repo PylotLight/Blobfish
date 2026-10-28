@@ -160,9 +160,11 @@ the runner, rather than the runner importing the queue and creating a cycle.
 1. **Extract by stable identifiers** (declaration names, JSX class markers),
    not line numbers — the line ranges above are as of `277e070`, orientation
    only.
-2. **Each task ends green:** `bun run format:check && bun run typecheck &&
-bun test && bun run build`. Record the `bun test` pass/fail counts before
-   starting; a new failure is a regression, the same set is not.
+2. **Each task ends green:** `bun lint && bun run format:check && bun run
+typecheck && bun test && bun run build && bun run check:css`. Run `bun lint`
+   with Bun canary (`bun upgrade --canary`); CI keeps it isolated from the pinned
+   verification job. Record the `bun test` pass/fail counts before starting; a new
+   failure is a regression, the same set is not.
 3. **One commit per task**, conventional prefix by area:
    `refactor(azure): …`, `refactor(transfers): …`, `refactor(explorer): …`,
    `refactor(app): …`.

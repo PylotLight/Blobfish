@@ -28,3 +28,14 @@ jobs:
       - run: bun run typecheck
       - run: bun run build
       - run: bun run check:css
+
+  lint:
+    # Keep the built-in linter isolated from the repository-pinned verify job.
+    name: "Blobfish · CI · lint · Bun canary"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: canary
+      - run: bun lint
