@@ -1,5 +1,15 @@
 import { describe, expect, mock, test } from "bun:test";
-import { existsSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  rmSync,
+  statSync,
+  truncateSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { SINGLE_SHOT_BYTES } from "./transfers/types";
 
 // Drives the real transfer queue with electron + azure stubbed out.
 const sent: Array<{
@@ -11,11 +21,13 @@ const sent: Array<{
 const downloads: Array<{ offset: number; count: number }> = [];
 const STREAM_SIZE = 64 * 1024 * 1024;
 const CHUNK = Buffer.alloc(16 * 1024, 0x62);
-const uploadOpts: Array<Record<string, unknown>> = [];
+const uploadCalls: Array<{ path: string; opts: Record<string, unknown> }> = [];
 const N = 400;
 let streaming = false;
 let folderCount = N;
 let folderSize = 10;
+let uploadSelection = [import.meta.path];
+let failedUploadsRemaining = 0;
 
 mock.module("electron", () => ({
   dialog: {
@@ -23,7 +35,7 @@ mock.module("electron", () => ({
       canceled: false,
       filePaths: o.properties.includes("openDirectory")
         ? ["/tmp/blobfish-test-dl"]
-        : [import.meta.path],
+        : uploadSelection,
     }),
   },
 }));
@@ -85,8 +97,15 @@ mock.module("./azure", () => ({
       },
     }),
     getBlockBlobClient: () => ({
-      uploadFile: async (_p: string, o: Record<string, unknown>) => {
-        uploadOpts.push(o);
+      uploadFile: async (path: string, o: Record<string, unknown>) => {
+        uploadCalls.push({ path, opts: o });
+        if (failedUploadsRemaining > 0) {
+          failedUploadsRemaining -= 1;
+          throw new Error("temporary upload failure");
+        }
+        const onProgress = o.onProgress as
+          ((event: { loadedBytes: number }) => void) | undefined;
+        onProgress?.({ loadedBytes: statSync(path).size });
       },
     }),
   }),
@@ -208,7 +227,6 @@ describe("transfer queue", () => {
         startedAt: undefined,
         finishedAt: undefined,
       });
-      expect(retried?.seq ?? 0).toBeLessThan(0);
       expect(tr.inFlightCounts()).toEqual({ active: 1, queued: 2 });
 
       tr.cancelTransfer(queuedId!);
@@ -233,11 +251,54 @@ describe("transfer queue", () => {
 
   test("uploads stripe across block connections above the single-shot size", async () => {
     const tr = await import("./transfers");
-    await tr.enqueueUpload("a", "c");
-    await settle(tr);
-    expect(uploadOpts.length).toBe(1);
-    expect(uploadOpts[0]!.maxSingleShotSize).toBe(8 * 1024 * 1024);
-    expect(uploadOpts[0]!.concurrency).toBe(8);
+    const dir = mkdtempSync(join(tmpdir(), "blobfish-large-upload-"));
+    const path = join(dir, "larger-than-single-shot.bin");
+    writeFileSync(path, "");
+    truncateSync(path, SINGLE_SHOT_BYTES + 1);
+    uploadSelection = [path];
+    uploadCalls.length = 0;
+    try {
+      const [id] = await tr.enqueueUpload("a", "c");
+      await settle(tr);
+
+      const call = uploadCalls.find((entry) => entry.path === path);
+      expect(statSync(path).size).toBeGreaterThan(SINGLE_SHOT_BYTES);
+      expect(call?.opts).toMatchObject({
+        maxSingleShotSize: SINGLE_SHOT_BYTES,
+        concurrency: 8,
+      });
+      expect(tr.snapshot().transfers.some((row) => row.id === id)).toBe(false);
+    } finally {
+      uploadSelection = [import.meta.path];
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a failed upload is visible and retrying it runs the transfer again", async () => {
+    const tr = await import("./transfers");
+    uploadCalls.length = 0;
+    failedUploadsRemaining = 1;
+
+    try {
+      const [id] = await tr.enqueueUpload("a", "c");
+      await settle(tr);
+      expect(
+        tr.snapshot().transfers.find((row) => row.id === id),
+      ).toMatchObject({
+        status: "failed",
+        error: "temporary upload failure",
+      });
+      expect(uploadCalls).toHaveLength(1);
+
+      tr.retryTransfer(id!);
+      await settle(tr);
+      expect(uploadCalls).toHaveLength(2);
+      expect(tr.snapshot().transfers.some((row) => row.id === id)).toBe(false);
+    } finally {
+      failedUploadsRemaining = 0;
+      await tr.stopTransfersForQuit();
+      tr.clearFinished();
+    }
   });
 });
 

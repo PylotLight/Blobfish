@@ -40,10 +40,10 @@ describe("createExplorerNav", () => {
 
     const containers: State<StorageContainer[]> = { value: [{ name: "old" }] };
     const selected: State<string | null> = { value: "old" };
+    const selection: State<Set<string>> = { value: new Set(["blob.txt"]) };
     const loading: boolean[] = [];
     const failures: unknown[] = [];
     const changes: (string | null)[] = [];
-    const selections: Set<string>[] = [];
     const containerRef = { current: "old" as string | null };
     const containerSeq = { current: 0 };
     const base: ExplorerNavContext = {
@@ -67,7 +67,7 @@ describe("createExplorerNav", () => {
       setNavPrefix: () => undefined,
       setBackHist: () => undefined,
       setFwdHist: () => undefined,
-      setSelection: (value) => selections.push(value),
+      setSelection: setter(selection),
       setLoadingContainers: (value) => loading.push(value),
       setContainersError: () => undefined,
       setContainers: setter(containers),
@@ -103,7 +103,7 @@ describe("createExplorerNav", () => {
       expect(containerRef.current).toBe("newest");
       expect(loading).toEqual([true, true, false]);
       expect(changes).toEqual(["newest"]);
-      expect(selections).toEqual([]);
+      expect(selection.value).toEqual(new Set(["blob.txt"]));
       expect(failures).toEqual([]);
     } finally {
       if (previousWindow === undefined)
@@ -116,8 +116,8 @@ describe("createExplorerNav", () => {
     const navPrefix: State<string> = { value: "" };
     const backHist: State<string[]> = { value: [] };
     const fwdHist: State<string[]> = { value: [] };
+    const selection: State<Set<string>> = { value: new Set(["first.txt"]) };
     const navPrefixRef = { current: "" };
-    const selections: Set<string>[] = [];
     const base: ExplorerNavContext = {
       accountId: "account",
       scoped: true,
@@ -137,7 +137,7 @@ describe("createExplorerNav", () => {
       setNavPrefix: setter(navPrefix),
       setBackHist: setter(backHist),
       setFwdHist: setter(fwdHist),
-      setSelection: (value) => selections.push(value),
+      setSelection: setter(selection),
       setLoadingContainers: () => undefined,
       setContainersError: () => undefined,
       setContainers: () => undefined,
@@ -154,12 +154,15 @@ describe("createExplorerNav", () => {
       });
 
     createNav().go("alpha");
+    expect(selection.value).toEqual(new Set());
     expect(navPrefix.value).toBe("alpha");
     expect(navPrefixRef.current).toBe("alpha");
     expect(backHist.value).toEqual([""]);
     expect(fwdHist.value).toEqual([]);
 
+    selection.value = new Set(["alpha/file.txt"]);
     createNav().go("alpha/beta");
+    expect(selection.value).toEqual(new Set());
     expect(navPrefix.value).toBe("alpha/beta");
     expect(navPrefixRef.current).toBe("alpha/beta");
     expect(backHist.value).toEqual(["", "alpha"]);
@@ -170,7 +173,9 @@ describe("createExplorerNav", () => {
     expect(backHist.value).toEqual([""]);
     expect(fwdHist.value).toEqual(["alpha/beta"]);
 
+    selection.value = new Set(["alpha/file.txt"]);
     createNav().goForward();
+    expect(selection.value).toEqual(new Set());
     expect(navPrefix.value).toBe("alpha/beta");
     expect(navPrefixRef.current).toBe("alpha/beta");
     expect(backHist.value).toEqual(["", "alpha"]);
@@ -184,10 +189,11 @@ describe("createExplorerNav", () => {
       fwdHist: [],
       props: { onContainerChange: (container) => switchCalls.push(container) },
     });
+    selection.value = new Set(["preserved.txt"]);
     scopedRootNav.goUp();
     expect(navPrefix.value).toBe("alpha/beta");
     expect(navPrefixRef.current).toBe("alpha/beta");
     expect(switchCalls).toEqual([]);
-    expect(selections).toHaveLength(4);
+    expect(selection.value).toEqual(new Set(["preserved.txt"]));
   });
 });
