@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-beta.4] - 2026-11-10
+
+### Fixed
+
+- Resolve Bun canary lint findings ([54176fe](https://github.com/PylotLight/Blobfish/commit/54176fef811237871f44b5ee47cb8403615ed65a))
+
+### Other
+
+- Merge chore/deps-electron-46-alpha5 into main ([e63a4c0](https://github.com/PylotLight/Blobfish/commit/e63a4c01c7537d6a101a2e35a5b05b78199547a6))
+
 ## [0.3.0-beta.3] - 2026-10-27
 
 ### Added
@@ -239,6 +249,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Blobfish identity on starter template (config, package, readme) ([9718d04](https://github.com/PylotLight/Blobfish/commit/9718d04614759cf98264fabd561785edc44b67a8))
 - Add app build/icon assets ([d4780b7](https://github.com/PylotLight/Blobfish/commit/d4780b7d445fc77be83edf8161ff639de448e3cb))
 
+[0.3.0-beta.4]: https://github.com/PylotLight/Blobfish/compare/v0.3.0-beta.3...v0.3.0-beta.4
 [0.3.0-beta.3]: https://github.com/PylotLight/Blobfish/compare/v0.3.0-beta.2...v0.3.0-beta.3
 [0.3.0-beta.2]: https://github.com/PylotLight/Blobfish/compare/v0.3.0-beta.1...v0.3.0-beta.2
 [0.2.10]: https://github.com/PylotLight/Blobfish/compare/v0.2.9...v0.2.10
