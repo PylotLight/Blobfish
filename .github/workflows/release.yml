@@ -30,7 +30,7 @@ jobs:
           # (plus a libfuse apt step for AppImage — see git history).
           # arm64 only (Apple Silicon) — no x64/Intel builds.
           - name: macos
-            os: macos-14
+            os: macos-26
             target: --mac
     runs-on: ${{ matrix.os }}
     steps:
