@@ -507,6 +507,84 @@ export default function App(): React.JSX.Element {
         <Icon name="sidebar" size={16} />
       </button>
       {sidebarCollapsed && (
+        <nav className="sidebar-rail" aria-label="Quick navigation">
+          <span className="sidebar-rail-brand" aria-hidden="true">
+            <img src={logoUrl} alt="" />
+          </span>
+          <button
+            className={`rail-btn${selectedId === null && !showSettings ? " is-current" : ""}`}
+            aria-label="Home"
+            aria-current={
+              selectedId === null && !showSettings ? "page" : undefined
+            }
+            title="Home"
+            onClick={() => {
+              setShowSettings(false);
+              goHome();
+            }}
+          >
+            <Icon name="home" size={17} />
+          </button>
+          <button
+            className="rail-btn rail-new"
+            aria-label="New connection"
+            title="New connection"
+            onClick={() => {
+              peek.dismiss();
+              setShowWizard(true);
+            }}
+          >
+            <Icon name="plus" size={17} />
+          </button>
+          {accounts.length > 0 && (
+            <div className="rail-divider" aria-hidden="true" />
+          )}
+          <div className="rail-accounts" aria-label="Storage accounts">
+            {accounts.map((account) => (
+              <button
+                key={account.id}
+                className={`rail-btn${selectedId === account.id && !showSettings ? " is-current" : ""}`}
+                aria-label={account.name}
+                aria-current={
+                  selectedId === account.id && !showSettings
+                    ? "page"
+                    : undefined
+                }
+                title={account.name}
+                onClick={() => {
+                  setShowSettings(false);
+                  selectAccount(account.id);
+                }}
+              >
+                <Icon name="binary" size={17} />
+              </button>
+            ))}
+          </div>
+          <div className="rail-spacer" />
+          <button
+            className={`rail-btn${showSettings ? " is-current" : ""}`}
+            aria-label={updateBadge ? "Settings, update available" : "Settings"}
+            aria-current={showSettings ? "page" : undefined}
+            title="Settings"
+            onClick={() => {
+              peek.dismiss();
+              setShowSettings(true);
+            }}
+          >
+            <Icon name="settings" size={17} />
+            {updateBadge && <span className="update-dot" aria-hidden />}
+          </button>
+          <button
+            className="rail-btn"
+            aria-label="Quit Blobfish"
+            title="Quit Blobfish"
+            onClick={() => window.api.app.quit()}
+          >
+            <Icon name="power" size={17} />
+          </button>
+        </nav>
+      )}
+      {sidebarCollapsed && (
         <div
           className="sidebar-edge"
           aria-hidden

@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from "bun:test";
+import { afterAll, describe, expect, mock, test } from "bun:test";
 import {
   existsSync,
   mkdtempSync,
@@ -28,13 +28,16 @@ let folderCount = N;
 let folderSize = 10;
 let uploadSelection = [import.meta.path];
 let failedUploadsRemaining = 0;
+const downloadDir = mkdtempSync(join(tmpdir(), "blobfish-test-dl-"));
+
+afterAll(() => rmSync(downloadDir, { recursive: true, force: true }));
 
 mock.module("electron", () => ({
   dialog: {
     showOpenDialog: async (_w: unknown, o: { properties: string[] }) => ({
       canceled: false,
       filePaths: o.properties.includes("openDirectory")
-        ? ["/tmp/blobfish-test-dl"]
+        ? [downloadDir]
         : uploadSelection,
     }),
   },
@@ -160,10 +163,8 @@ describe("transfer queue", () => {
     const cancelled = await tr.stopTransfersForQuit();
     streaming = false;
     expect(cancelled).toBe(1);
-    expect(existsSync("/tmp/blobfish-test-dl/big.bin.blobfish-part")).toBe(
-      false,
-    );
-    expect(existsSync("/tmp/blobfish-test-dl/big.bin")).toBe(false);
+    expect(existsSync(join(downloadDir, "big.bin.blobfish-part"))).toBe(false);
+    expect(existsSync(join(downloadDir, "big.bin"))).toBe(false);
     tr.clearFinished();
   });
 
